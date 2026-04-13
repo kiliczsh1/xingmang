@@ -1,7 +1,7 @@
 {
   "name": "novel-creator-server",
-  "version": "1.0.0",
-  "description": "网文创作辅助后端服务",
+  "version": "0.6.4",
+  "description": "星芒创作辅助后端服务",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
