@@ -279,7 +279,7 @@ exit /b 0
 >> "%LAUNCHER_JS%" echo   }, 1500);
 >> "%LAUNCHER_JS%" echo };
 >> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo const main = async () => {
+>> "%LAUNCHER_JS%" echo const main = async () =^> {
 >> "%LAUNCHER_JS%" echo   process.chdir(rootDir);
 >> "%LAUNCHER_JS%" echo   const port = await findPort(3014, 3024);
 >> "%LAUNCHER_JS%" echo   process.env.PORT = String(port);

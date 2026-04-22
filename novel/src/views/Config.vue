@@ -291,6 +291,7 @@ const defaultModelCount = computed(() => models.value.filter(model => model.is_d
 
 onMounted(async () => {
   await fetchProviders()
+  await initializeDefaultProviders()
   await fetchModels()
 })
 
@@ -298,6 +299,214 @@ const fetchProviders = async () => {
   const res = await providerAPI.getAll()
   if (res.success && res.data) {
     providers.value = res.data
+  }
+}
+
+const initializeDefaultProviders = async () => {
+  if (providers.value.length > 0) {
+    return
+  }
+  
+  try {
+    const defaultProviders = [
+      {
+        name: 'DeepSeek',
+        provider_type: 'deepseek',
+        api_key: '',
+        api_url: 'https://api.deepseek.com/v1/chat/completions'
+      },
+      {
+        name: 'SiliconFlow',
+        provider_type: 'other',
+        api_key: '',
+        api_url: 'https://api.siliconflow.cn/v1/chat/completions'
+      },
+      {
+        name: 'bltcy.ai',
+        provider_type: 'other',
+        api_key: '',
+        api_url: 'https://api.bltcy.ai/v1/chat/completions'
+      },
+      {
+        name: 'ModelScope',
+        provider_type: 'other',
+        api_key: '',
+        api_url: 'https://api-inference.modelscope.cn/v1/chat/completions'
+      }
+    ]
+    
+    let deepSeekProviderId: number | null = null
+    let siliconFlowProviderId: number | null = null
+    let modelScopeProviderId: number | null = null
+    let bltcyProviderId: number | null = null
+    
+    for (const provider of defaultProviders) {
+      const res = await providerAPI.create(provider)
+      if (res.success && res.data) {
+        ElMessage.success(`已自动添加 ${provider.name} 服务商，请配置 API 密钥后使用`)
+        
+        if (provider.name === 'DeepSeek') {
+          deepSeekProviderId = res.data.id
+          
+          const deepSeekModels = [
+            {
+              provider_id: res.data.id,
+              name: 'DeepSeek Chat',
+              model: 'deepseek-chat',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 1
+            },
+            {
+              provider_id: res.data.id,
+              name: 'DeepSeek Reasoner',
+              model: 'deepseek-reasoner',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            }
+          ]
+          
+          for (const model of deepSeekModels) {
+            await configAPI.create(model)
+          }
+          
+          ElMessage.success('已为 DeepSeek 添加默认模型：deepseek-chat, deepseek-reasoner')
+        }
+        
+        if (provider.name === 'SiliconFlow') {
+          siliconFlowProviderId = res.data.id
+          
+          const siliconFlowModels = [
+            {
+              provider_id: res.data.id,
+              name: 'GLM-5',
+              model: 'Pro/zai-org/GLM-5',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 1
+            },
+            {
+              provider_id: res.data.id,
+              name: 'DeepSeek-R1',
+              model: 'deepseek-ai/DeepSeek-R1',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            }
+          ]
+          
+          for (const model of siliconFlowModels) {
+            await configAPI.create(model)
+          }
+          
+          ElMessage.success('已为 SiliconFlow 添加默认模型：GLM-5, DeepSeek-R1')
+        }
+        
+        if (provider.name === 'bltcy.ai') {
+          bltcyProviderId = res.data.id
+          
+          const bltcyModels = [
+            {
+              provider_id: res.data.id,
+              name: 'Gemini 3 Pro Preview',
+              model: 'gemini-3-pro-preview',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 1
+            },
+            {
+              provider_id: res.data.id,
+              name: 'Gemini 2.5 Pro',
+              model: 'gemini-2.5-pro',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            },
+            {
+              provider_id: res.data.id,
+              name: 'Gemini 3 Flash Preview',
+              model: 'gemini-3-flash-preview',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            },
+            {
+              provider_id: res.data.id,
+              name: 'Gemini 2.5 Flash Thinking',
+              model: 'gemini-2.5-flash-thinking',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            },
+            {
+              provider_id: res.data.id,
+              name: 'Gemini 2.5 Pro Thinking',
+              model: 'gemini-2.5-pro-thinking-*',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            },
+            {
+              provider_id: res.data.id,
+              name: 'DeepSeek R1',
+              model: 'deepseek-r1-250528',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            }
+          ]
+          
+          for (const model of bltcyModels) {
+            await configAPI.create(model)
+          }
+          
+          ElMessage.success('已为 bltcy.ai 添加默认模型：Gemini 3 Pro Preview, Gemini 2.5 Pro, Gemini 3 Flash Preview, Gemini 2.5 Flash Thinking, Gemini 2.5 Pro Thinking')
+        }
+        
+        if (provider.name === 'ModelScope') {
+          modelScopeProviderId = res.data.id
+          
+          const modelScopeModels = [
+            {
+              provider_id: res.data.id,
+              name: 'Kimi-K2.5',
+              model: 'moonshotai/Kimi-K2.5',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 1
+            },
+            {
+              provider_id: res.data.id,
+              name: 'GLM-5',
+              model: 'ZhipuAI/GLM-5',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            },
+            {
+              provider_id: res.data.id,
+              name: 'GLM-5.1',
+              model: 'ZhipuAI/GLM-5.1',
+              temperature: 0.7,
+              max_tokens: 12800,
+              is_default: 0
+            }
+          ]
+          
+          for (const model of modelScopeModels) {
+            await configAPI.create(model)
+          }
+          
+          ElMessage.success('已为 ModelScope 添加默认模型：Kimi-K2.5, GLM-5, GLM-5.1')
+        }
+      }
+    }
+    
+    await fetchProviders()
+    await fetchModels()
+  } catch (error) {
+    console.error('初始化默认服务商失败:', error)
   }
 }
 

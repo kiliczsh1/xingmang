@@ -176,20 +176,10 @@
           </el-form-item>
 
           <el-form-item v-if="!isPdfImportMode" label="正文" required>
-            <div class="content-mode-field">
-              <span class="content-mode-label">渲染方式</span>
-              <el-radio-group v-model="formData.content_render_mode" size="small">
-                <el-radio-button label="markdown">MD 渲染</el-radio-button>
-                <el-radio-button label="html">HTML 渲染</el-radio-button>
-              </el-radio-group>
-              <span class="content-mode-hint">
-                {{ isMarkdownRenderMode ? '工具栏会插入 Markdown 语法' : '工具栏会插入 HTML 标签' }}
-              </span>
-            </div>
-            <SplitRichTextEditor
+            <ExperienceContentEditor
               v-model="formData.content"
-              :render-mode="formData.content_render_mode"
-              placeholder="请输入正文内容，支持与“创建提示词”中的简介编辑器一致的富文本编辑体验"
+              v-model:render-mode="formData.content_render_mode"
+              placeholder="请输入正文内容，支持 Markdown 语法"
               class="content-editor"
             />
           </el-form-item>
@@ -303,7 +293,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { experienceShareAPI } from '@/api'
 import type { ExperienceShare } from '@/types'
 import SplitRichTextEditor from '@/components/SplitRichTextEditor.vue'
+import ExperienceContentEditor from '@/components/ExperienceContentEditor.vue'
 import PdfPageGallery from '@/components/PdfPageGallery.vue'
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 
 type CreateMode = 'manual' | 'pdf_import'
 type ContentRenderMode = 'markdown' | 'html'
@@ -400,7 +392,6 @@ const stripRichText = (value = '') =>
 const hasMeaningfulContent = (value = '') => stripRichText(value).length > 0
 
 const isPdfImportMode = computed(() => formData.value.create_type === 'pdf_import')
-const isMarkdownRenderMode = computed(() => formData.value.content_render_mode === 'markdown')
 
 const currentPdfDisplay = computed(() => {
   if (localPdfAttachment.value) {
@@ -949,25 +940,6 @@ watch(
 .content-editor {
   width: 100%;
   max-height: 820px;
-}
-
-.content-mode-field {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.content-mode-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-}
-
-.content-mode-hint {
-  font-size: 12px;
-  color: #64748b;
 }
 
 .cover-field {

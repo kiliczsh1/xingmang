@@ -41,6 +41,8 @@ export interface Prompt {
   content: string
   category: string
   order_num: number
+  card_type?: 'normal' | 'encrypted'
+  password?: string | null
   fields?: Array<{
     name: string
     label: string
@@ -238,4 +240,56 @@ export interface Volume {
   order_num: number
   created_at: string
   updated_at: string
+}
+
+export type GraphEntityType = 'character' | 'location' | 'item' | 'faction' | 'event' | 'skill' | 'clue'
+
+export interface GraphEntity {
+  id: number
+  book_id: number
+  name: string
+  type: GraphEntityType
+  description: string
+  metadata: Record<string, any>
+  created_at: string
+  updated_at: string
+}
+
+export interface GraphRelation {
+  id: number
+  book_id: number
+  source_id: number
+  target_id: number
+  relation_type: string
+  description: string
+  evidence: string
+  confidence: number
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeGraphData {
+  entities: GraphEntity[]
+  relations: GraphRelation[]
+  stats?: {
+    entityCount: number
+    relationCount: number
+  }
+  version?: {
+    id: number
+    name: string
+    versions: GraphVersion[]
+  }
+}
+
+export interface GraphVersion {
+  id: number
+  book_id: number
+  name: string
+  description: string
+  scope: 'all' | 'chapters'
+  chapter_count: number
+  entity_count: number
+  relation_count: number
+  created_at: string
 }

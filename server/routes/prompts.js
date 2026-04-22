@@ -8,6 +8,14 @@ const ensureDescriptionColumn = () => {
   if (!hasDescription) {
     db.exec('ALTER TABLE prompts ADD COLUMN description TEXT');
   }
+  const hasCardType = columns.some(column => column.name === 'card_type');
+  if (!hasCardType) {
+    db.exec("ALTER TABLE prompts ADD COLUMN card_type TEXT DEFAULT 'normal'");
+  }
+  const hasPassword = columns.some(column => column.name === 'password');
+  if (!hasPassword) {
+    db.exec('ALTER TABLE prompts ADD COLUMN password TEXT');
+  }
 };
 
 // 获取所有提示词
@@ -30,6 +38,9 @@ router.get('/', (req, res) => {
         } catch (error) {
           prompt.subcategories = null;
         }
+      }
+      if (!prompt.card_type) {
+        prompt.card_type = 'normal';
       }
     });
     res.json({ success: true, data: prompts });
@@ -54,13 +65,16 @@ router.get('/:id', (req, res) => {
         prompt.fields = null;
       }
     }
-    // 解析subcategories字段
+    // 解析subcategories
     if (prompt.subcategories) {
       try {
         prompt.subcategories = JSON.parse(prompt.subcategories);
       } catch (error) {
         prompt.subcategories = null;
       }
+    }
+    if (!prompt.card_type) {
+      prompt.card_type = 'normal';
     }
     res.json({ success: true, data: prompt });
   } catch (error) {
@@ -72,9 +86,9 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   try {
     ensureDescriptionColumn();
-    const { name, description, content, category, order_num, fields, subcategories } = req.body;
-    const stmt = db.prepare('INSERT INTO prompts (name, description, content, category, order_num, fields, subcategories) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    const result = stmt.run(name, description || null, content, category || '默认', order_num || 0, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null);
+    const { name, description, content, category, order_num, fields, subcategories, card_type, password } = req.body;
+    const stmt = db.prepare('INSERT INTO prompts (name, description, content, category, order_num, fields, subcategories, card_type, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const result = stmt.run(name, description || null, content, category || '默认', order_num || 0, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null, card_type || 'normal', password || null);
     const prompt = db.prepare('SELECT * FROM prompts WHERE id = ?').get(result.lastInsertRowid);
     // 解析fields字段
     if (prompt.fields) {
@@ -88,6 +102,9 @@ router.post('/', (req, res) => {
         prompt.subcategories = null;
       }
     }
+    if (!prompt.card_type) {
+      prompt.card_type = 'normal';
+    }
     res.json({ success: true, data: prompt });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -98,9 +115,9 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     ensureDescriptionColumn();
-    const { name, description, content, category, order_num, fields, subcategories } = req.body;
-    const stmt = db.prepare('UPDATE prompts SET name = ?, description = ?, content = ?, category = ?, order_num = ?, fields = ?, subcategories = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    stmt.run(name, description || null, content, category, order_num, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null, req.params.id);
+    const { name, description, content, category, order_num, fields, subcategories, card_type, password } = req.body;
+    const stmt = db.prepare('UPDATE prompts SET name = ?, description = ?, content = ?, category = ?, order_num = ?, fields = ?, subcategories = ?, card_type = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    stmt.run(name, description || null, content, category, order_num, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null, card_type || 'normal', password !== undefined ? password : null, req.params.id);
     const prompt = db.prepare('SELECT * FROM prompts WHERE id = ?').get(req.params.id);
     // 解析fields字段
     if (prompt.fields) {
@@ -117,6 +134,9 @@ router.put('/:id', (req, res) => {
       } catch (error) {
         prompt.subcategories = null;
       }
+    }
+    if (!prompt.card_type) {
+      prompt.card_type = 'normal';
     }
     res.json({ success: true, data: prompt });
   } catch (error) {

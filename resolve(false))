@@ -1,0 +1,10 @@
+const net = require('net');
+const path = require('path');
+const { exec } = require('child_process');
+
+const rootDir = __dirname;
+const serverEntry = path.join(rootDir, 'server', 'index.js');
+
+const canUsePort = port => new Promise(resolve => {
+  const tester = net.createServer();
+  tester.once('error', (

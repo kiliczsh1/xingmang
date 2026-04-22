@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="prompts-container" :style="promptSkinCssVars">
     <div class="header">
       <div class="header-main">
@@ -166,7 +166,7 @@
             v-for="prompt in category.prompts"
             :key="prompt.id"
             class="pack-card"
-            :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }]"
+            :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }, { encrypted: prompt.card_type === 'encrypted' }]"
             draggable="true"
             @dragstart="onDragStart(prompt, $event)"
             @dragend="onDragEnd"
@@ -175,13 +175,19 @@
             <div class="pack-card-header">
               <el-icon class="pack-card-drag-handle"><Rank /></el-icon>
               <span class="pack-card-name">{{ prompt.name }}</span>
+              <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-card-lock"><Lock /></el-icon>
             </div>
             <div class="pack-card-content">
               <el-tag size="small" :type="getTagType(prompt.category)" class="pack-card-tag">
                 {{ prompt.category }}
               </el-tag>
               <div class="pack-card-preview">
-                {{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}
+                <template v-if="prompt.card_type === 'encrypted'">
+                  <el-icon><Lock /></el-icon> 内容已加密
+                </template>
+                <template v-else>
+                  {{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}
+                </template>
               </div>
             </div>
             <div class="pack-card-footer">
@@ -278,7 +284,7 @@
           v-for="prompt in uncategorizedPrompts"
           :key="prompt.id"
           class="standalone-card"
-          :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }]"
+          :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }, { encrypted: prompt.card_type === 'encrypted' }]"
           draggable="true"
           @dragstart="onDragStart(prompt, $event)"
           @dragend="onDragEnd"
@@ -287,12 +293,20 @@
           <div class="standalone-card-header">
             <el-icon class="card-drag-handle"><Rank /></el-icon>
             <span class="standalone-card-name">{{ prompt.name }}</span>
+            <el-icon v-if="prompt.card_type === 'encrypted'" class="standalone-card-lock"><Lock /></el-icon>
           </div>
           <div class="standalone-card-content">
             <el-tag size="small" :type="getTagType(prompt.category)" class="standalone-card-tag">
               {{ prompt.category }}
             </el-tag>
-            <div class="standalone-card-preview">{{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}</div>
+            <div class="standalone-card-preview">
+              <template v-if="prompt.card_type === 'encrypted'">
+                <el-icon><Lock /></el-icon> 内容已加密
+              </template>
+              <template v-else>
+                {{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}
+              </template>
+            </div>
           </div>
           <div class="standalone-card-footer">
             <span class="standalone-card-time">{{ formatDate(prompt.created_at) }}</span>
@@ -381,7 +395,14 @@
             />
             <div class="export-card-content">
               <div class="export-card-name">{{ prompt.name }}</div>
-              <div class="export-card-preview">{{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}</div>
+              <div class="export-card-preview">
+                <template v-if="prompt.card_type === 'encrypted'">
+                  <el-icon><Lock /></el-icon> 已加密
+                </template>
+                <template v-else>
+                  {{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}
+                </template>
+              </div>
             </div>
           </div>
         </div>
@@ -505,7 +526,14 @@
               />
               <div class="import-card-content">
                 <div class="import-card-name">{{ prompt.name }}</div>
-                <div class="import-card-preview">{{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}</div>
+                <div class="import-card-preview">
+                  <template v-if="prompt.card_type === 'encrypted'">
+                    <el-icon><Lock /></el-icon> 已加密
+                  </template>
+                  <template v-else>
+                    {{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -618,7 +646,14 @@
             />
             <div class="batch-delete-card-content">
               <div class="batch-delete-card-name">{{ prompt.name }}</div>
-              <div class="batch-delete-card-preview">{{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}</div>
+              <div class="batch-delete-card-preview">
+                <template v-if="prompt.card_type === 'encrypted'">
+                  <el-icon><Lock /></el-icon> 已加密
+                </template>
+                <template v-else>
+                  {{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}
+                </template>
+              </div>
             </div>
           </div>
         </div>
@@ -843,6 +878,58 @@
                   :value="category"
                 />
               </el-select>
+            </el-form-item>
+            <el-form-item label="卡片类型">
+              <div class="card-type-selector">
+                <el-radio-group v-model="formData.card_type" @change="handleCardTypeChange">
+                  <el-radio value="normal">
+                    <el-icon><Document /></el-icon>
+                    普通卡片
+                  </el-radio>
+                  <el-radio value="encrypted">
+                    <el-icon><Lock /></el-icon>
+                    加密卡片
+                  </el-radio>
+                </el-radio-group>
+                <div v-if="formData.card_type === 'encrypted'" class="card-type-actions">
+                  <el-button
+                    v-if="!formData.password"
+                    type="warning"
+                    size="small"
+                    @click="openSetPasswordDialog"
+                  >
+                    <el-icon><Lock /></el-icon>
+                    设置密码
+                  </el-button>
+                  <el-button
+                    v-else
+                    type="success"
+                    size="small"
+                    @click="openSetPasswordDialog"
+                  >
+                    <el-icon><Lock /></el-icon>
+                    修改密码
+                  </el-button>
+                  <el-button
+                    v-if="formData.password"
+                    type="danger"
+                    size="small"
+                    link
+                    @click="removeCardPassword"
+                  >
+                    移除密码
+                  </el-button>
+                </div>
+                <div v-if="formData.card_type === 'encrypted' && formData.password" class="card-type-status">
+                  <el-tag type="warning" size="small">
+                    <el-icon><Lock /></el-icon>
+                    已加密
+                  </el-tag>
+                </div>
+                <div v-if="formData.card_type === 'encrypted' && !formData.password" class="card-type-status">
+                  <el-tag type="info" size="small">未设置密码（保存前需设置密码）</el-tag>
+                </div>
+              </div>
             </el-form-item>
             <el-form-item label="简介">
               <SplitRichTextEditor
@@ -1088,11 +1175,17 @@
                   <span class="pack-fan-card-front-header">
                     <el-icon class="pack-fan-card-front-handle"><Rank /></el-icon>
                     <span class="pack-fan-card-front-name">{{ prompt.name }}</span>
+                    <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-fan-card-front-lock"><Lock /></el-icon>
                   </span>
                   <span class="pack-fan-card-front-content">
                     <el-tag size="small" :type="getTagType(prompt.category)" class="pack-fan-card-front-tag">{{ prompt.category }}</el-tag>
                     <span class="pack-fan-card-front-preview">
-                      {{ prompt.content.slice(0, 60) }}{{ prompt.content.length > 60 ? '...' : '' }}
+                      <template v-if="prompt.card_type === 'encrypted'">
+                        <el-icon><Lock /></el-icon> 内容已加密
+                      </template>
+                      <template v-else>
+                        {{ prompt.content.slice(0, 60) }}{{ prompt.content.length > 60 ? '...' : '' }}
+                      </template>
                     </span>
                   </span>
                   <span class="pack-fan-card-front-footer">
@@ -1127,13 +1220,74 @@
         </el-scrollbar>
       </div>
     </el-dialog>
+
+    <!-- 密码验证对话框 -->
+    <el-dialog
+      v-model="passwordDialogVisible"
+      title="密码验证"
+      width="400px"
+      :close-on-click-modal="false"
+      class="password-dialog"
+    >
+      <div class="password-dialog-content">
+        <div class="password-dialog-icon">
+          <el-icon :size="48" color="#e6a23c"><Lock /></el-icon>
+        </div>
+        <p class="password-dialog-hint">该卡片已加密，请输入密码{{ passwordAction === 'edit' ? '编辑' : passwordAction === 'preview' ? '预览' : '删除' }}</p>
+        <el-input
+          v-model="passwordInput"
+          type="password"
+          placeholder="请输入密码"
+          show-password
+          @keyup.enter="handlePasswordDialogConfirm"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="passwordDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handlePasswordDialogConfirm">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 设置密码对话框 -->
+    <el-dialog
+      v-model="setPasswordDialogVisible"
+      title="设置卡片密码"
+      width="400px"
+      :close-on-click-modal="false"
+      class="password-dialog"
+    >
+      <div class="password-dialog-content">
+        <div class="password-dialog-icon">
+          <el-icon :size="48" color="#e6a23c"><Lock /></el-icon>
+        </div>
+        <p class="password-dialog-hint">设置密码后，该卡片将变为加密卡片，每次修改都需要输入密码</p>
+        <el-input
+          v-model="setPasswordInput"
+          type="password"
+          placeholder="请输入密码（至少4位）"
+          show-password
+          class="password-dialog-input"
+        />
+        <el-input
+          v-model="setConfirmPasswordInput"
+          type="password"
+          placeholder="请再次输入密码"
+          show-password
+          @keyup.enter="handleSetPasswordConfirm"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="setPasswordDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSetPasswordConfirm">确认设置</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowUp, ArrowDown, Delete, CopyDocument, FolderAdd, FolderOpened, Edit, Document, Rank, Check, Close, Download, Upload, UploadFilled, View, Switch, InfoFilled } from '@element-plus/icons-vue'
+import { Plus, ArrowUp, ArrowDown, Delete, CopyDocument, FolderAdd, FolderOpened, Edit, Document, Rank, Check, Close, Download, Upload, UploadFilled, View, Switch, InfoFilled, Lock } from '@element-plus/icons-vue'
 import { promptAPI } from '@/api'
 import type { Prompt } from '@/types'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
@@ -1435,8 +1589,49 @@ const formData = ref({
   description: '',
   content: '',
   category: '默认',
-  order_num: 0
+  order_num: 0,
+  card_type: 'normal' as 'normal' | 'encrypted',
+  password: null as string | null
 })
+
+const EXPORT_MAGIC = 'XNP1'
+const encodeExportData = (data: string): string => {
+  const base64 = btoa(unescape(encodeURIComponent(data)))
+  const shifted = base64.split('').map(c => String.fromCharCode(c.charCodeAt(0) + 3)).join('')
+  return EXPORT_MAGIC + shifted
+}
+
+const decodeExportData = (data: string): string => {
+  if (!data.startsWith(EXPORT_MAGIC)) {
+    return data
+  }
+  const shifted = data.slice(EXPORT_MAGIC.length).split('').map(c => String.fromCharCode(c.charCodeAt(0) - 3)).join('')
+  return decodeURIComponent(escape(atob(shifted)))
+}
+
+const hashPassword = async (password: string): Promise<string> => {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password + '__xingnovel_salt__')
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+const verifyPassword = async (inputPassword: string, storedHash: string): Promise<boolean> => {
+  const inputHash = await hashPassword(inputPassword)
+  return inputHash === storedHash
+}
+
+const passwordDialogVisible = ref(false)
+const passwordDialogMode = ref<'verify' | 'set' | 'change'>('verify')
+const passwordInput = ref('')
+const passwordConfirmInput = ref('')
+const pendingEditPrompt = ref<Prompt | null>(null)
+const passwordAction = ref<'edit' | 'delete' | 'preview'>('edit')
+
+const setPasswordDialogVisible = ref(false)
+const setPasswordInput = ref('')
+const setConfirmPasswordInput = ref('')
 
 // 小分类相关状态
 const formSubcategories = ref<string[]>([])
@@ -1471,7 +1666,9 @@ const saveSubcategoriesOnly = async () => {
       category: formData.value.category,
       order_num: formData.value.order_num,
       fields: fieldsConfig.value,
-      subcategories: formSubcategories.value
+      subcategories: formSubcategories.value,
+      card_type: formData.value.card_type || 'normal',
+      password: formData.value.password || null
     })
     ElMessage.success('标签保存成功')
     await fetchPrompts()
@@ -1835,7 +2032,9 @@ const handleCreateInCategory = (categoryName: string) => {
     description: '',
     content: '',
     category: categoryName,
-    order_num: 0
+    order_num: 0,
+    card_type: 'normal',
+    password: null
   }
   fieldsConfig.value = []
   // 重置小分类
@@ -1888,6 +2087,19 @@ const copyPreviewContent = async () => {
 
 // 预览提示词
 const handlePreview = (prompt: Prompt) => {
+  if (prompt.card_type === 'encrypted') {
+    if (!prompt.password) {
+      ElMessage.warning('此加密卡片需要先设置密码，请编辑卡片设置密码')
+      return
+    }
+    pendingEditPrompt.value = prompt
+    passwordAction.value = 'preview'
+    passwordDialogMode.value = 'verify'
+    passwordInput.value = ''
+    passwordConfirmInput.value = ''
+    passwordDialogVisible.value = true
+    return
+  }
   previewContent.value = prompt.content
   previewDialogVisible.value = true
 }
@@ -1916,7 +2128,9 @@ const handleCreate = () => {
     description: '',
     content: '',
     category: categoryOptions.value[0] || '默认',
-    order_num: 0
+    order_num: 0,
+    card_type: 'normal',
+    password: null
   }
   // 重置字段配置
   fieldsConfig.value = []
@@ -1927,6 +2141,19 @@ const handleCreate = () => {
 }
 
 const handleEdit = (prompt: Prompt) => {
+  if (prompt.card_type === 'encrypted' && prompt.password) {
+    pendingEditPrompt.value = prompt
+    passwordAction.value = 'edit'
+    passwordDialogMode.value = 'verify'
+    passwordInput.value = ''
+    passwordConfirmInput.value = ''
+    passwordDialogVisible.value = true
+    return
+  }
+  openEditDialog(prompt)
+}
+
+const openEditDialog = (prompt: Prompt) => {
   isEdit.value = true
   formData.value = {
     id: prompt.id,
@@ -1934,7 +2161,9 @@ const handleEdit = (prompt: Prompt) => {
     description: prompt.description || '',
     content: prompt.content,
     category: prompt.category,
-    order_num: prompt.order_num
+    order_num: prompt.order_num,
+    card_type: prompt.card_type || 'normal',
+    password: prompt.password || null
   }
   // 重置字段配置
   fieldsConfig.value = []
@@ -1960,6 +2189,84 @@ const handleEdit = (prompt: Prompt) => {
   newSubcategory.value = ''
   
   dialogVisible.value = true
+}
+
+const handlePasswordDialogConfirm = async () => {
+  if (passwordDialogMode.value === 'verify') {
+    if (!pendingEditPrompt.value) return
+    const isValid = await verifyPassword(passwordInput.value, pendingEditPrompt.value.password || '')
+    if (isValid) {
+      const promptToProcess = pendingEditPrompt.value
+      const action = passwordAction.value
+      passwordDialogVisible.value = false
+      pendingEditPrompt.value = null
+      if (action === 'edit') {
+        openEditDialog(promptToProcess)
+      } else if (action === 'delete') {
+        executeDelete(promptToProcess)
+      } else if (action === 'preview') {
+        previewContent.value = promptToProcess.content
+        previewDialogVisible.value = true
+      }
+    } else {
+      ElMessage.error('密码错误')
+    }
+  }
+}
+
+const handleSetPasswordConfirm = async () => {
+  if (!setPasswordInput.value.trim()) {
+    ElMessage.warning('请输入密码')
+    return
+  }
+  if (setPasswordInput.value !== setConfirmPasswordInput.value) {
+    ElMessage.warning('两次输入的密码不一致')
+    return
+  }
+  if (setPasswordInput.value.trim().length < 4) {
+    ElMessage.warning('密码长度至少4位')
+    return
+  }
+  const hashed = await hashPassword(setPasswordInput.value.trim())
+  formData.value.card_type = 'encrypted'
+  formData.value.password = hashed
+  setPasswordDialogVisible.value = false
+  setPasswordInput.value = ''
+  setConfirmPasswordInput.value = ''
+  ElMessage.success('密码设置成功，卡片已切换为加密卡片')
+}
+
+const openSetPasswordDialog = () => {
+  setPasswordInput.value = ''
+  setConfirmPasswordInput.value = ''
+  setPasswordDialogVisible.value = true
+}
+
+const removeCardPassword = () => {
+  formData.value.card_type = 'normal'
+  formData.value.password = null
+  ElMessage.success('已移除密码，卡片已切换为普通卡片')
+}
+
+const handleCardTypeChange = (val: 'normal' | 'encrypted') => {
+  if (val === 'normal') {
+    formData.value.password = null
+  }
+}
+
+const executeDelete = async (prompt: Prompt) => {
+  try {
+    await ElMessageBox.confirm(`确定删除提示词"${prompt.name}"吗？`, '提示', {
+      type: 'warning'
+    })
+    const res = await promptAPI.delete(prompt.id)
+    if (res.success) {
+      ElMessage.success('删除成功')
+      await fetchPrompts()
+    }
+  } catch (error) {
+    // 取消删除
+  }
 }
 
 // 从提示词内容中提取字段名称
@@ -2132,23 +2439,26 @@ watch(() => formData.value.content, (newContent) => {
 }, { deep: true })
 
 const handleDelete = async (prompt: Prompt) => {
-  try {
-    await ElMessageBox.confirm(`确定删除提示词"${prompt.name}"吗？`, '提示', {
-      type: 'warning'
-    })
-    const res = await promptAPI.delete(prompt.id)
-    if (res.success) {
-      ElMessage.success('删除成功')
-      await fetchPrompts()
-    }
-  } catch (error) {
-    // 取消删除
+  if (prompt.card_type === 'encrypted' && prompt.password) {
+    pendingEditPrompt.value = prompt
+    passwordAction.value = 'delete'
+    passwordDialogMode.value = 'verify'
+    passwordInput.value = ''
+    passwordConfirmInput.value = ''
+    passwordDialogVisible.value = true
+    return
   }
+  executeDelete(prompt)
 }
 
 const handleSubmit = async () => {
   if (!formData.value.name || !formData.value.category || !formData.value.content) {
     ElMessage.warning('请填写完整信息')
+    return
+  }
+
+  if (formData.value.card_type === 'encrypted' && !formData.value.password) {
+    ElMessage.warning('加密卡片必须设置密码')
     return
   }
 
@@ -2171,7 +2481,9 @@ const handleSubmit = async () => {
         description: field.description,
         required: field.required
       })),
-      subcategories: formSubcategories.value
+      subcategories: formSubcategories.value,
+      card_type: formData.value.card_type || 'normal',
+      password: formData.value.password || null
     }
     
     if (isEdit.value) {
@@ -2381,7 +2693,8 @@ const openImportAllDialog = () => {
 const handleImportAllFileChange = async (file: any) => {
   try {
     const text = await file.raw.text()
-    const backupData = JSON.parse(text)
+    const decodedText = decodeExportData(text)
+    const backupData = JSON.parse(decodedText)
     
     // 验证备份数据格式
     if (!backupData.type || backupData.type !== 'full-backup' || !backupData.data) {
@@ -2443,7 +2756,8 @@ const executeImportAll = async () => {
           category: prompt.category || '未分类',
           order_num: prompt.order_num || 0,
           fields: prompt.fields || [],
-          subcategories: prompt.subcategories || []
+          subcategories: prompt.subcategories || [],
+          card_type: prompt.card_type || 'normal'
         })
       }
     }
@@ -2459,7 +2773,8 @@ const executeImportAll = async () => {
               category: packName,
               order_num: prompt.order_num || 0,
               fields: prompt.fields || [],
-              subcategories: prompt.subcategories || []
+              subcategories: prompt.subcategories || [],
+              card_type: prompt.card_type || 'normal'
             })
           }
         }
@@ -2520,11 +2835,12 @@ const executeExportStandalone = () => {
       content: p.content,
       category: p.category,
       order_num: p.order_num,
-      fields: p.fields
+      fields: p.fields,
+      card_type: p.card_type || 'normal'
     }))
   }
   
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const blob = new Blob([encodeExportData(JSON.stringify(exportData))], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -2559,11 +2875,12 @@ const executeExportPack = () => {
       content: p.content,
       category: p.category,
       order_num: p.order_num,
-      fields: p.fields
+      fields: p.fields,
+      card_type: p.card_type || 'normal'
     }))
   }
   
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const blob = new Blob([encodeExportData(JSON.stringify(exportData))], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -2584,7 +2901,8 @@ const executeExportAll = () => {
     category: p.category,
     order_num: p.order_num,
     fields: p.fields,
-    subcategories: p.subcategories
+    subcategories: p.subcategories,
+    card_type: p.card_type || 'normal'
   }))
   
   // 收集所有卡包及其卡片
@@ -2597,7 +2915,8 @@ const executeExportAll = () => {
         category: p.category,
         order_num: p.order_num,
         fields: p.fields,
-        subcategories: p.subcategories
+        subcategories: p.subcategories,
+        card_type: p.card_type || 'normal'
       }))
     }
   })
@@ -2612,7 +2931,7 @@ const executeExportAll = () => {
     }
   }
   
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const blob = new Blob([encodeExportData(JSON.stringify(exportData))], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -2637,7 +2956,8 @@ const handleStandaloneFileChange = (file: any) => {
   reader.onload = (e) => {
     try {
       const content = e.target?.result as string
-      const data = JSON.parse(content)
+      const decodedContent = decodeExportData(content)
+      const data = JSON.parse(decodedContent)
       
       if (data.type === 'standalone-cards' && Array.isArray(data.prompts)) {
         importStandalonePreview.value = data.prompts
@@ -2650,7 +2970,7 @@ const handleStandaloneFileChange = (file: any) => {
         ElMessage.error('文件格式不正确')
       }
     } catch (error) {
-      ElMessage.error('文件解析失败，请确保是有效的JSON文件')
+      ElMessage.error('文件解析失败，请确保是有效的导出文件')
     }
   }
   reader.readAsText(file.raw)
@@ -2692,7 +3012,8 @@ const executeImportStandalone = async () => {
         content: card.content,
         category: '未分类',
         order_num: card.order_num || 0,
-        fields: card.fields
+        fields: card.fields,
+        card_type: card.card_type || 'normal'
       })
       if (res.success) {
         successCount++
@@ -2727,7 +3048,8 @@ const handlePackFileChange = (file: any) => {
   reader.onload = (e) => {
     try {
       const content = e.target?.result as string
-      const data = JSON.parse(content)
+      const decodedContent = decodeExportData(content)
+      const data = JSON.parse(decodedContent)
       
       if (data.type === 'card-pack' && Array.isArray(data.prompts)) {
         importPackPreview.value = {
@@ -2741,7 +3063,7 @@ const handlePackFileChange = (file: any) => {
         ElMessage.error('文件格式不正确')
       }
     } catch (error) {
-      ElMessage.error('文件解析失败，请确保是有效的JSON文件')
+      ElMessage.error('文件解析失败，请确保是有效的导出文件')
     }
   }
   reader.readAsText(file.raw)
@@ -2769,7 +3091,8 @@ const executeImportPack = async () => {
         content: card.content,
         category: packName,
         order_num: card.order_num || 0,
-        fields: card.fields
+        fields: card.fields,
+        card_type: card.card_type || 'normal'
       })
       if (res.success) {
         successCount++
@@ -3179,6 +3502,13 @@ const executeImportConvert = async () => {
   white-space: nowrap;
   text-align: left;
   letter-spacing: 0.02em;
+}
+
+.pack-fan-card-front-lock {
+  color: #e6a23c;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-left: 4px;
 }
 
 .pack-fan-card-front-content {
@@ -4790,5 +5120,116 @@ const executeImportConvert = async () => {
 
 .import-pack-prompt-item .el-icon {
   color: #52c41a;
+}
+
+.pack-card.encrypted {
+  border-color: rgba(230, 162, 60, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+.pack-card.encrypted:hover {
+  border-color: rgba(230, 162, 60, 0.6) !important;
+  box-shadow: 0 8px 20px rgba(230, 162, 60, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+}
+
+.pack-card.encrypted .pack-card-header {
+  background: linear-gradient(135deg, rgba(230, 162, 60, 0.15) 0%, rgba(245, 249, 248, 0.94) 100%) !important;
+}
+
+.pack-card-lock {
+  color: #e6a23c;
+  font-size: 14px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.standalone-card.encrypted {
+  border-color: rgba(230, 162, 60, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.12) !important;
+}
+
+.standalone-card.encrypted:hover {
+  border-color: rgba(230, 162, 60, 0.6) !important;
+  box-shadow: 0 8px 20px rgba(230, 162, 60, 0.18) !important;
+}
+
+.standalone-card.encrypted .standalone-card-header {
+  background: linear-gradient(135deg, rgba(230, 162, 60, 0.15) 0%, rgba(245, 249, 248, 0.94) 100%) !important;
+}
+
+.standalone-card-lock {
+  color: #e6a23c;
+  font-size: 14px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.card-type-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.card-type-selector .el-radio-group {
+  display: flex;
+  gap: 16px;
+}
+
+.card-type-selector .el-radio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.card-type-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 4px;
+}
+
+.card-type-status {
+  padding-left: 4px;
+}
+
+.card-type-status .el-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.password-dialog-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+}
+
+.password-dialog-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(230, 162, 60, 0.1);
+}
+
+.password-dialog-hint {
+  text-align: center;
+  color: #606266;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.password-dialog-content .el-input {
+  width: 100%;
+}
+
+.password-dialog-input {
+  margin-bottom: 12px;
 }
 </style>

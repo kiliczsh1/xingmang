@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import type { ApiResponse, Book, Chapter, Prompt, Memo, ApiProvider, ApiModel, ChatMessage, RelatedContent, Generator, Character, UsageOverview, DailyUsage, ModelStats, MonthlyStats, Volume, ExperienceShare } from '@/types'
+import type { ApiResponse, Book, Chapter, Prompt, Memo, ApiProvider, ApiModel, ChatMessage, RelatedContent, Generator, Character, UsageOverview, DailyUsage, ModelStats, MonthlyStats, Volume, ExperienceShare, GraphEntity, GraphRelation, KnowledgeGraphData, GraphVersion } from '@/types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -174,6 +174,27 @@ export const volumeAPI = {
   create: (data: Partial<Volume>) => api.post<any, ApiResponse<Volume>>('/volumes', data),
   update: (id: number, data: Partial<Volume>) => api.put<any, ApiResponse<Volume>>(`/volumes/${id}`, data),
   delete: (id: number) => api.delete<any, ApiResponse>(`/volumes/${id}`)
+}
+
+export const knowledgeGraphAPI = {
+  getGraph: (bookId: number) => api.get<any, ApiResponse<KnowledgeGraphData>>(`/knowledge-graph/graph/${bookId}`),
+  getEntities: (bookId: number) => api.get<any, ApiResponse<GraphEntity[]>>(`/knowledge-graph/entities/book/${bookId}`),
+  getEntity: (id: number) => api.get<any, ApiResponse<GraphEntity>>(`/knowledge-graph/entities/${id}`),
+  createEntity: (data: Partial<GraphEntity>) => api.post<any, ApiResponse<GraphEntity>>('/knowledge-graph/entities', data),
+  updateEntity: (id: number, data: Partial<GraphEntity>) => api.put<any, ApiResponse<GraphEntity>>(`/knowledge-graph/entities/${id}`, data),
+  deleteEntity: (id: number) => api.delete<any, ApiResponse>(`/knowledge-graph/entities/${id}`),
+  getRelations: (bookId: number) => api.get<any, ApiResponse<GraphRelation[]>>(`/knowledge-graph/relations/book/${bookId}`),
+  createRelation: (data: Partial<GraphRelation>) => api.post<any, ApiResponse<GraphRelation>>('/knowledge-graph/relations', data),
+  updateRelation: (id: number, data: Partial<GraphRelation>) => api.put<any, ApiResponse<GraphRelation>>(`/knowledge-graph/relations/${id}`, data),
+  deleteRelation: (id: number) => api.delete<any, ApiResponse>(`/knowledge-graph/relations/${id}`),
+  analyze: (data: { bookId: number; configId?: number; scope?: 'all' | 'chapters'; chapterIds?: number[]; versionId: number }) =>
+    api.post<any, ApiResponse<KnowledgeGraphData>>('/knowledge-graph/analyze', data, { timeout: 300000 }),
+  clearGraph: (bookId: number) => api.delete<any, ApiResponse>(`/knowledge-graph/graph/${bookId}`),
+  getVersions: (bookId: number) => api.get<any, ApiResponse<GraphVersion[]>>(`/knowledge-graph/versions/${bookId}`),
+  createVersion: (bookId: number, name?: string) => api.post<any, ApiResponse<GraphVersion>>('/knowledge-graph/versions', { bookId, name }),
+  getVersionData: (versionId: number) => api.get<any, ApiResponse<KnowledgeGraphData>>(`/knowledge-graph/version/${versionId}`),
+  renameVersion: (versionId: number, name: string) => api.put<any, ApiResponse<GraphVersion>>(`/knowledge-graph/versions/${versionId}`, { name }),
+  deleteVersion: (bookId: number, versionId: number) => api.delete<any, ApiResponse>(`/knowledge-graph/versions/${bookId}/${versionId}`)
 }
 
 export default api

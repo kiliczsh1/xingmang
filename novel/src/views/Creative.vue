@@ -76,7 +76,7 @@
                 <el-tag size="small" type="info">{{ prompt.category }}</el-tag>
                 <el-icon class="remove-icon" @click="removePinnedPrompt(prompt.id)"><Close /></el-icon>
               </div>
-              <div class="pinned-item-desc">{{ prompt.content?.slice(0, 60) }}{{ prompt.content?.length > 60 ? '...' : '' }}</div>
+              <div class="pinned-item-desc"></div>
             </div>
             <div v-if="pinnedPrompts.length === 0" class="empty-pinned">
               <el-icon :size="32"><Document /></el-icon>
@@ -487,6 +487,15 @@
           <el-button type="primary" link @click="copyPreviewContent">
             <el-icon><CopyDocument /></el-icon>
             复制
+          </el-button>
+          <el-button
+            v-if="!generating && previewContent"
+            type="success"
+            link
+            @click="importToMemo"
+          >
+            <el-icon><Document /></el-icon>
+            一键导入
           </el-button>
         </div>
         <el-scrollbar class="preview-scrollbar">
@@ -1403,6 +1412,46 @@ const copyPreviewContent = () => {
   ElMessage.success('已复制到剪贴板')
 }
 
+const importToMemo = async () => {
+  if (!previewContent.value) {
+    ElMessage.warning('没有可导入的内容')
+    return
+  }
+  
+  try {
+    await ElMessageBox.prompt('请输入备忘录标题', '导入到备忘录', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPlaceholder: '例如：创意灵感记录',
+      inputValidator: (value) => {
+        if (!value || value.trim() === '') {
+          return '标题不能为空'
+        }
+        return true
+      }
+    }).then(async ({ value }) => {
+      const title = value.trim()
+      const memoData: Partial<Memo> = {
+        title: title,
+        content: previewContent.value,
+        category: '创意灵感',
+        order_num: 0
+      }
+      
+      const res = await memoAPI.create(memoData)
+      if (res.success) {
+        ElMessage.success('已成功导入到备忘录')
+        // 刷新备忘录列表
+        await fetchMemos()
+      } else {
+        ElMessage.error('导入失败，请稍后重试')
+      }
+    })
+  } catch (error) {
+    // 用户取消操作
+  }
+}
+
 const getPinnedPromptsKey = (generatorId: number) => {
   return `generator_pinned_prompts_${generatorId}`
 }
@@ -1513,7 +1562,7 @@ const buildSystemPrompt = () => {
   const fixedContent = editableFixedPrompt.value.trim()
   const selectedContent = buildSelectedPromptContent()
 
-  return [fixedContent, selectedContent ? `具体要求：\n${selectedContent}` : '']
+  return [fixedContent, selectedContent ? `\n${selectedContent}` : '']
     .filter(Boolean)
     .join('\n\n')
 }
@@ -1521,21 +1570,6 @@ const buildSystemPrompt = () => {
 const buildUserPrompt = () => {
   const generatorName = currentGenerator.value?.name || '创意生成'
   const sections: string[] = [``]
-
-  if (allFields.value.length > 0) {
-    const fieldLines = Object.entries(fieldValues.value)
-      .filter(([, value]) => value?.trim())
-      .map(([fieldName, value]) => {
-        const field = allFields.value.find(item => item.name === fieldName)
-        return field ? `${field.label}：${value}` : `${fieldName}：${value}`
-      })
-
-    if (fieldLines.length > 0) {
-      sections.push(fieldLines.join('\n'))
-    }
-  } else if (inputParams.value.trim()) {
-    sections.push(inputParams.value.trim())
-  }
 
   if (additionalInfo.value.trim()) {
     sections.push(`补充信息：\n${additionalInfo.value.trim()}`)

@@ -1,4 +1,4 @@
-﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="write-container">
     <!-- 顶部工具栏 -->
     <div class="toolbar" :style="{ height: toolbarHeight + 'px' }">
@@ -28,6 +28,10 @@
           <el-icon><Notebook /></el-icon>
           拆书库
         </el-button>
+        <el-button class="graph-btn" @click="toggleGraphPanel">
+          <el-icon><Connection /></el-icon>
+          知识图谱
+        </el-button>
         <el-tooltip content="全局备忘录" placement="bottom">
           <el-button class="toolbar-icon-btn memo-btn" @click="showGlobalMemoDialog = true">
             <el-icon><EditPen /></el-icon>
@@ -38,7 +42,7 @@
           历史记录
         </el-button>
         <div class="toolbar-status" v-if="activeContentUpdatedAt">
-          最近保存 {{ formatTime(activeContentUpdatedAt) }}
+           {{ formatTime(activeContentUpdatedAt) }}
         </div>
       </div>
     </div>
@@ -708,6 +712,26 @@
       </div>
     </div>
 
+    <!-- 知识图谱弹窗 -->
+    <el-dialog
+      v-model="showGraphPanel"
+      title="知识图谱"
+      width="1200px"
+      top="5vh"
+      append-to-body
+      destroy-on-close
+      class="knowledge-graph-dialog"
+    >
+      <KnowledgeGraph
+        ref="knowledgeGraphRef"
+        :bookId="bookId"
+        :apiConfigs="apiConfigs"
+        :chapters="chaptersList"
+        @analyze-start="onGraphAnalyzeStart"
+        @analyze-end="onGraphAnalyzeEnd"
+      />
+    </el-dialog>
+
     <!-- AI 写作生成结果弹窗 -->
     <el-dialog
       v-model="creative2ResultDialogVisible"
@@ -788,6 +812,35 @@
       <template #footer>
         <el-button @click="showRelateDialog = false">取消</el-button>
         <el-button type="primary" @click="confirmRelate">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 移动文件夹对话框 -->
+    <el-dialog
+      v-model="moveFolderDialogVisible"
+      title="移动到文件夹"
+      width="400px"
+      class="move-folder-dialog"
+    >
+      <div class="move-folder-content">
+        <p class="move-folder-hint">选择要移动到的目标文件夹：</p>
+        <div class="folder-list">
+          <button
+            v-for="folder in globalMemoFolders"
+            :key="folder"
+            type="button"
+            class="folder-option"
+            :class="{ active: currentGlobalMemoFolder === folder }"
+            @click="moveToFolder(folder)"
+          >
+            <el-icon><Folder /></el-icon>
+            <span>{{ folder }}</span>
+            <span class="folder-option-count">{{ getFolderMemoCount(folder) }}</span>
+          </button>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="moveFolderDialogVisible = false">取消</el-button>
       </template>
     </el-dialog>
 
@@ -879,144 +932,207 @@
             </div>
             <template v-else>
               <div class="memo-section-card">
-                <button type="button" class="memo-section-header" @click="globalMemoExpanded = !globalMemoExpanded">
-                  <div class="memo-section-title">
-                    <el-icon><ArrowRight v-if="!globalMemoExpanded" /><ArrowDown v-else /></el-icon>
-                    <span>全局备忘录</span>
-                    <em>{{ globalMemoList.length }}</em>
-                  </div>
-                </button>
-                <button
-                  v-for="folder in globalMemoFolders"
-                  v-if="globalMemoExpanded"
-                  :key="folder"
-                  type="button"
-                  class="memo-folder-row"
-                  :class="{ active: currentGlobalMemoFolder === folder }"
-                  @click="currentGlobalMemoFolder = folder"
-                >
-                  <el-icon><Folder /></el-icon>
-                  <span>{{ folder }}</span>
-                </button>
-                <div v-if="globalMemoExpanded" class="memo-group-list">
+                <div class="memo-tree-root">
                   <div
-                    v-for="memo in visibleGlobalMemoList"
-                    :key="memo.id"
-                    :class="['sidebar-item', { active: dialogSelectedMemo?.id === memo.id, 'batch-selected': selectedMemoIds.includes(memo.id) }]"
-                    @click="handleMemoClick(memo)"
+                    v-for="folder in globalMemoFolders"
+                    :key="folder"
+                    class="memo-tree-folder"
                   >
-                    <div v-if="memoBatchMode" class="batch-checkbox">
-                      <el-checkbox
-                        :model-value="selectedMemoIds.includes(memo.id)"
-                        @click.stop
-                        @change="() => toggleMemoSelection(memo.id)"
-                      />
-                    </div>
-                    <div class="item-content">
-                      <div class="item-title-row">
-                        <span class="item-title">{{ memo.title || '无标题' }}</span>
-                        <span class="memo-scope-tag global">全局</span>
+                    <button
+                      type="button"
+                      class="memo-tree-folder-header"
+                      :class="{ active: currentGlobalMemoFolder === folder }"
+                      @click="toggleFolder(folder)"
+                    >
+                      <div class="folder-header-content">
+                        <el-icon class="folder-arrow">
+                          <ArrowRight v-if="!folderExpandedStates[folder]" />
+                          <ArrowDown v-else />
+                        </el-icon>
+                        <el-icon class="folder-icon"><Folder /></el-icon>
+                        <span class="folder-name">{{ folder }}</span>
+                        <span class="folder-count">{{ getFolderMemoCount(folder) }}</span>
+                        <div class="folder-actions" @click.stop>
+                          <button
+                            type="button"
+                            class="folder-action-btn"
+                            title="新建备忘录"
+                            @click="createMemoInFolder(folder)"
+                          >
+                            <el-icon><Plus /></el-icon>
+                          </button>
+                          <button
+                            v-if="folder !== '默认'"
+                            type="button"
+                            class="folder-action-btn danger"
+                            title="删除文件夹"
+                            @click="deleteFolder(folder)"
+                          >
+                            <el-icon><Delete /></el-icon>
+                          </button>
+                        </div>
                       </div>
-                      <div class="item-tags-row" v-if="memo.tags">
-                        <el-tag
-                          v-for="tag in getMemoTags(memo.tags)"
-                          :key="tag"
-                          size="small"
-                          class="item-tag"
-                        >
-                          {{ tag }}
-                        </el-tag>
-                      </div>
-                      <div class="item-meta-row">
-                        <span class="item-meta">{{ getContentLength(memo.content) }} 字</span>
-                        <span class="item-meta-time">{{ formatTime(memo.updated_at) }}</span>
-                      </div>
-                    </div>
-                    <div class="item-quick-actions">
-                      <button
-                        v-if="memo.is_pinned && !memoBatchMode"
-                        type="button"
-                        class="item-icon-btn pin"
-                        @click.stop="toggleMemoPin(memo)"
+                    </button>
+                    <div
+                      v-show="folderExpandedStates[folder]"
+                      class="memo-tree-children"
+                    >
+                      <div
+                        v-for="memo in getMemosByFolder(folder)"
+                        :key="memo.id"
+                        :class="['memo-tree-item', { active: dialogSelectedMemo?.id === memo.id, 'batch-selected': selectedMemoIds.includes(memo.id) }]"
+                        @click="handleMemoClick(memo)"
                       >
-                        <el-icon><Star /></el-icon>
-                      </button>
-                      <button
-                        v-if="!memoBatchMode"
-                        type="button"
-                        class="item-icon-btn danger"
-                        @click.stop="deleteMemo(memo)"
-                      >
-                        <el-icon><Delete /></el-icon>
-                      </button>
+                        <div v-if="memoBatchMode" class="batch-checkbox">
+                          <el-checkbox
+                            :model-value="selectedMemoIds.includes(memo.id)"
+                            @click.stop
+                            @change="() => toggleMemoSelection(memo.id)"
+                          />
+                        </div>
+                        <div class="item-content">
+                          <div class="item-title-row">
+                            <span class="item-title">{{ memo.title || '无标题' }}</span>
+                            <div class="item-title-actions">
+                              <button
+                                type="button"
+                                class="item-title-btn"
+                                title="移动到文件夹"
+                                @click.stop="openMoveFolderDialog(memo)"
+                              >
+                                <el-icon><Folder /></el-icon>
+                              </button>
+                              <button
+                                type="button"
+                                class="item-title-btn danger"
+                                title="删除备忘录"
+                                @click.stop="deleteMemoInList(memo)"
+                              >
+                                <el-icon><Delete /></el-icon>
+                              </button>
+                            </div>
+                          </div>
+                          <div class="item-tags-row" v-if="memo.tags">
+                            <el-tag
+                              v-for="tag in getMemoTags(memo.tags)"
+                              :key="tag"
+                              size="small"
+                              class="item-tag"
+                            >
+                              {{ tag }}
+                            </el-tag>
+                          </div>
+                          <div class="item-meta-row">
+                            <span class="item-meta"></span>
+                            <span class="item-meta-time"></span>
+                          </div>
+                        </div>
+                        <div class="item-quick-actions">
+                          <button
+                            v-if="memo.is_pinned && !memoBatchMode"
+                            type="button"
+                            class="item-icon-btn pin"
+                            @click.stop="toggleMemoPin(memo)"
+                          >
+                            <el-icon><Star /></el-icon>
+                          </button>
+                          <button
+                            v-if="!memoBatchMode"
+                            type="button"
+                            class="item-icon-btn danger"
+                            @click.stop="deleteMemo(memo)"
+                          >
+                            <el-icon><Delete /></el-icon>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div class="memo-section-card">
-                <button type="button" class="memo-section-header" @click="bookMemoExpanded = !bookMemoExpanded">
-                  <div class="memo-section-title">
-                    <el-icon><ArrowRight v-if="!bookMemoExpanded" /><ArrowDown v-else /></el-icon>
-                    <span>本书备忘录</span>
-                    <em>{{ bookMemoList.length }}</em>
-                  </div>
-                </button>
-                <div v-if="bookMemoExpanded" class="memo-folder-row">
-                  <el-icon><Folder /></el-icon>
-                  <span>默认</span>
-                </div>
-                <div v-if="bookMemoExpanded" class="memo-group-list">
-                  <div
-                    v-for="memo in bookMemoList"
-                    :key="memo.id"
-                    :class="['sidebar-item', { active: dialogSelectedMemo?.id === memo.id, 'batch-selected': selectedMemoIds.includes(memo.id) }]"
-                    @click="handleMemoClick(memo)"
-                  >
-                    <div v-if="memoBatchMode" class="batch-checkbox">
-                      <el-checkbox
-                        :model-value="selectedMemoIds.includes(memo.id)"
-                        @click.stop
-                        @change="() => toggleMemoSelection(memo.id)"
-                      />
-                    </div>
-                    <div class="item-content">
-                      <div class="item-title-row">
-                        <span class="item-title">{{ memo.title || '无标题' }}</span>
-                        <span class="memo-scope-tag book">本书</span>
+                <div class="memo-tree-root">
+                  <div class="memo-tree-folder">
+                    <button
+                      type="button"
+                      class="memo-tree-folder-header"
+                      :class="{ active: bookMemoExpanded }"
+                      @click="bookMemoExpanded = !bookMemoExpanded"
+                    >
+                      <div class="folder-header-content">
+                        <el-icon class="folder-arrow">
+                          <ArrowRight v-if="!bookMemoExpanded" />
+                          <ArrowDown v-else />
+                        </el-icon>
+                        <el-icon class="folder-icon"><Folder /></el-icon>
+                        <span class="folder-name">本书备忘录</span>
+                        <span class="folder-count">{{ bookMemoList.length }}</span>
                       </div>
-                      <div class="item-tags-row" v-if="memo.tags">
-                        <el-tag
-                          v-for="tag in getMemoTags(memo.tags)"
-                          :key="tag"
-                          size="small"
-                          class="item-tag"
-                        >
-                          {{ tag }}
-                        </el-tag>
-                      </div>
-                      <div class="item-meta-row">
-                        <span class="item-meta">{{ getContentLength(memo.content) }} 字</span>
-                        <span class="item-meta-time">{{ formatTime(memo.updated_at) }}</span>
-                      </div>
-                    </div>
-                    <div class="item-quick-actions">
-                      <button
-                        v-if="memo.is_pinned && !memoBatchMode"
-                        type="button"
-                        class="item-icon-btn pin"
-                        @click.stop="toggleMemoPin(memo)"
+                    </button>
+                    <div
+                      v-show="bookMemoExpanded"
+                      class="memo-tree-children"
+                    >
+                      <div
+                        v-for="memo in bookMemoList"
+                        :key="memo.id"
+                        :class="['memo-tree-item', { active: dialogSelectedMemo?.id === memo.id, 'batch-selected': selectedMemoIds.includes(memo.id) }]"
+                        @click="handleMemoClick(memo)"
                       >
-                        <el-icon><Star /></el-icon>
-                      </button>
-                      <button
-                        v-if="!memoBatchMode"
-                        type="button"
-                        class="item-icon-btn danger"
-                        @click.stop="deleteMemo(memo)"
-                      >
-                        <el-icon><Delete /></el-icon>
-                      </button>
+                        <div v-if="memoBatchMode" class="batch-checkbox">
+                          <el-checkbox
+                            :model-value="selectedMemoIds.includes(memo.id)"
+                            @click.stop
+                            @change="() => toggleMemoSelection(memo.id)"
+                          />
+                        </div>
+                        <div class="item-content">
+                          <div class="item-title-row">
+                            <span class="item-title">{{ memo.title || '无标题' }}</span>
+                            <button
+                              type="button"
+                              class="item-move-btn"
+                              title="移动到文件夹"
+                              @click.stop="openMoveFolderDialog(memo)"
+                            >
+                              <el-icon><Folder /></el-icon>
+                            </button>
+                          </div>
+                          <div class="item-tags-row" v-if="memo.tags">
+                            <el-tag
+                              v-for="tag in getMemoTags(memo.tags)"
+                              :key="tag"
+                              size="small"
+                              class="item-tag"
+                            >
+                              {{ tag }}
+                            </el-tag>
+                          </div>
+                          <div class="item-meta-row">
+                            <span class="item-meta">{{ getContentLength(memo.content) }} 字</span>
+                            <span class="item-meta-time">{{ formatTime(memo.updated_at) }}</span>
+                          </div>
+                        </div>
+                        <div class="item-quick-actions">
+                          <button
+                            v-if="memo.is_pinned && !memoBatchMode"
+                            type="button"
+                            class="item-icon-btn pin"
+                            @click.stop="toggleMemoPin(memo)"
+                          >
+                            <el-icon><Star /></el-icon>
+                          </button>
+                          <button
+                            v-if="!memoBatchMode"
+                            type="button"
+                            class="item-icon-btn danger"
+                            @click.stop="deleteMemo(memo)"
+                          >
+                            <el-icon><Delete /></el-icon>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1511,13 +1627,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useBookStore } from '@/stores/book'
 import { onUnmounted } from 'vue'
 import { chapterAPI, memoAPI, promptAPI, configAPI, conversationAPI, volumeAPI, characterAPI } from '@/api'
-import type { Chapter, Memo, Prompt, ApiConfig, ChatMessage, RelatedContent, Volume, Character } from '@/types'
+import type { Chapter, Memo, Prompt, ApiConfig, ChatMessage, RelatedContent, Volume, Character, KnowledgeGraphData } from '@/types'
+import KnowledgeGraph from '@/components/KnowledgeGraph.vue'
 import { 
   ChatDotSquare, User, Notebook, ChatLineSquare, 
   Plus, MoreFilled, Delete, Folder, Switch, Sort, 
   ArrowRight, ArrowLeft, ArrowDown, Edit, EditPen, RefreshLeft, RefreshRight,
   Star, Grid, Refresh, Search, CopyDocument, Checked, Loading, View,
-  Monitor, MagicStick, DocumentCopy, Document, Close, Promotion, ChatDotRound, Link, Lightning, Setting, Download
+  Monitor, MagicStick, DocumentCopy, Document, Close, Promotion, ChatDotRound, Link, Lightning, Setting, Download, Connection
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -1608,6 +1725,7 @@ const conversations = ref<any[]>([])
 const currentConversation = ref<any>(null)
 const showChatPanel = ref(false)
 const showChatPanel2 = ref(false)
+const showGraphPanel = ref(false)
 const showGlobalMemoDialog = ref(false)
 const dialogSelectedMemo = ref<Memo | null>(null)
 const showHistoryDialog = ref(false)
@@ -1616,11 +1734,15 @@ const memoBatchMode = ref(false)
 const selectedMemoIds = ref<number[]>([])
 const dialogSelectedMemoTags = ref<string[]>([])
 const memoSidebarCollapsed = ref(false)
-const globalMemoExpanded = ref(true)
 const bookMemoExpanded = ref(true)
 const memoCreateScope = ref<'global' | 'book'>('book')
 const currentGlobalMemoFolder = ref('默认')
 const globalMemoCustomFolders = ref<string[]>([])
+const folderExpandedStates = ref<Record<string, boolean>>({
+  '默认': true
+})
+const moveFolderDialogVisible = ref(false)
+const memoToMove = ref<Memo | null>(null)
 const allMemoTags = computed(() => {
   const tagSet = new Set<string>()
   memos.value.forEach(memo => {
@@ -1685,9 +1807,22 @@ const goBackToBooks = () => {
   router.push('/books')
 }
 
-const visibleGlobalMemoList = computed(() => {
-  return globalMemoList.value.filter(memo => getGlobalMemoFolder(memo) === currentGlobalMemoFolder.value)
-})
+const toggleFolder = (folder: string) => {
+  if (currentGlobalMemoFolder.value !== folder) {
+    currentGlobalMemoFolder.value = folder
+    folderExpandedStates.value[folder] = true
+  } else {
+    folderExpandedStates.value[folder] = !folderExpandedStates.value[folder]
+  }
+}
+
+const getMemosByFolder = (folder: string) => {
+  return globalMemoList.value.filter(memo => getGlobalMemoFolder(memo) === folder)
+}
+
+const getFolderMemoCount = (folder: string) => {
+  return getMemosByFolder(folder).length
+}
 
 const hasSelectedMemos = computed(() => selectedMemoIds.value.length > 0)
 const historyDialogVisible = ref(false)
@@ -1838,6 +1973,7 @@ const continuWriting = ref(false)
 const continueAbortController = ref<AbortController | null>(null)
 const chapterEditorRef = ref()
 const memoEditorRef = ref()
+const knowledgeGraphRef = ref()
 const cursorPosition = ref(0)
 
 // 关联内容
@@ -2534,6 +2670,7 @@ const toggleChatPanel = async () => {
   const nextState = !showChatPanel.value
   if (nextState) {
     showChatPanel2.value = false
+    showGraphPanel.value = false
   }
   showChatPanel.value = nextState
   if (showChatPanel.value) {
@@ -2559,6 +2696,7 @@ const toggleChatPanel2 = async () => {
   const nextState = !showChatPanel2.value
   if (nextState) {
     showChatPanel.value = false
+    showGraphPanel.value = false
   }
   showChatPanel2.value = nextState
   setTimeout(() => {
@@ -2572,6 +2710,21 @@ const closeChatPanel2 = () => {
     updateCenterWidth()
   }, 100)
 }
+
+const toggleGraphPanel = () => {
+  showGraphPanel.value = !showGraphPanel.value
+}
+
+const closeGraphPanel = () => {
+  showGraphPanel.value = false
+  setTimeout(() => {
+    updateCenterWidth()
+  }, 100)
+}
+
+const onGraphAnalyzeStart = () => {}
+
+const onGraphAnalyzeEnd = (_data: KnowledgeGraphData) => {}
 
 const isCreative2PromptSelected = (promptId: number) => {
   return creative2SelectedPrompts.value.includes(promptId)
@@ -3790,9 +3943,109 @@ const handleCreateGlobalMemoFolder = async () => {
     globalMemoCustomFolders.value.push(folderName)
     persistGlobalMemoFolders()
     currentGlobalMemoFolder.value = folderName
-    globalMemoExpanded.value = true
+    folderExpandedStates.value[folderName] = true
     memoCreateScope.value = 'global'
     ElMessage.success('文件夹创建成功')
+  } catch (error) {
+    // 用户取消
+  }
+}
+
+const createMemoInFolder = async (folder: string) => {
+  const res = await memoAPI.create({
+    title: '新备忘录',
+    content: '',
+    category: folder === '默认' ? '全局' : folder,
+    order_num: memos.value.length
+  })
+  if (res.success && res.data) {
+    memos.value.push(res.data)
+    currentGlobalMemoFolder.value = folder
+    folderExpandedStates.value[folder] = true
+    ElMessage.success('备忘录创建成功')
+  }
+}
+
+const deleteFolder = async (folder: string) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除文件夹"${folder}"吗？该文件夹下的所有备忘录将被移动到"默认"文件夹。`, '删除文件夹', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const memosInFolder = getMemosByFolder(folder)
+    for (const memo of memosInFolder) {
+      await memoAPI.update(memo.id, {
+        category: '默认'
+      })
+    }
+
+    const index = globalMemoCustomFolders.value.indexOf(folder)
+    if (index !== -1) {
+      globalMemoCustomFolders.value.splice(index, 1)
+    }
+    persistGlobalMemoFolders()
+    
+    if (currentGlobalMemoFolder.value === folder) {
+      currentGlobalMemoFolder.value = '默认'
+    }
+    delete folderExpandedStates.value[folder]
+    
+    ElMessage.success('文件夹已删除')
+  } catch (error) {
+    // 用户取消
+  }
+}
+
+const openMoveFolderDialog = (memo: Memo) => {
+  memoToMove.value = memo
+  moveFolderDialogVisible.value = true
+}
+
+const moveToFolder = async (folder: string) => {
+  if (!memoToMove.value) return
+  
+  const res = await memoAPI.update(memoToMove.value.id, {
+    title: memoToMove.value.title,
+    content: memoToMove.value.content,
+    category: folder === '默认' ? '全局' : folder,
+    tags: memoToMove.value.tags
+  })
+  
+  if (res.success) {
+    const index = memos.value.findIndex(m => m.id === memoToMove.value!.id)
+    if (index !== -1) {
+      memos.value[index] = {
+        ...memos.value[index],
+        category: folder === '默认' ? '全局' : folder
+      }
+    }
+    ElMessage.success('备忘录已移动')
+    moveFolderDialogVisible.value = false
+    memoToMove.value = null
+  }
+}
+
+const deleteMemoInList = async (memo: Memo) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除备忘录"${memo.title || '无标题'}"吗？`, '删除备忘录', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const res = await memoAPI.delete(memo.id)
+    if (res.success) {
+      const index = memos.value.findIndex(m => m.id === memo.id)
+      if (index !== -1) {
+        memos.value.splice(index, 1)
+      }
+      if (dialogSelectedMemo.value?.id === memo.id) {
+        dialogSelectedMemo.value = null
+      }
+      ElMessage.success('备忘录已删除')
+    }
   } catch (error) {
     // 用户取消
   }
@@ -4850,6 +5103,10 @@ const sendMessage = async () => {
   font-size: 13px;
 }
 
+:root[data-theme='dark'] .empty-catalog {
+  color: #6b7280 !important;
+}
+
 .catalog-list {
   flex: 1;
   min-height: 0;
@@ -4866,9 +5123,21 @@ const sendMessage = async () => {
   background: #f5f7f9;
 }
 
+:root[data-theme='dark'] .catalog-list::-webkit-scrollbar-track {
+  background: #1a2332 !important;
+}
+
 .catalog-list::-webkit-scrollbar-thumb {
   background: #c0c4cc;
   border-radius: 3px;
+}
+
+:root[data-theme='dark'] .catalog-list::-webkit-scrollbar-thumb {
+  background: #3a4558 !important;
+}
+
+:root[data-theme='dark'] .catalog-list::-webkit-scrollbar-thumb:hover {
+  background: #4a5568 !important;
 }
 
 .catalog-item {
@@ -4885,11 +5154,22 @@ const sendMessage = async () => {
   box-sizing: border-box;
 }
 
+:root[data-theme='dark'] .catalog-item {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border-color: rgba(71, 85, 105, 0.4) !important;
+}
+
 .catalog-item:hover {
   background: rgba(239, 252, 249, 0.98);
   border-color: rgba(0, 201, 167, 0.28);
   transform: translateX(3px);
   box-shadow: 0 8px 18px rgba(0, 201, 167, 0.12);
+}
+
+:root[data-theme='dark'] .catalog-item:hover {
+  background: rgba(51, 65, 85, 0.9) !important;
+  border-color: rgba(94, 234, 212, 0.3) !important;
+  box-shadow: 0 8px 18px rgba(94, 234, 212, 0.15) !important;
 }
 
 .catalog-item.active {
@@ -4901,6 +5181,12 @@ const sendMessage = async () => {
   margin-left: 0;
   padding: 12px 14px;
   border-radius: 16px;
+}
+
+:root[data-theme='dark'] .catalog-item.active {
+  background: linear-gradient(135deg, #0f766e 0%, #115e59 100%) !important;
+  border-color: rgba(94, 234, 212, 0.4) !important;
+  box-shadow: 0 12px 24px rgba(15, 118, 110, 0.3) !important;
 }
 
 .catalog-main {
@@ -4933,6 +5219,11 @@ const sendMessage = async () => {
   font-weight: 500;
   font-size: 14px;
   transition: font-weight 0.2s ease;
+  color: #1f2937;
+}
+
+:root[data-theme='dark'] .catalog-title {
+  color: #f4f7ff !important;
 }
 
 .catalog-word-count,
@@ -4944,6 +5235,12 @@ const sendMessage = async () => {
   border-radius: 999px;
   background: rgba(0, 201, 167, 0.08);
   color: #5a8d85;
+}
+
+:root[data-theme='dark'] .catalog-word-count,
+:root[data-theme='dark'] .catalog-meta {
+  background: rgba(94, 234, 212, 0.12) !important;
+  color: #5eead4 !important;
 }
 
 .catalog-item.active .catalog-title {
@@ -4991,12 +5288,21 @@ const sendMessage = async () => {
   transition: all 0.2s ease;
 }
 
+:root[data-theme='dark'] .catalog-action-btn {
+  background: rgba(94, 234, 212, 0.12) !important;
+  color: #5eead4 !important;
+}
+
 .catalog-action-btn .el-icon {
   font-size: 14px;
 }
 
 .catalog-action-btn:hover {
   transform: translateY(-1px);
+}
+
+:root[data-theme='dark'] .catalog-action-btn:hover {
+  background: rgba(94, 234, 212, 0.2) !important;
 }
 
 .summary-action-btn.filled {
@@ -5244,6 +5550,37 @@ const sendMessage = async () => {
   background: linear-gradient(180deg, rgba(255, 248, 240, 0.98) 0%, rgba(255, 240, 230, 0.92) 100%);
   box-shadow: -4px 0 24px rgba(255, 152, 0, 0.1);
   border-left-color: rgba(255, 152, 0, 0.15);
+}
+
+.knowledge-graph-dialog {
+  :deep(.el-dialog__body) {
+    padding: 0;
+    height: 68vh;
+    overflow: hidden;
+  }
+}
+
+.graph-btn {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  color: #3b82f6 !important;
+  padding: 9px 20px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(12px);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.12);
+}
+
+.graph-btn:hover {
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.18);
+  transform: translateY(-1px);
 }
 
 .ai-write-btn-2 {
@@ -6840,58 +7177,247 @@ const sendMessage = async () => {
 }
 
 .memo-section-card {
-  margin-bottom: 10px;
-  border-radius: 14px;
-  background: #fff;
-  border: 1px solid #eef1f5;
-  box-shadow: 0 8px 18px rgba(26, 35, 52, 0.03);
+  margin-bottom: 0;
 }
 
-.memo-section-header {
+.memo-tree-root {
+  padding: 4px;
+}
+
+.memo-tree-folder {
+  margin-bottom: 2px;
+}
+
+.memo-tree-folder-header {
   width: 100%;
-  padding: 11px 12px;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  text-align: left;
 }
 
-.memo-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #3b4b60;
-  font-size: 13px;
-  font-weight: 700;
+.memo-tree-folder-header:hover {
+  background: #f5f7fa;
 }
 
-.memo-section-title em {
-  color: #a4adba;
-  font-style: normal;
+.memo-tree-folder-header.active {
+  background: #ecf5ff;
+}
+
+.memo-tree-folder-header.active .folder-name {
+  color: #409eff;
   font-weight: 600;
 }
 
-.memo-folder-row {
+.folder-header-content {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px 8px 28px;
-  border: none;
-  background: transparent;
-  color: #f0a128;
+  gap: 6px;
+  width: 100%;
+}
+
+.folder-arrow {
+  color: #909399;
   font-size: 12px;
-  font-weight: 600;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.folder-icon {
+  color: #e6a23c;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.folder-name {
+  flex: 1;
+  color: #606266;
+  font-size: 13px;
+  text-align: left;
+}
+
+.folder-count {
+  color: #909399;
+  font-size: 11px;
+  background: #f4f4f5;
+  padding: 2px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  flex-shrink: 0;
+}
+
+.memo-tree-folder-header:hover .folder-actions {
+  opacity: 1;
+}
+
+.folder-action-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #909399;
   cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.memo-folder-row.active {
-  color: #3572ff;
+.folder-action-btn:hover {
+  background: #f5f7fa;
+  color: #409eff;
 }
 
-.memo-group-list {
-  padding: 0 6px 6px;
+.folder-action-btn.danger:hover {
+  background: #fef0f0;
+  color: #f56c6c;
+}
+
+.item-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.memo-tree-item:hover .item-title-actions {
+  opacity: 1;
+}
+
+.item-title-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #909399;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.item-title-btn:hover {
+  background: #f5f7fa;
+  color: #409eff;
+}
+
+.item-title-btn.danger:hover {
+  background: #fef0f0;
+  color: #f56c6c;
+}
+
+.move-folder-content {
+  padding: 10px 0;
+}
+
+.move-folder-hint {
+  margin: 0 0 16px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.folder-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e4e7ed;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.folder-option:hover {
+  border-color: #409eff;
+  background: #ecf5ff;
+  transform: translateX(4px);
+}
+
+.folder-option.active {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.folder-option .el-icon {
+  color: #e6a23c;
+  font-size: 18px;
+}
+
+.folder-option span {
+  flex: 1;
+  color: #606266;
+  font-size: 14px;
+}
+
+.folder-option-count {
+  color: #909399;
+  font-size: 12px;
+  background: #f4f4f5;
+  padding: 4px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.memo-tree-children {
+  padding-left: 20px;
+}
+
+.memo-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 2px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.memo-tree-item:hover {
+  background: #f5f7fa;
+}
+
+.memo-tree-item.active {
+  background: #ecf5ff;
+}
+
+.memo-tree-item.active .item-title {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.memo-tree-item.batch-selected {
+  background: #fff7ef;
 }
 
 .batch-checkbox {
@@ -6926,20 +7452,25 @@ const sendMessage = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 10px 10px 12px;
-  margin-bottom: 6px;
-  border-radius: 12px;
+  padding: 8px 12px;
+  margin-bottom: 2px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .sidebar-item:hover {
-  background: #f8fbff;
+  background: #f5f7fa;
 }
 
 .sidebar-item.active {
-  background: #edf3ff;
-  box-shadow: inset 3px 0 0 #4d86ff;
+  background: #ecf5ff;
+  color: #409eff;
+}
+
+.sidebar-item.active .item-title {
+  color: #409eff;
+  font-weight: 600;
 }
 
 .item-content {
@@ -6951,13 +7482,14 @@ const sendMessage = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
 }
 
 .item-title {
   display: block;
   font-size: 13px;
-  font-weight: 500;
-  color: #334155;
+  font-weight: 400;
+  color: #606266;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6965,48 +7497,50 @@ const sendMessage = async () => {
 
 .memo-scope-tag {
   flex-shrink: 0;
-  padding: 1px 7px;
-  border-radius: 999px;
+  padding: 0 6px;
+  border-radius: 4px;
   font-size: 11px;
   line-height: 18px;
+  background: transparent;
+  border: 1px solid;
 }
 
 .memo-scope-tag.global {
-  color: #11a683;
-  background: #e8faf4;
+  color: #67c23a;
+  border-color: #67c23a;
 }
 
 .memo-scope-tag.book {
-  color: #4d86ff;
-  background: #edf3ff;
+  color: #409eff;
+  border-color: #409eff;
 }
 
 .item-meta {
   display: block;
-  font-size: 11px;
-  color: #9da9b8;
+  font-size: 12px;
+  color: #909399;
 }
 
 .item-meta-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .item-tags-row {
   display: flex;
   gap: 4px;
-  margin-top: 6px;
+  margin-top: 4px;
   flex-wrap: wrap;
 }
 
 .item-tag {
   height: 18px;
   line-height: 18px;
-  font-size: 10px;
-  background: #f2f8ff;
-  color: #4d86ff;
+  font-size: 11px;
+  background: #f4f4f5;
+  color: #909399;
   border: none;
 }
 

@@ -94,10 +94,41 @@
       <div class="preview-dialog-content">
         <div class="preview-dialog-header">
           <div class="preview-dialog-actions">
-            <el-button type="primary" @click="editPreviewPrompt">
-              <el-icon><Edit /></el-icon>
-              编辑提示词
-            </el-button>
+            <template v-if="selectedPreviewPrompt?.card_type === 'encrypted' && selectedPreviewPrompt?.password">
+              <el-popover
+                :visible="editPasswordPopoverVisible"
+                placement="bottom"
+                :width="280"
+                trigger="click"
+              >
+                <template #reference>
+                  <el-button type="primary" @click="editPasswordPopoverVisible = true">
+                    <el-icon><Edit /></el-icon>
+                    编辑提示词
+                  </el-button>
+                </template>
+                <div class="edit-password-popover">
+                  <p class="popover-hint">请输入密码编辑</p>
+                  <el-input
+                    v-model="editPasswordInput"
+                    type="password"
+                    placeholder="请输入密码"
+                    show-password
+                    @keyup.enter="verifyEditPassword"
+                  />
+                  <div class="popover-actions">
+                    <el-button size="small" @click="editPasswordPopoverVisible = false">取消</el-button>
+                    <el-button type="primary" size="small" @click="verifyEditPassword">确认</el-button>
+                  </div>
+                </div>
+              </el-popover>
+            </template>
+            <template v-else>
+              <el-button type="primary" @click="editPreviewPrompt">
+                <el-icon><Edit /></el-icon>
+                编辑提示词
+              </el-button>
+            </template>
             <el-button type="primary" link @click="copyPreviewContent">
               <el-icon><CopyDocument /></el-icon>
               复制
@@ -123,19 +154,27 @@
             </div>
 
             <div class="preview-section preview-section-collapse">
-              <el-collapse>
-                <el-collapse-item name="content">
-                  <template #title>
-                    <div class="preview-collapse-title">
-                      <span>提示词内容</span>
-                      <small>默认折叠，点击展开</small>
+              <template v-if="selectedPreviewPrompt.card_type === 'encrypted' && selectedPreviewPrompt.password">
+                <div class="preview-encrypted-notice">
+                  <el-icon :size="32" color="#e6a23c"><Lock /></el-icon>
+                  <p class="encrypted-title">私人提示词</p>
+                </div>
+              </template>
+              <template v-else>
+                <el-collapse>
+                  <el-collapse-item name="content">
+                    <template #title>
+                      <div class="preview-collapse-title">
+                        <span>提示词内容</span>
+                        <small>默认折叠，点击展开</small>
+                      </div>
+                    </template>
+                    <div class="preview-markdown-card preview-content-card">
+                      <MarkdownRenderer :content="selectedPreviewPrompt.content" />
                     </div>
-                  </template>
-                  <div class="preview-markdown-card preview-content-card">
-                    <MarkdownRenderer :content="selectedPreviewPrompt.content" />
-                  </div>
-                </el-collapse-item>
-              </el-collapse>
+                  </el-collapse-item>
+                </el-collapse>
+              </template>
             </div>
           </div>
         </el-scrollbar>
@@ -459,7 +498,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { CopyDocument, Edit, Plus, Delete, Close, ArrowUp, ArrowDown, Check, InfoFilled } from '@element-plus/icons-vue'
+import { CopyDocument, Edit, Plus, Delete, Close, ArrowUp, ArrowDown, Check, InfoFilled, Lock } from '@element-plus/icons-vue'
 import { promptAPI } from '@/api'
 import type { Prompt } from '@/types'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
@@ -477,6 +516,34 @@ const searchKeyword = ref('')
 // 预览弹窗相关状态
 const previewDialogVisible = ref(false)
 const selectedPreviewPrompt = ref<Prompt | null>(null)
+const editPasswordPopoverVisible = ref(false)
+const editPasswordInput = ref('')
+
+// 密码哈希函数
+const hashPassword = async (password: string): Promise<string> => {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password + '__xingnovel_salt__')
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+const verifyPassword = async (inputPassword: string, storedHash: string): Promise<boolean> => {
+  const inputHash = await hashPassword(inputPassword)
+  return inputHash === storedHash
+}
+
+const verifyEditPassword = async () => {
+  if (!selectedPreviewPrompt.value) return
+  const isValid = await verifyPassword(editPasswordInput.value, selectedPreviewPrompt.value.password || '')
+  if (isValid) {
+    editPasswordPopoverVisible.value = false
+    editPasswordInput.value = ''
+    editPreviewPrompt()
+  } else {
+    ElMessage.error('密码错误')
+  }
+}
 
 // 小分类编辑弹窗相关状态
 const subcategoryDialogVisible = ref(false)
@@ -1693,5 +1760,42 @@ onMounted(async () => {
 
 .description-rich-editor {
   width: 100%;
+}
+
+.preview-encrypted-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, rgba(230, 162, 60, 0.08) 0%, rgba(230, 162, 60, 0.04) 100%);
+  border: 1px dashed #e6a23c;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.encrypted-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e6a23c;
+  margin: 12px 0 0;
+}
+
+.edit-password-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.popover-hint {
+  font-size: 13px;
+  color: #606266;
+  margin: 0;
+}
+
+.popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

@@ -302,11 +302,11 @@ const replaceText = async () => {
   const findText = window.prompt('请输入要查找的内容：', selectedText || '')
   if (!findText) return
 
-  const replaceText = window.prompt('请输入要替换为的内容：', '') ?? ''
+  const replaceWith = window.prompt('请输入要替换为的内容：', '') ?? ''
   
   const html = editorRef.value.innerHTML
   const escapedFind = escapeHtml(findText)
-  const escapedReplace = escapeHtml(replaceText)
+  const escapedReplace = escapeHtml(replaceWith)
   
   const regex = new RegExp(escapedFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
   const newHtml = html.replace(regex, escapedReplace)
@@ -631,5 +631,84 @@ onMounted(() => {
     padding: 24px 20px 36px;
     font-size: 15px;
   }
+}
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .split-rich-text-editor {
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .toolbar {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-bottom-color: rgba(71, 85, 105, 0.5) !important;
+}
+
+:root[data-theme='dark'] .toolbar-button {
+  background: rgba(51, 65, 85, 0.6) !important;
+  color: #c8d0e0 !important;
+  border-color: rgba(71, 85, 105, 0.4) !important;
+}
+
+:root[data-theme='dark'] .toolbar-button:hover:not(:disabled) {
+  background: rgba(71, 85, 105, 0.8) !important;
+  color: #5eead4 !important;
+  border-color: rgba(94, 234, 212, 0.3) !important;
+}
+
+:root[data-theme='dark'] .editor-shell {
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .editor-surface {
+  color: #f4f7ff !important;
+}
+
+:root[data-theme='dark'] .editor-surface.is-empty::before {
+  color: #6b7280 !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(h1) {
+  color: #f4f7ff !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(h2) {
+  color: #c8d0e0 !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(blockquote) {
+  color: #c8d0e0 !important;
+  background: rgba(94, 234, 212, 0.08) !important;
+  border-left-color: rgba(94, 234, 212, 0.4) !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(pre) {
+  background: rgba(30, 41, 59, 0.6) !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(code) {
+  background: rgba(94, 234, 212, 0.12) !important;
+  color: #f4f7ff !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(a) {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(th),
+:root[data-theme='dark'] .editor-surface :deep(td) {
+  border-color: rgba(71, 85, 105, 0.5) !important;
+  color: #f4f7ff !important;
+}
+
+:root[data-theme='dark'] .editor-surface :deep(th) {
+  background: rgba(51, 65, 85, 0.5) !important;
+}
+
+:root[data-theme='dark'] .split-rich-text-editor.is-disabled {
+  background: rgba(30, 41, 59, 0.5) !important;
+}
+
+:root[data-theme='dark'] .split-rich-text-editor.is-disabled .editor-surface {
+  color: #6b7280 !important;
 }
 </style>
