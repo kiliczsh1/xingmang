@@ -1,7 +1,7 @@
 {
   "name": "xingnovel",
-  "version": "1.0.0",
-  "description": "网文创作辅助系统",
+  "version": "0.6.4",
+  "description": "星芒AI写作",
   "scripts": {
     "start": "node server/index.js",
     "dev": "cd novel && npm run dev",
