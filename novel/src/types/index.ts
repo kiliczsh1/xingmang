@@ -54,6 +54,11 @@ export interface Prompt {
   subcategories?: string[]
   created_at?: string
   updated_at?: string
+  creator_name?: string
+  creator_avatar?: string
+  version?: string
+  use_count?: number
+  like_count?: number
 }
 
 // 备忘录类型

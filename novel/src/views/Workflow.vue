@@ -827,4 +827,100 @@ const handleImportFile = async (event: Event) => {
     inset: 48px 10px 64px 10px;
   }
 }
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .signal-orbit {
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .signal-core {
+  color: #5eead4;
+  background: linear-gradient(135deg, rgba(94, 234, 212, 0.2) 0%, rgba(45, 212, 191, 0.1) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='dark'] .workflow-card {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: rgba(71, 85, 105, 0.4);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .workflow-card:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+  box-shadow: 0 24px 44px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .card-sheen {
+  background: radial-gradient(circle, rgba(94, 234, 212, 0.15) 0%, transparent 72%);
+}
+
+:root[data-theme='dark'] .workflow-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .edit-btn {
+  border-color: rgba(94, 234, 212, 0.3);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .enter-btn {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+}
+
+:root[data-theme='dark'] .hover-panel {
+  background: rgba(15, 23, 42, 0.95);
+  color: #edfefd;
+}
+
+:root[data-theme='dark'] .page-header {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: rgba(71, 85, 105, 0.4);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .page-header h1 {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .subtitle {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .create-btn {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .import-export-group .el-button {
+  border-color: rgba(94, 234, 212, 0.3);
+  color: #5eead4;
+  background: rgba(30, 41, 59, 0.8);
+}
+
+:root[data-theme='dark'] .import-export-group .el-button:hover {
+  background: rgba(94, 234, 212, 0.15);
+  border-color: rgba(94, 234, 212, 0.5);
+}
+
+:root[data-theme='dark'] .empty-shell {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(94, 234, 212, 0.3);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .empty-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .empty-shell h3 {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .empty-shell p {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .field-label {
+  color: #e5e7eb;
+}
 </style>

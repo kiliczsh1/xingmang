@@ -1185,4 +1185,166 @@ defineExpose({
 .rel-desc {
   color: var(--el-text-color-secondary);
 }
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .kg-versions {
+  background: rgba(30, 41, 59, 0.8);
+  border-right-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .versions-header {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .version-item {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .version-item:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .version-item.active {
+  border-color: #00c9a7;
+  background: rgba(0, 201, 167, 0.15);
+}
+
+:root[data-theme='dark'] .versions-empty {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .empty-hint {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .graph-header {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .kg-content {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+:root[data-theme='dark'] .graph-scope-section {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .scope-chip {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .scope-chip:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .scope-chip.active {
+  background: #00c9a7;
+  border-color: #00c9a7;
+  color: #fff;
+}
+
+:root[data-theme='dark'] .graph-stats {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .graph-filter {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .filter-chip {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .filter-chip:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .filter-chip.active {
+  background: #00c9a7;
+  border-color: #00c9a7;
+  color: #fff;
+}
+
+:root[data-theme='dark'] .graph-detail {
+  border-top-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .graph-empty,
+:root[data-theme='dark'] .graph-loading {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .empty-icon,
+:root[data-theme='dark'] .loading-icon {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-hint,
+:root[data-theme='dark'] .loading-hint {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .versions-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .version-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .version-time {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .version-stat {
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .version-desc {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .graph-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .scope-label {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .chapter-count {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .stat-item {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .detail-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .detail-desc {
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .detail-section-title {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .rel-target {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .rel-desc {
+  color: #9ca3af;
+}
 </style>

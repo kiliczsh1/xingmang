@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="write-container">
     <!-- 顶部工具栏 -->
     <div class="toolbar" :style="{ height: toolbarHeight + 'px' }">
@@ -60,9 +60,6 @@
     <div class="content-wrapper">
       <!-- 左侧：目录 -->
       <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
-        <div class="left-panel-header">
-          <div class="left-panel-book-title">{{ currentBook?.title || '新建作品' }}</div>
-        </div>
         <el-tabs v-model="catalogType">
           <el-tab-pane label="正文目录" name="chapters">
             <div class="catalog-header">
@@ -321,7 +318,28 @@
               <el-icon><Plus /></el-icon>
               新建对话
             </el-button>
-            <span class="chat-title">{{ currentConversation?.title || 'AI 助手' }}</span>
+            <el-badge 
+              :value="selectedPrompts.length" 
+              class="item"
+              type="primary"
+              :hidden="selectedPrompts.length === 0"
+            >
+              <el-button size="small" @click="promptSelectDialogVisible = true" title="提示词">
+                <el-icon><Document /></el-icon>
+                提示词
+              </el-button>
+            </el-badge>
+            <el-badge 
+              :value="relatedContent.length" 
+              class="item"
+              type="primary"
+              :hidden="relatedContent.length === 0"
+            >
+              <el-button size="small" @click="showRelateDialog = true" title="关联内容">
+                <el-icon><Link /></el-icon>
+                关联
+              </el-button>
+            </el-badge>
             <el-select
               v-model="selectedConfigId"
               placeholder="API 配置"
@@ -357,7 +375,16 @@
                   <el-icon v-else><ChatDotRound /></el-icon>
                 </div>
                 <div class="message-wrapper">
-                  <div v-if="editingMessageIndex !== index" class="message-content">
+                  <div v-if="msg.role === 'user'" class="user-message-collapsible">
+                    <div class="user-message-toggle" @click="toggleUserMessage(index)">
+                      <el-icon><component :is="collapsedUserMessages.has(index) ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+                      <span class="user-message-preview">{{ collapsedUserMessages.has(index) ? '展开输入' : '收起输入' }}</span>
+                    </div>
+                    <div v-show="!collapsedUserMessages.has(index)" class="message-content">
+                      <MarkdownRenderer :content="msg.content" />
+                    </div>
+                  </div>
+                  <div v-else-if="editingMessageIndex !== index" class="message-content">
                     <MarkdownRenderer :content="msg.content" />
                   </div>
                   <div v-else class="edit-wrapper">
@@ -378,6 +405,9 @@
                     <el-button size="small" text @click="copyMessage(msg.content)">
                       <el-icon><DocumentCopy /></el-icon>
                     </el-button>
+                    <el-button size="small" text @click="applyToCursor(msg.content)" title="应用此光标">
+                      <el-icon><Position /></el-icon>
+                    </el-button>
                     <el-button size="small" text @click="startEdit(index, msg.content)">
                       <el-icon><Edit /></el-icon>
                     </el-button>
@@ -396,45 +426,35 @@
             </div>
 
             <div class="chat-input-area">
-              <div class="chat-tools">
-                <el-button size="small" @click="showRelateDialog = true">
-                  <el-icon><Link /></el-icon>
-                  关联内容
-                  <el-badge 
-                    v-if="relatedContent.length > 0" 
-                    :value="relatedContent.length" 
-                    class="item"
-                    type="primary"
-                  />
-                </el-button>
-                <el-button size="small" @click="promptSelectDialogVisible = true">
-                  <el-icon><Document /></el-icon>
-                  选择提示词
-                  <el-badge 
-                    v-if="selectedPrompts.length > 0" 
-                    :value="selectedPrompts.length" 
-                    class="item"
-                    type="primary"
-                  />
-                </el-button>
-              </div>
               <div class="input-wrapper">
                 <el-input
                   v-model="userInput"
                   type="textarea"
-                  :rows="3"
-                  placeholder="输入消息... (Ctrl+Enter 发送)"
+                  :rows="2"
+                  placeholder="输入消息..."
                   @keydown.ctrl.enter="sendMessage"
                   :disabled="sending"
+                  resize="none"
                 />
-                <el-button 
-                  type="primary" 
-                  :loading="sending" 
-                  @click="sendMessage"
-                  :disabled="!userInput.trim()"
-                >
-                  <el-icon><Promotion /></el-icon>
-                </el-button>
+                <div class="input-actions">
+                  <el-button 
+                    v-if="!sending"
+                    type="primary" 
+                    circle
+                    @click="sendMessage"
+                    :disabled="!userInput.trim() && selectedPrompts.length === 0 && relatedContent.length === 0"
+                  >
+                    <el-icon><Promotion /></el-icon>
+                  </el-button>
+                  <el-button 
+                    v-else
+                    type="danger" 
+                    circle
+                    @click="stopChatGeneration"
+                  >
+                    <el-icon><VideoPause /></el-icon>
+                  </el-button>
+                </div>
               </div>
             </div>
           </div>
@@ -693,21 +713,20 @@
                 </div>
               </div>
             </template>
-
-            <!-- 开始生成按钮 -->
-            <div class="creative-section">
-              <el-button 
-                type="primary" 
-                :loading="creative2Generating"
-                @click="handleCreative2Generate"
-                :disabled="!creative2ConfigId"
-                style="width: 100%;"
-              >
-                <el-icon><Lightning /></el-icon>
-                开始生成
-              </el-button>
-            </div>
           </div>
+        </div>
+        
+        <!-- 开始生成按钮 - 固定在右下角 -->
+        <div class="creative-generate-btn-wrapper">
+          <el-button 
+            type="primary" 
+            :loading="creative2Generating"
+            @click="handleCreative2Generate"
+            class="creative-generate-btn"
+          >
+            <el-icon><Lightning /></el-icon>
+            开始生成
+          </el-button>
         </div>
       </div>
     </div>
@@ -735,40 +754,82 @@
     <!-- AI 写作生成结果弹窗 -->
     <el-dialog
       v-model="creative2ResultDialogVisible"
-      title="AI 写作生成结果"
-      width="700px"
+      :title="creative2WaitingForResponse ? 'AI 写作生成中...' : (creative2Generating ? 'AI 写作生成中' : 'AI 写作生成结果')"
+      width="800px"
       align-center
       append-to-body
       class="creative2-result-dialog"
       :close-on-click-modal="false"
-      :modal="false"
+      :close-on-press-escape="false"
+      :show-close="!creative2Generating"
     >
       <div class="creative2-result-content">
-        <div class="result-header">
-          <div class="result-info">
-            <el-icon class="result-icon"><Lightning /></el-icon>
-            <span class="result-title">生成完成</span>
+        <!-- 等待AI响应时的过场动画 -->
+        <div v-if="creative2WaitingForResponse" class="generating-animation">
+          <div class="starburst-container">
+            <div class="starburst-core"></div>
+            <div class="starburst-ring ring-1"></div>
+            <div class="starburst-ring ring-2"></div>
+            <div class="starburst-ring ring-3"></div>
+            <div class="starburst-ray ray-1"></div>
+            <div class="starburst-ray ray-2"></div>
+            <div class="starburst-ray ray-3"></div>
+            <div class="starburst-ray ray-4"></div>
+            <div class="starburst-ray ray-5"></div>
+            <div class="starburst-ray ray-6"></div>
+            <div class="starburst-ray ray-7"></div>
+            <div class="starburst-ray ray-8"></div>
+            <div class="starburst-sparkle sparkle-1"></div>
+            <div class="starburst-sparkle sparkle-2"></div>
+            <div class="starburst-sparkle sparkle-3"></div>
+            <div class="starburst-sparkle sparkle-4"></div>
+            <div class="starburst-sparkle sparkle-5"></div>
+            <div class="starburst-sparkle sparkle-6"></div>
           </div>
-          <el-button 
-            size="small" 
-            text 
-            @click="copyCreative2Result"
-            title="复制内容"
-          >
-            <el-icon><DocumentCopy /></el-icon>
-            复制
-          </el-button>
+          <div class="generating-text">正在生成中，请稍候...</div>
         </div>
-        <div class="result-body">
-          <el-scrollbar max-height="50vh">
-            <div class="result-text">{{ creative2Result || '暂无生成内容' }}</div>
-          </el-scrollbar>
+
+        <!-- 流式输出内容区域 -->
+        <div v-else-if="creative2Generating && creative2Result" class="streaming-content">
+          <div class="result-body">
+            <el-scrollbar ref="streamingScrollbarRef" max-height="50vh">
+              <MarkdownRenderer :content="creative2Result" />
+            </el-scrollbar>
+          </div>
+        </div>
+
+        <!-- 生成完成内容区域 -->
+        <div v-else-if="creative2Result" class="result-complete">
+          <div class="result-body">
+            <el-scrollbar max-height="50vh">
+              <MarkdownRenderer :content="creative2Result" />
+            </el-scrollbar>
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else class="empty-result">
+          <el-empty description="暂无生成内容" />
         </div>
       </div>
       <template #footer>
         <div class="creative2-result-footer">
-          <el-button @click="creative2ResultDialogVisible = false">关闭</el-button>
           <el-button 
+            v-if="!creative2Generating" 
+            @click="creative2ResultDialogVisible = false"
+          >
+            关闭
+          </el-button>
+          <el-button 
+            v-if="creative2Generating"
+            type="danger" 
+            @click="stopCreative2Generation"
+          >
+            <el-icon><CircleClose /></el-icon>
+            停止生成
+          </el-button>
+          <el-button 
+            v-if="!creative2Generating"
             type="primary" 
             @click="applyCreative2Result"
             :disabled="!currentChapter || !creative2Result"
@@ -1634,14 +1695,14 @@ import {
   Plus, MoreFilled, Delete, Folder, Switch, Sort, 
   ArrowRight, ArrowLeft, ArrowDown, Edit, EditPen, RefreshLeft, RefreshRight,
   Star, Grid, Refresh, Search, CopyDocument, Checked, Loading, View,
-  Monitor, MagicStick, DocumentCopy, Document, Close, Promotion, ChatDotRound, Link, Lightning, Setting, Download, Connection
+  Monitor, MagicStick, DocumentCopy, Document, Close, Promotion, ChatDotRound, Link, Lightning, Setting, Download, Connection, VideoPause, Position
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const bookStore = useBookStore()
 
-const bookId = parseInt(route.params.bookId as string)
+const bookId = parseInt(route.params.bookId as string) || 0
 const currentBook = computed(() => bookStore.currentBook)
 
 // 目录相关
@@ -1864,6 +1925,9 @@ const creative2SelectedPrompts = ref<number[]>([])
 const creative2Generating = ref(false)
 const creative2Result = ref('')
 const creative2ResultDialogVisible = ref(false)
+const creative2AbortController = ref<AbortController | null>(null)
+const creative2WaitingForResponse = ref(false)
+const streamingScrollbarRef = ref<any>(null)
 const creative2AdvancedMode = ref(false)
 const creative2PromptDialogVisible = ref(false)
 const creative2SecondPromptDialogVisible = ref(false)
@@ -1948,6 +2012,8 @@ const creative2SecondFilteredPrompts = computed(() => {
 const chatMessages = ref<ChatMessage[]>([])
 const userInput = ref('')
 const sending = ref(false)
+const collapsedUserMessages = ref(new Set<number>())
+const chatAbortController = ref<AbortController | null>(null)
 const chatMessagesRef = ref<HTMLElement>()
 const editingMessageIndex = ref<number | null>(null)
 const editingContent = ref('')
@@ -2821,8 +2887,10 @@ const handleCreative2Generate = async () => {
   }
 
   creative2Generating.value = true
+  creative2WaitingForResponse.value = true
   creative2Result.value = ''
   creative2ResultDialogVisible.value = true
+  creative2AbortController.value = new AbortController()
 
   try {
     const selectedPromptObjects = prompts.value.filter(p => 
@@ -2948,7 +3016,8 @@ const handleCreative2Generate = async () => {
           role: 'user',
           content: userMessageContent
         }]
-      })
+      }),
+      signal: creative2AbortController.value.signal
     })
 
     if (!response.ok) {
@@ -2959,6 +3028,7 @@ const handleCreative2Generate = async () => {
     const decoder = new TextDecoder()
 
     if (reader) {
+      let isFirstChunk = true
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -2978,6 +3048,17 @@ const handleCreative2Generate = async () => {
               }
               if (parsed.content) {
                 creative2Result.value += parsed.content
+                if (isFirstChunk) {
+                  creative2WaitingForResponse.value = false
+                  isFirstChunk = false
+                }
+                await new Promise(resolve => setTimeout(resolve, 0))
+                if (streamingScrollbarRef.value) {
+                  const scrollbar = streamingScrollbarRef.value
+                  if (scrollbar.wrapRef) {
+                    scrollbar.wrapRef.scrollTop = scrollbar.wrapRef.scrollHeight
+                  }
+                }
               }
             } catch (e: any) {
               if (e.message && !e.message.includes('JSON')) {
@@ -3007,26 +3088,54 @@ const handleCreative2Generate = async () => {
       })
     })
   } catch (error: any) {
-    console.error('创意生成错误:', error)
-    saveHistoryRecord({
-      title: `创意生成 - ${prompts.value.filter(p => promptsToUse.includes(p.id)).map(p => p.name).join('、') || '未命名任务'}`,
-      source: 'creative2',
-      sourceLabel: '正文创意生成',
-      promptName: prompts.value.filter(p => promptsToUse.includes(p.id)).map(p => p.name).join('、'),
-      promptCount: prompts.value.filter(p => promptsToUse.includes(p.id)).length,
-      status: 'failed',
-      previewContent: (creative2Result.value || '生成失败').substring(0, 140),
-      messages: buildHistoryMessages({
-        promptContents: prompts.value
-          .filter(p => promptsToUse.includes(p.id))
-          .map(p => p.content),
-        userContents: [''],
-        assistantContents: creative2Result.value ? [creative2Result.value] : []
+    if (error.name === 'AbortError') {
+      ElMessage.info('已停止生成')
+      saveHistoryRecord({
+        title: `创意生成 - ${prompts.value.filter(p => promptsToUse.includes(p.id)).map(p => p.name).join('、') || '未命名任务'}`,
+        source: 'creative2',
+        sourceLabel: '正文创意生成',
+        promptName: prompts.value.filter(p => promptsToUse.includes(p.id)).map(p => p.name).join('、'),
+        promptCount: prompts.value.filter(p => promptsToUse.includes(p.id)).length,
+        status: 'cancelled',
+        previewContent: (creative2Result.value || '已停止生成').substring(0, 140),
+        messages: buildHistoryMessages({
+          promptContents: prompts.value
+            .filter(p => promptsToUse.includes(p.id))
+            .map(p => p.content),
+          userContents: [''],
+          assistantContents: creative2Result.value ? [creative2Result.value] : []
+        })
       })
-    })
-    ElMessage.error(error.message || '生成失败')
+    } else {
+      console.error('创意生成错误:', error)
+      saveHistoryRecord({
+        title: `创意生成 - ${prompts.value.filter(p => promptsToUse.includes(p.id)).map(p => p.name).join('、') || '未命名任务'}`,
+        source: 'creative2',
+        sourceLabel: '正文创意生成',
+        promptName: prompts.value.filter(p => promptsToUse.includes(p.id)).map(p => p.name).join('、'),
+        promptCount: prompts.value.filter(p => promptsToUse.includes(p.id)).length,
+        status: 'failed',
+        previewContent: (creative2Result.value || '生成失败').substring(0, 140),
+        messages: buildHistoryMessages({
+          promptContents: prompts.value
+            .filter(p => promptsToUse.includes(p.id))
+            .map(p => p.content),
+          userContents: [''],
+          assistantContents: creative2Result.value ? [creative2Result.value] : []
+        })
+      })
+      ElMessage.error(error.message || '生成失败')
+    }
   } finally {
     creative2Generating.value = false
+    creative2WaitingForResponse.value = false
+    creative2AbortController.value = null
+  }
+}
+
+const stopCreative2Generation = () => {
+  if (creative2AbortController.value) {
+    creative2AbortController.value.abort()
   }
 }
 
@@ -3066,6 +3175,37 @@ const copyMessage = async (content: string) => {
   } catch (error) {
     ElMessage.error('复制失败')
   }
+}
+
+const applyToCursor = async (content: string) => {
+  if (!currentChapter.value) {
+    ElMessage.warning('请先选择章节')
+    return
+  }
+  
+  try {
+    if (chapterEditorRef.value && typeof chapterEditorRef.value.insertPlainText === 'function') {
+      await chapterEditorRef.value.insertPlainText(content)
+      ElMessage.success('已应用到光标位置')
+      saveChapter()
+    } else {
+      currentChapter.value.content += content
+      ElMessage.success('已追加到章节末尾')
+      saveChapter()
+    }
+  } catch (error) {
+    ElMessage.error('应用失败')
+  }
+}
+
+const toggleUserMessage = (index: number) => {
+  const newSet = new Set(collapsedUserMessages.value)
+  if (newSet.has(index)) {
+    newSet.delete(index)
+  } else {
+    newSet.add(index)
+  }
+  collapsedUserMessages.value = newSet
 }
 
 const startEdit = (index: number, content: string) => {
@@ -4485,27 +4625,48 @@ const scrollToBottom = () => {
 }
 
 const sendMessage = async () => {
-  if (!userInput.value.trim()) {
-    ElMessage.warning('请输入消息')
-    return
-  }
-
   if (!currentConversation.value) {
     ElMessage.warning('请先选择或创建对话')
     return
   }
 
+  const selectedPromptRecords = prompts.value.filter((p: any) => selectedPrompts.value.some(id => id == p.id))
+  const promptNames = selectedPromptRecords.map((p: any) => p.name).join('、')
+  const systemPrompts = selectedPromptRecords.map((p: any) => p.content)
+  const relatedContentSummary = relatedContent.value.length > 0
+    ? `关联内容：\n${relatedContent.value
+        .map(item => `${item.type === 'chapter' ? '章节' : '备忘录'}：${item.title}\n${item.content}`)
+        .join('\n\n')}`
+    : ''
+
+  const promptContents = selectedPromptRecords.map((p: any) => p.content).join('\n\n')
+
+  let fullUserContent = ''
+  if (promptContents) {
+    fullUserContent += `提示词：\n${promptContents}\n\n`
+  }
+  if (relatedContentSummary) {
+    fullUserContent += `${relatedContentSummary}\n\n`
+  }
+  if (userInput.value.trim()) {
+    fullUserContent += userInput.value
+  }
+
+  if (!fullUserContent.trim()) {
+    ElMessage.warning('请输入消息或选择提示词/关联内容')
+    return
+  }
+
   const userMessage: ChatMessage = {
     role: 'user',
-    content: userInput.value
+    content: fullUserContent
   }
-  const pendingInput = userInput.value
   chatMessages.value.push(userMessage)
   
   // 保存用户消息
   await conversationAPI.saveMessage(currentConversation.value.id, {
     role: 'user',
-    content: pendingInput
+    content: fullUserContent
   })
   
   userInput.value = ''
@@ -4517,30 +4678,11 @@ const sendMessage = async () => {
   }
   chatMessages.value.push(assistantMessage)
   const messageIndex = chatMessages.value.length - 1
-  const selectedPromptRecords = prompts.value.filter((p: any) => selectedPrompts.value.some(id => id == p.id))
-  const promptNames = selectedPromptRecords.map((p: any) => p.name).join('、')
-  const systemPrompts = selectedPromptRecords.map((p: any) => {
-    console.log('对话-添加提示词内容:', p.content)
-    return p.content
-  })
-  const relatedContentSummary = relatedContent.value.length > 0
-    ? [
-        `关联内容：\n${relatedContent.value
-          .map(item => `${item.type === 'chapter' ? '章节' : '备忘录'}：${item.title}\n${item.content}`)
-          .join('\n\n')}`
-      ]
-    : []
 
   try {
     sending.value = true
+    chatAbortController.value = new AbortController()
     scrollToBottom()
-    
-    // 获取选中的提示词内容
-    console.log('对话-选中的提示词IDs:', selectedPrompts.value, '所有提示词:', prompts.value)
-    selectedPromptRecords.forEach((p: any) => {
-      console.log('对话-匹配到提示词:', p.name, 'ID:', p.id)
-    })
-    console.log('对话-最终systemPrompts:', systemPrompts)
 
     // 使用 fetch 进行流式请求
     const response = await fetch('/api/ai/chat', {
@@ -4550,10 +4692,9 @@ const sendMessage = async () => {
       },
       body: JSON.stringify({
         messages: chatMessages.value.slice(0, -1),
-        configId: selectedConfigId.value,
-        systemPrompts,
-        relatedContent: relatedContent.value
-      })
+        configId: selectedConfigId.value
+      }),
+      signal: chatAbortController.value.signal
     })
 
     if (!response.ok) {
@@ -4620,7 +4761,7 @@ const sendMessage = async () => {
         status: 'completed',
         previewContent: savedMessage.content.substring(0, 140),
         messages: buildHistoryMessages({
-          systemContents: relatedContentSummary,
+          systemContents: relatedContentSummary ? [relatedContentSummary] : [],
           promptContents: systemPrompts,
           userContents: chatMessages.value
             .slice(0, -1)
@@ -4639,9 +4780,9 @@ const sendMessage = async () => {
         promptName: promptNames,
         promptCount: systemPrompts.length,
         status: 'failed',
-        previewContent: pendingInput.substring(0, 140),
+        previewContent: fullUserContent.substring(0, 140),
         messages: buildHistoryMessages({
-          systemContents: relatedContentSummary,
+          systemContents: relatedContentSummary ? [relatedContentSummary] : [],
           promptContents: systemPrompts,
           userContents: chatMessages.value
             .filter(message => message.role === 'user')
@@ -4651,28 +4792,87 @@ const sendMessage = async () => {
     }
 
   } catch (error: any) {
-    const partialAssistantContent = chatMessages.value[messageIndex]?.content || ''
-    chatMessages.value.pop()
-    saveHistoryRecord({
-      title: `正文对话 - ${currentConversation.value?.title || '新对话'}`,
-      source: 'chat',
-      sourceLabel: '正文对话',
-      promptName: promptNames,
-      promptCount: systemPrompts.length,
-      status: 'failed',
-      previewContent: (partialAssistantContent || pendingInput).substring(0, 140),
-      messages: buildHistoryMessages({
-        systemContents: relatedContentSummary,
-        promptContents: systemPrompts,
-        userContents: chatMessages.value
-          .filter(message => message.role === 'user')
-          .map(message => message.content),
-        assistantContents: partialAssistantContent ? [partialAssistantContent] : []
+    if (error.name === 'AbortError') {
+      const partialContent = chatMessages.value[messageIndex]?.content || ''
+      if (partialContent) {
+        await conversationAPI.saveMessage(currentConversation.value.id, {
+          role: 'assistant',
+          content: partialContent
+        })
+        await fetchConversations()
+        saveHistoryRecord({
+          title: `正文对话 - ${currentConversation.value?.title || '新对话'}`,
+          source: 'chat',
+          sourceLabel: '正文对话',
+          promptName: promptNames,
+          promptCount: systemPrompts.length,
+          status: 'cancelled',
+          previewContent: partialContent.substring(0, 140),
+          messages: buildHistoryMessages({
+            systemContents: relatedContentSummary ? [relatedContentSummary] : [],
+            promptContents: systemPrompts,
+            userContents: chatMessages.value
+              .filter(message => message.role === 'user')
+              .map(message => message.content),
+            assistantContents: [partialContent]
+          })
+        })
+        ElMessage.info('已停止生成，部分内容已保存')
+      } else {
+        chatMessages.value.pop()
+        saveHistoryRecord({
+          title: `正文对话 - ${currentConversation.value?.title || '新对话'}`,
+          source: 'chat',
+          sourceLabel: '正文对话',
+          promptName: promptNames,
+          promptCount: systemPrompts.length,
+          status: 'cancelled',
+          previewContent: fullUserContent.substring(0, 140),
+          messages: buildHistoryMessages({
+            systemContents: relatedContentSummary ? [relatedContentSummary] : [],
+            promptContents: systemPrompts,
+            userContents: chatMessages.value
+              .filter(message => message.role === 'user')
+              .map(message => message.content),
+            assistantContents: []
+          })
+        })
+        ElMessage.info('已停止生成')
+      }
+    } else {
+      const partialAssistantContent = chatMessages.value[messageIndex]?.content || ''
+      chatMessages.value.pop()
+      saveHistoryRecord({
+        title: `正文对话 - ${currentConversation.value?.title || '新对话'}`,
+        source: 'chat',
+        sourceLabel: '正文对话',
+        promptName: promptNames,
+        promptCount: systemPrompts.length,
+        status: 'failed',
+        previewContent: (partialAssistantContent || fullUserContent).substring(0, 140),
+        messages: buildHistoryMessages({
+          systemContents: relatedContentSummary ? [relatedContentSummary] : [],
+          promptContents: systemPrompts,
+          userContents: chatMessages.value
+            .filter(message => message.role === 'user')
+            .map(message => message.content),
+          assistantContents: partialAssistantContent ? [partialAssistantContent] : []
+        })
       })
-    })
-    ElMessage.error(error.message || '发送失败')
+      ElMessage.error(error.message || '发送失败')
+    }
   } finally {
     sending.value = false
+    chatAbortController.value = null
+  }
+}
+
+const stopChatGeneration = () => {
+  if (chatAbortController.value) {
+    chatAbortController.value.abort()
+    chatAbortController.value = null
+    sending.value = false
+    ElMessage.info('已停止生成')
   }
 }
 </script>
@@ -4983,25 +5183,6 @@ const sendMessage = async () => {
   overflow: hidden;
 }
 
-.left-panel-header {
-  padding: 16px 18px 12px;
-  border: 1px solid rgba(0, 201, 167, 0.16);
-  border-bottom: none;
-  border-radius: 28px 28px 0 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 255, 252, 0.98) 100%);
-  box-shadow:
-    0 24px 48px rgba(0, 136, 110, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
-.left-panel-book-title {
-  text-align: center;
-  font-size: 17px;
-  font-weight: 600;
-  color: #1e4f47;
-  letter-spacing: 0.04em;
-}
-
 .catalog-header {
   padding: 10px 12px;
   border-bottom: 1px solid rgba(0, 201, 167, 0.12);
@@ -5101,6 +5282,58 @@ const sendMessage = async () => {
   color: #909399;
   padding: 20px 0;
   font-size: 13px;
+}
+
+/* 左侧面板 - 暗色主题 */
+:root[data-theme='dark'] .left-panel {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
+}
+
+:root[data-theme='dark'] .catalog-header {
+  border-bottom-color: rgba(71, 85, 105, 0.3);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+:root[data-theme='dark'] .icon-btn {
+  background: rgba(71, 85, 105, 0.3);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .icon-btn:hover {
+  background: rgba(71, 85, 105, 0.5);
+  border-color: rgba(94, 234, 212, 0.4);
+  box-shadow: 0 4px 12px rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .icon-btn .el-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .volume-item {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .volume-item:hover {
+  background: rgba(51, 65, 85, 0.8);
+  border-color: rgba(94, 234, 212, 0.3);
+  box-shadow: 0 6px 18px rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .volume-arrow {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .volume-title {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .volume-actions .el-button {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .volume-actions .el-button:hover {
+  color: #5eead4;
 }
 
 :root[data-theme='dark'] .empty-catalog {
@@ -5644,22 +5877,16 @@ const sendMessage = async () => {
 .creative-content {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 16px 20px 60px 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
 
 .creative-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(8, 198, 190, 0.12);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(8, 198, 190, 0.08);
-  backdrop-filter: blur(8px);
 }
 
 .fixed-height-section {
@@ -5729,7 +5956,8 @@ const sendMessage = async () => {
   gap: 6px;
   font-weight: 600;
   color: #134e4a;
-  font-size: 13px;
+  font-size: 14px;
+  margin-bottom: 2px;
 }
 
 .section-label .el-icon {
@@ -5874,6 +6102,10 @@ const sendMessage = async () => {
   padding: 6px 10px;
 }
 
+.creative-section .el-select .el-input__wrapper {
+  border-radius: 6px;
+}
+
 .creative-section .el-select .el-input__wrapper:hover {
   border-color: rgba(8, 198, 190, 0.4);
 }
@@ -5888,6 +6120,7 @@ const sendMessage = async () => {
   border-color: rgba(8, 198, 190, 0.2);
   padding: 6px 10px;
   font-size: 13px;
+  border-radius: 6px;
 }
 
 .creative-section .el-textarea__inner:hover {
@@ -5903,6 +6136,7 @@ const sendMessage = async () => {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(8, 198, 190, 0.2);
   padding: 6px 10px;
+  border-radius: 6px;
 }
 
 .creative-section .el-input__wrapper:hover {
@@ -5920,6 +6154,7 @@ const sendMessage = async () => {
   box-shadow: 0 4px 12px rgba(8, 198, 190, 0.15);
   font-size: 13px;
   padding: 8px 16px;
+  border-radius: 6px;
 }
 
 .creative-section .el-button--primary:hover {
@@ -5930,6 +6165,131 @@ const sendMessage = async () => {
 .creative-section .el-button--primary.is-disabled {
   background: rgba(8, 198, 190, 0.5);
   border-color: transparent;
+}
+
+.creative-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.creative-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.creative-content::-webkit-scrollbar-thumb {
+  background: rgba(8, 198, 190, 0.2);
+  border-radius: 3px;
+}
+
+.creative-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(8, 198, 190, 0.35);
+}
+
+/* 生成按钮固定定位 */
+.creative-panel {
+  position: relative;
+}
+
+.creative-generate-btn-wrapper {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 10;
+}
+
+.creative-generate-btn {
+  box-shadow: 0 8px 20px rgba(8, 198, 190, 0.25);
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.creative-generate-btn:hover {
+  box-shadow: 0 10px 24px rgba(8, 198, 190, 0.35);
+}
+
+/* creative-section 暗色主题 */
+:root[data-theme='dark'] .creative-section {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .section-label {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .section-label .el-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .fixed-height-section .prompt-picker-brief {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .fixed-height-section .prompt-picker-brief :deep(*) {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .fixed-height-section .prompt-picker-brief :deep(strong),
+:root[data-theme='dark'] .fixed-height-section .prompt-picker-brief :deep(b) {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .creative-section .el-select .el-input__wrapper {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .creative-section .el-select .el-input__wrapper:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .creative-section .el-select .el-input__wrapper:focus-within {
+  border-color: #00c9a7;
+}
+
+:root[data-theme='dark'] .creative-section .el-textarea__inner {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .creative-section .el-textarea__inner:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .creative-section .el-textarea__inner:focus {
+  border-color: #00c9a7;
+}
+
+:root[data-theme='dark'] .creative-section .el-input__wrapper {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .creative-section .el-input__wrapper:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .creative-section .el-input__wrapper:focus-within {
+  border-color: #00c9a7;
+}
+
+:root[data-theme='dark'] .creative-section .el-input__inner {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .fixed-prompt-label {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .intro-text {
+  color: #d1d5db;
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .prompt-intro-content h3 {
+  color: #f3f4f6;
 }
 
 .view-intro-row {
@@ -6329,19 +6689,36 @@ const sendMessage = async () => {
   backdrop-filter: blur(10px);
 }
 
-.chat-tools {
-  display: flex;
-  margin-bottom: 8px;
-  gap: 8px;
+.user-message-collapsible {
+  width: 100%;
 }
 
-.chat-tools :deep(.el-select) {
-  flex: 1;
+.user-message-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  color: #8fa3b5;
+  font-size: 12px;
+  user-select: none;
+  border-radius: 8px;
+  background: rgba(0, 201, 167, 0.04);
+  transition: all 0.2s;
+}
+
+.user-message-toggle:hover {
+  color: #2dd4bf;
+  background: rgba(0, 201, 167, 0.1);
+}
+
+.user-message-preview {
+  font-size: 12px;
 }
 
 .input-wrapper {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-end;
 }
 
@@ -6351,46 +6728,260 @@ const sendMessage = async () => {
 
 .input-wrapper :deep(.el-textarea__inner) {
   resize: none;
-  border-radius: 14px;
-  padding: 14px 18px;
-  font-size: 15px;
-  line-height: 1.6;
-  border: 1px solid rgba(0, 201, 167, 0.15);
-  background: rgba(255, 255, 255, 0.9);
-  transition: all 0.3s;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid rgba(0, 201, 167, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  transition: all 0.25s;
 }
 
 .input-wrapper :deep(.el-textarea__inner):focus {
   border-color: #00c9a7;
-  box-shadow: 0 0 0 2px rgba(0, 201, 167, 0.1);
+  box-shadow: 0 0 0 2px rgba(0, 201, 167, 0.08);
+  background: #fff;
 }
 
-.input-wrapper :deep(.el-button) {
-  height: 46px;
-  padding: 0 24px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #00c9a7 0%, #00a896 100%);
+.input-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-wrapper :deep(.el-button--primary) {
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: none;
-  font-size: 15px;
-  font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, #00c9a7 0%, #2dd4bf 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 201, 167, 0.3);
 }
 
-.input-wrapper :deep(.el-button):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 201, 167, 0.35);
+.input-wrapper :deep(.el-button--primary:hover) {
+  box-shadow: 0 4px 12px rgba(0, 201, 167, 0.4);
+  transform: translateY(-1px);
+}
+
+.input-wrapper :deep(.el-button--danger) {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: linear-gradient(135deg, #f56c6c 0%, #e74c3c 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(245, 108, 108, 0.3);
+}
+
+.input-wrapper :deep(.el-button--danger:hover) {
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
+  transform: translateY(-1px);
 }
 
 /* ========== AI 写作生成结果弹窗样式 ========== */
 .creative2-result-dialog :deep(.el-dialog) {
   border-radius: 12px;
   overflow: hidden;
+  min-height: 400px;
 }
 
 .creative2-result-content {
-  max-height: 60vh;
+  min-height: 300px;
   display: flex;
   flex-direction: column;
+}
+
+.streaming-content {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.generating-animation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  min-height: 300px;
+}
+
+.starburst-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 24px;
+}
+
+.starburst-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, #00c9a7 0%, #00a896 50%, transparent 70%);
+  border-radius: 50%;
+  animation: corePulse 0.6s ease-in-out infinite alternate;
+  z-index: 10;
+}
+
+.starburst-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(0, 201, 167, 0.3);
+  border-radius: 50%;
+  animation: ringExpand 2s ease-out infinite;
+}
+
+.ring-1 {
+  width: 40px;
+  height: 40px;
+  animation-delay: 0s;
+}
+
+.ring-2 {
+  width: 60px;
+  height: 60px;
+  animation-delay: 0.6s;
+}
+
+.ring-3 {
+  width: 80px;
+  height: 80px;
+  animation-delay: 1.2s;
+}
+
+.starburst-ray {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 30px;
+  background: linear-gradient(to top, transparent 0%, #00c9a7 50%, transparent 100%);
+  transform-origin: center bottom;
+  animation: rayFlash 1s ease-in-out infinite alternate;
+}
+
+.ray-1 { transform: translate(-50%, -100%) rotate(0deg); animation-delay: 0s; }
+.ray-2 { transform: translate(-50%, -100%) rotate(45deg); animation-delay: 0.125s; }
+.ray-3 { transform: translate(-50%, -100%) rotate(90deg); animation-delay: 0.25s; }
+.ray-4 { transform: translate(-50%, -100%) rotate(135deg); animation-delay: 0.375s; }
+.ray-5 { transform: translate(-50%, -100%) rotate(180deg); animation-delay: 0.5s; }
+.ray-6 { transform: translate(-50%, -100%) rotate(225deg); animation-delay: 0.625s; }
+.ray-7 { transform: translate(-50%, -100%) rotate(270deg); animation-delay: 0.75s; }
+.ray-8 { transform: translate(-50%, -100%) rotate(315deg); animation-delay: 0.875s; }
+
+.starburst-sparkle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  animation: sparkleTwinkle 0.8s ease-in-out infinite alternate;
+}
+
+.starburst-sparkle::before,
+.starburst-sparkle::after {
+  content: '';
+  position: absolute;
+  background: #00c9a7;
+}
+
+.starburst-sparkle::before {
+  width: 100%;
+  height: 2px;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.starburst-sparkle::after {
+  width: 2px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.sparkle-1 { top: 10%; left: 50%; animation-delay: 0s; }
+.sparkle-2 { top: 25%; right: 15%; animation-delay: 0.15s; }
+.sparkle-3 { top: 50%; right: 5%; animation-delay: 0.3s; }
+.sparkle-4 { bottom: 25%; right: 15%; animation-delay: 0.45s; }
+.sparkle-5 { bottom: 10%; left: 50%; animation-delay: 0.6s; }
+.sparkle-6 { bottom: 25%; left: 15%; animation-delay: 0.75s; }
+
+@keyframes corePulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    box-shadow: 0 0 30px rgba(0, 201, 167, 0.9), 0 0 50px rgba(0, 201, 167, 0.5);
+  }
+}
+
+@keyframes ringExpand {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+    border-width: 3px;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+@keyframes rayFlash {
+  0% {
+    opacity: 0.3;
+    height: 20px;
+    filter: brightness(0.8);
+  }
+  50% {
+    opacity: 1;
+    height: 40px;
+    filter: brightness(1.5);
+  }
+  100% {
+    opacity: 0.5;
+    height: 25px;
+    filter: brightness(1);
+  }
+}
+
+@keyframes sparkleTwinkle {
+  0% {
+    opacity: 0.2;
+    transform: scale(0.5) rotate(0deg);
+    filter: brightness(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.2) rotate(45deg);
+    filter: brightness(1.5);
+  }
+}
+
+.generating-text {
+  font-size: 16px;
+  color: #666;
+  font-weight: 500;
+  animation: textBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes textBlink {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .result-header {
@@ -6431,6 +7022,19 @@ const sendMessage = async () => {
 .result-body {
   flex: 1;
   overflow: hidden;
+}
+
+.result-complete {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty-result {
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .result-text {
@@ -6949,6 +7553,12 @@ const sendMessage = async () => {
     0 24px 48px rgba(0, 136, 110, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
   overflow: hidden;
+}
+
+:root[data-theme='dark'] .left-panel :deep(.el-tabs) {
+  border-color: rgba(71, 85, 105, 0.4);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .left-panel :deep(.el-tabs__header) {
@@ -7737,102 +8347,87 @@ const sendMessage = async () => {
   border: 2px solid #fff;
 }
 
-/* 分类标签样式 */
+/* 分类标签样式 - 极简风格 */
 .category-tabs-wrapper {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(233, 255, 250, 0.18) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  gap: 8px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
 }
 
 .category-tabs {
   flex: 1;
-  padding: 2px 2px 8px;
+  padding: 2px;
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 201, 167, 0.35) transparent;
+  scrollbar-color: #d1d5db transparent;
 }
 
 .category-tabs::-webkit-scrollbar {
-  height: 6px;
+  height: 4px;
 }
 
 .category-tabs::-webkit-scrollbar-track {
   background: transparent;
-  border-radius: 999px;
 }
 
 .category-tabs::-webkit-scrollbar-thumb {
-  background: rgba(0, 201, 167, 0.28);
-  border-radius: 999px;
+  background: #d1d5db;
+  border-radius: 4px;
 }
 
 .category-tabs::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 201, 167, 0.42);
+  background: #9ca3af;
 }
 
 .category-tabs-inner {
   display: flex;
-  gap: 8px;
-  padding: 2px 0;
+  gap: 6px;
 }
 
 .category-tab {
   flex-shrink: 0;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: 999px;
-  color: #2d5f5a;
+  padding: 6px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  color: #4b5563;
   font-size: 13px;
-  font-weight: 600;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.08);
 }
 
 .category-tab:hover {
-  background: rgba(255, 255, 255, 0.58);
-  border-color: rgba(45, 212, 191, 0.32);
-  color: #0f9f93;
-  transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(15, 118, 110, 0.12);
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 .category-tab.active {
-  background: linear-gradient(135deg, rgba(0, 201, 167, 0.92) 0%, rgba(13, 148, 136, 0.92) 100%);
+  background: #00c9a7;
   color: #fff;
-  border-color: rgba(0, 201, 167, 0.3);
-  box-shadow: 0 14px 28px rgba(0, 201, 167, 0.24);
+  border-color: #00c9a7;
 }
 
 .category-scroll-btn {
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.52) !important;
-  background: rgba(255, 255, 255, 0.42) !important;
-  color: #0f766e !important;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 10px 20px rgba(15, 118, 110, 0.1);
+  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  color: #6b7280 !important;
 }
 
 .category-scroll-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.62) !important;
-  border-color: rgba(45, 212, 191, 0.34) !important;
-  color: #0f9f93 !important;
-  transform: translateY(-1px);
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
 }
 
 .category-scroll-btn:disabled {
-  opacity: 0.45;
-  box-shadow: none;
+  opacity: 0.5;
 }
 
 .prompt-select-dialog :deep(.el-dialog) {
@@ -7840,46 +8435,39 @@ const sendMessage = async () => {
   margin: 0 !important;
   max-height: calc(100vh - 48px);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.48);
-  border-radius: 28px;
-  background:
-    linear-gradient(145deg, rgba(247, 255, 253, 0.88) 0%, rgba(231, 252, 247, 0.82) 50%, rgba(224, 246, 244, 0.78) 100%);
-  box-shadow:
-    0 28px 60px rgba(15, 118, 110, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(24px);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
 }
 
 :deep(.prompt-select-dialog-modal) {
-  background: rgba(9, 30, 28, 0.24) !important;
-  backdrop-filter: blur(14px);
+  background: rgba(0, 0, 0, 0.3) !important;
 }
 
 .prompt-select-dialog :deep(.el-dialog__header) {
   margin-right: 0;
-  padding: 22px 24px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.42);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.14) 100%);
+  padding: 16px 20px;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .prompt-select-dialog :deep(.el-dialog__title) {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #154b45;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
 }
 
 .prompt-select-dialog :deep(.el-dialog__headerbtn) {
-  top: 18px;
-  right: 18px;
+  top: 16px;
+  right: 16px;
 }
 
 .prompt-select-dialog :deep(.el-dialog__close) {
-  color: #5b8d88;
+  color: #9ca3af;
 }
 
 .prompt-select-dialog :deep(.el-dialog__close:hover) {
-  color: #0f9f93;
+  color: #6b7280;
 }
 
 .prompt-select-dialog :deep(.el-dialog__body) {
@@ -7887,79 +8475,72 @@ const sendMessage = async () => {
   flex-direction: column;
   max-height: calc(100vh - 140px);
   overflow: hidden;
-  padding: 18px 24px 20px;
+  padding: 16px 20px;
 }
 
 .prompt-select-dialog :deep(.el-dialog__footer) {
-  padding: 14px 24px 22px;
-  border-top: 1px solid rgba(255, 255, 255, 0.4);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.26) 100%);
+  padding: 12px 20px 16px;
+  border-top: 1px solid #f3f4f6;
 }
 
 .prompt-select-dialog :deep(.el-dialog__footer .el-button) {
-  min-width: 96px;
-  border-radius: 12px;
+  min-width: 80px;
+  border-radius: 6px;
 }
 
 .prompt-select-dialog :deep(.el-dialog__footer .el-button--default) {
-  border-color: rgba(255, 255, 255, 0.52);
-  background: rgba(255, 255, 255, 0.52);
-  color: #285b56;
+  border-color: #e5e7eb;
+  background: #fff;
+  color: #4b5563;
 }
 
 .prompt-select-dialog :deep(.el-dialog__footer .el-button--default:hover) {
-  border-color: rgba(45, 212, 191, 0.34);
-  background: rgba(255, 255, 255, 0.7);
-  color: #0f9f93;
+  border-color: #d1d5db;
+  background: #f9fafb;
+  color: #374151;
 }
 
 .prompt-select-dialog :deep(.el-dialog__footer .el-button--primary) {
-  border-color: transparent;
-  background: linear-gradient(135deg, #00c9a7 0%, #0f9f93 100%);
-  box-shadow: 0 14px 24px rgba(0, 201, 167, 0.22);
+  border-color: #00c9a7;
+  background: #00c9a7;
 }
 
 .prompt-select-dialog :deep(.el-dialog__footer .el-button--primary:hover) {
-  background: linear-gradient(135deg, #14d6b2 0%, #0c8f84 100%);
+  background: #00b896;
+  border-color: #00b896;
 }
 
 .prompt-select-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
 }
 
 .prompt-select-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.36) 0%, rgba(237, 255, 251, 0.2) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    0 16px 30px rgba(15, 118, 110, 0.08);
-  backdrop-filter: blur(18px);
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .prompt-select-search-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .prompt-select-count {
   flex-shrink: 0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  background: rgba(255, 255, 255, 0.44);
-  color: #4b7c77;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -7968,37 +8549,32 @@ const sendMessage = async () => {
 }
 
 .search-input :deep(.el-input__wrapper) {
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.48);
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    0 10px 22px rgba(15, 118, 110, 0.08);
-  transition: all 0.25s ease;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  box-shadow: none;
+  transition: all 0.15s ease;
 }
 
 .search-input :deep(.el-input__wrapper:hover) {
-  border-color: rgba(45, 212, 191, 0.28);
-  background: rgba(255, 255, 255, 0.68);
+  border-color: #d1d5db;
 }
 
 .search-input :deep(.el-input__wrapper.is-focus) {
-  border-color: rgba(0, 201, 167, 0.42);
-  box-shadow:
-    0 0 0 4px rgba(0, 201, 167, 0.12),
-    0 14px 28px rgba(15, 118, 110, 0.12);
+  border-color: #00c9a7;
+  box-shadow: 0 0 0 2px rgba(0, 201, 167, 0.1);
 }
 
 .search-input :deep(.el-input__inner) {
-  color: #18453f;
+  color: #1f2937;
 }
 
 .search-input :deep(.el-input__inner::placeholder) {
-  color: #7ca19c;
+  color: #9ca3af;
 }
 
 .search-input :deep(.el-input__prefix-inner) {
-  color: #59a59c;
+  color: #9ca3af;
 }
 
 .prompt-select-list {
@@ -8006,58 +8582,47 @@ const sendMessage = async () => {
   min-height: 0;
   max-height: calc(100vh - 280px);
   overflow-y: auto;
-  padding: 4px 6px 4px 2px;
+  padding: 2px;
 }
 
 .prompt-select-list::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .prompt-select-list::-webkit-scrollbar-track {
-  background: rgba(0, 201, 167, 0.08);
-  border-radius: 999px;
+  background: transparent;
 }
 
 .prompt-select-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 201, 167, 0.28);
-  border-radius: 999px;
+  background: #d1d5db;
+  border-radius: 4px;
 }
 
 .prompt-select-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 201, 167, 0.42);
+  background: #9ca3af;
 }
 
 .prompt-select-item {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  margin-bottom: 10px;
-  padding: 14px 16px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.46);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.52) 0%, rgba(241, 255, 251, 0.34) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.56),
-    0 14px 26px rgba(15, 118, 110, 0.08);
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
   cursor: pointer;
-  transition: all 0.25s ease;
-  backdrop-filter: blur(14px);
+  transition: all 0.15s ease;
 }
 
 .prompt-select-item:hover {
-  transform: translateY(-2px);
-  border-color: rgba(45, 212, 191, 0.28);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.62),
-    0 18px 32px rgba(15, 118, 110, 0.12);
+  border-color: #d1d5db;
+  background: #f9fafb;
 }
 
 .prompt-select-item.selected {
-  border-color: rgba(0, 201, 167, 0.34);
-  background: linear-gradient(135deg, rgba(214, 252, 244, 0.82) 0%, rgba(232, 255, 251, 0.54) 100%);
-  box-shadow:
-    0 20px 34px rgba(0, 201, 167, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  border-color: #00c9a7;
+  background: #f0fdfa;
 }
 
 .prompt-select-item:last-child {
@@ -8070,42 +8635,42 @@ const sendMessage = async () => {
 }
 
 .prompt-select-name {
-  margin-bottom: 6px;
-  color: #18453f;
-  font-size: 15px;
-  font-weight: 700;
+  margin-bottom: 4px;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.4;
 }
 
 .prompt-select-desc {
-  color: #6c948e;
+  color: #6b7280;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .prompt-category-tag {
   flex-shrink: 0;
-  border-radius: 999px;
-  border: 1px solid rgba(45, 212, 191, 0.2) !important;
-  background: rgba(255, 255, 255, 0.5) !important;
-  color: #0f766e !important;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb !important;
+  background: #f9fafb !important;
+  color: #6b7280 !important;
 }
 
 .empty-prompts {
-  min-height: 220px;
+  min-height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 12px;
-  border: 1px dashed rgba(45, 212, 191, 0.34);
-  border-radius: 22px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.42) 0%, rgba(240, 255, 252, 0.24) 100%);
-  color: #76a19c;
+  gap: 10px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #9ca3af;
 }
 
 .empty-prompts .el-icon {
-  color: #2db9ab;
+  color: #d1d5db;
 }
 
 .empty-prompts p {
@@ -8117,7 +8682,7 @@ const sendMessage = async () => {
   .prompt-select-dialog :deep(.el-dialog) {
     width: calc(100vw - 24px) !important;
     max-height: calc(100vh - 24px);
-    border-radius: 24px;
+    border-radius: 12px;
   }
 
   .prompt-select-dialog :deep(.el-dialog__header) {
@@ -8148,6 +8713,168 @@ const sendMessage = async () => {
   .prompt-category-tag {
     display: none;
   }
+}
+
+/* 提示词选择对话框 - 暗色主题 */
+:root[data-theme='dark'] .category-tabs-wrapper {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+:root[data-theme='dark'] .category-tabs::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+:root[data-theme='dark'] .category-tabs::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+:root[data-theme='dark'] .category-tab {
+  background: #374151;
+  border-color: #4b5563;
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .category-tab:hover {
+  background: #4b5563;
+  border-color: #6b7280;
+}
+
+:root[data-theme='dark'] .category-tab.active {
+  background: #00c9a7;
+  color: #fff;
+  border-color: #00c9a7;
+}
+
+:root[data-theme='dark'] .category-scroll-btn {
+  border-color: #4b5563 !important;
+  background: #374151 !important;
+  color: #9ca3af !important;
+}
+
+:root[data-theme='dark'] .category-scroll-btn:hover:not(:disabled) {
+  background: #4b5563 !important;
+  border-color: #6b7280 !important;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog) {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog__header) {
+  border-bottom-color: #374151;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog__title) {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog__close) {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog__close:hover) {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog__footer) {
+  border-top-color: #374151;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog__footer .el-button--default) {
+  border-color: #4b5563;
+  background: #374151;
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .prompt-select-dialog :deep(.el-dialog__footer .el-button--default:hover) {
+  border-color: #6b7280;
+  background: #4b5563;
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .prompt-select-toolbar {
+  border-color: #374151;
+  background: #111827;
+}
+
+:root[data-theme='dark'] .prompt-select-count {
+  background: #374151;
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .search-input :deep(.el-input__wrapper) {
+  border-color: #4b5563;
+  background: #374151;
+}
+
+:root[data-theme='dark'] .search-input :deep(.el-input__wrapper:hover) {
+  border-color: #6b7280;
+}
+
+:root[data-theme='dark'] .search-input :deep(.el-input__wrapper.is-focus) {
+  border-color: #00c9a7;
+}
+
+:root[data-theme='dark'] .search-input :deep(.el-input__inner) {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .search-input :deep(.el-input__inner::placeholder) {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .search-input :deep(.el-input__prefix-inner) {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .prompt-select-list::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+:root[data-theme='dark'] .prompt-select-list::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+:root[data-theme='dark'] .prompt-select-item {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+:root[data-theme='dark'] .prompt-select-item:hover {
+  border-color: #4b5563;
+  background: #374151;
+}
+
+:root[data-theme='dark'] .prompt-select-item.selected {
+  border-color: #00c9a7;
+  background: rgba(0, 201, 167, 0.1);
+}
+
+:root[data-theme='dark'] .prompt-select-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .prompt-select-desc {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .prompt-category-tag {
+  border-color: #4b5563 !important;
+  background: #374151 !important;
+  color: #9ca3af !important;
+}
+
+:root[data-theme='dark'] .empty-prompts {
+  border-color: #374151;
+  background: #111827;
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-prompts .el-icon {
+  color: #4b5563;
 }
 
 .relate-tabs {
@@ -8330,5 +9057,220 @@ const sendMessage = async () => {
 .dialog-resize-handle:hover::after {
   border-right-color: #00c9a7;
   border-bottom-color: #00c9a7;
+}
+
+/* memo 对话框暗色主题 */
+:root[data-theme='dark'] .memo-content-input-large :deep(.el-textarea__inner) {
+  color: #d1d5db;
+  background: transparent;
+}
+
+:root[data-theme='dark'] .content-footer {
+  border-top-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .content-empty {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .global-memo-container {
+  border-color: rgba(71, 85, 105, 0.4);
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .global-memo-sidebar {
+  border-right-color: rgba(71, 85, 105, 0.4);
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+}
+
+:root[data-theme='dark'] .memo-workspace-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .memo-workspace-title .el-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .sidebar-action-primary {
+  background: rgba(242, 139, 36, 0.15);
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .sidebar-action-accent {
+  background: rgba(94, 234, 212, 0.15);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .sidebar-icon-btn {
+  background: rgba(51, 65, 85, 0.6);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .sidebar-icon-btn:hover {
+  background: rgba(71, 85, 105, 0.6);
+}
+
+:root[data-theme='dark'] .batch-toolbar {
+  background: rgba(242, 139, 36, 0.1);
+  border-color: rgba(242, 139, 36, 0.3);
+}
+
+:root[data-theme='dark'] .memo-tree-folder-header:hover {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .memo-tree-folder-header.active {
+  background: rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .memo-tree-folder-header.active .folder-name {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .folder-arrow,
+:root[data-theme='dark'] .folder-count {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .folder-name {
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .folder-count {
+  background: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .folder-action-btn:hover {
+  background: rgba(71, 85, 105, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .folder-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .item-title-btn:hover {
+  background: rgba(71, 85, 105, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .item-title-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .folder-option {
+  border-color: rgba(71, 85, 105, 0.4);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+:root[data-theme='dark'] .folder-option:hover,
+:root[data-theme='dark'] .folder-option.active {
+  border-color: rgba(94, 234, 212, 0.4);
+  background: rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .folder-option span {
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .folder-option-count {
+  background: rgba(71, 85, 105, 0.4);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .memo-tree-item:hover {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .memo-tree-item.active {
+  background: rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .memo-tree-item.active .item-title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .memo-tree-item.batch-selected {
+  background: rgba(242, 139, 36, 0.15);
+}
+
+:root[data-theme='dark'] .sidebar-empty {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .sidebar-item:hover {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .sidebar-item.active {
+  background: rgba(94, 234, 212, 0.15);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .sidebar-item.active .item-title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .sidebar-item.batch-selected {
+  background: rgba(242, 139, 36, 0.15);
+}
+
+:root[data-theme='dark'] .item-title {
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .item-meta {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .item-tag {
+  background: rgba(71, 85, 105, 0.4);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .item-meta-time {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .item-icon-btn {
+  background: rgba(51, 65, 85, 0.6);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .item-icon-btn.pin {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .item-icon-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .global-memo-content {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+}
+
+:root[data-theme='dark'] .memo-content-header {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .memo-title-input :deep(.el-input__inner) {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .memo-content-meta {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .memo-scope-badge.global {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.15);
+}
+
+:root[data-theme='dark'] .memo-scope-badge.book {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.15);
 }
 </style>

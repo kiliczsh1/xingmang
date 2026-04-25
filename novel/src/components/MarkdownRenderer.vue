@@ -169,5 +169,148 @@ const createMarkdownIt = (allowHtml: boolean) => new MarkdownIt({
 .markdown-body a:hover {
   text-decoration: underline;
 }
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .markdown-body {
+  color: #e5e7eb !important;
+  background-color: #1e293b !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs {
+  background: #0f172a !important;
+  color: #e5e7eb !important;
+}
+
+:root[data-theme='dark'] .markdown-body h1,
+:root[data-theme='dark'] .markdown-body h2,
+:root[data-theme='dark'] .markdown-body h3,
+:root[data-theme='dark'] .markdown-body h4,
+:root[data-theme='dark'] .markdown-body h5,
+:root[data-theme='dark'] .markdown-body h6 {
+  color: #f3f4f6 !important;
+  border-bottom-color: rgba(71, 85, 105, 0.4) !important;
+}
+
+:root[data-theme='dark'] .markdown-body img {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+:root[data-theme='dark'] .markdown-body code {
+  background-color: rgba(51, 65, 85, 0.6) !important;
+  color: #f3f4f6 !important;
+}
+
+:root[data-theme='dark'] .markdown-body pre {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(71, 85, 105, 0.3) !important;
+}
+
+:root[data-theme='dark'] .markdown-body pre code {
+  color: #e5e7eb !important;
+}
+
+:root[data-theme='dark'] .markdown-body blockquote {
+  color: #9ca3af !important;
+  border-left-color: rgba(94, 234, 212, 0.3) !important;
+}
+
+:root[data-theme='dark'] .markdown-body table th,
+:root[data-theme='dark'] .markdown-body table td {
+  border-color: rgba(71, 85, 105, 0.4) !important;
+}
+
+:root[data-theme='dark'] .markdown-body table th {
+  background-color: rgba(51, 65, 85, 0.6) !important;
+  color: #f3f4f6 !important;
+}
+
+:root[data-theme='dark'] .markdown-body table td {
+  color: #e5e7eb !important;
+}
+
+:root[data-theme='dark'] .markdown-body a {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .markdown-body a:hover {
+  color: #2dd4bf !important;
+}
+
+:root[data-theme='dark'] .markdown-body ul,
+:root[data-theme='dark'] .markdown-body ol {
+  color: #e5e7eb !important;
+}
+
+:root[data-theme='dark'] .markdown-body li {
+  color: #e5e7eb !important;
+}
+
+:root[data-theme='dark'] .markdown-body p {
+  color: #e5e7eb !important;
+}
+
+/* 代码高亮暗色主题 */
+:root[data-theme='dark'] .markdown-body .hljs-comment,
+:root[data-theme='dark'] .markdown-body .hljs-quote {
+  color: #8b949e !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-keyword,
+:root[data-theme='dark'] .markdown-body .hljs-selector-tag,
+:root[data-theme='dark'] .markdown-body .hljs-addition {
+  color: #ff7b72 !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-string,
+:root[data-theme='dark'] .markdown-body .hljs-meta .hljs-string,
+:root[data-theme='dark'] .markdown-body .hljs-regexp,
+:root[data-theme='dark'] .markdown-body .hljs-attribute {
+  color: #a5d6ff !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-number,
+:root[data-theme='dark'] .markdown-body .hljs-literal,
+:root[data-theme='dark'] .markdown-body .hljs-variable,
+:root[data-theme='dark'] .markdown-body .hljs-template-variable,
+:root[data-theme='dark'] .markdown-body .hljs-tag .hljs-attr {
+  color: #79c0ff !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-title,
+:root[data-theme='dark'] .markdown-body .hljs-section,
+:root[data-theme='dark'] .markdown-body .hljs-selector-id {
+  color: #d2a8ff !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-type,
+:root[data-theme='dark'] .markdown-body .hljs-class .hljs-title,
+:root[data-theme='dark'] .markdown-body .hljs-built_in {
+  color: #ffa657 !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-symbol,
+:root[data-theme='dark'] .markdown-body .hljs-bullet,
+:root[data-theme='dark'] .markdown-body .hljs-subst,
+:root[data-theme='dark'] .markdown-body .hljs-meta,
+:root[data-theme='dark'] .markdown-body .hljs-meta .hljs-keyword {
+  color: #8b949e !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-deletion {
+  color: #ffa198 !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-addition {
+  color: #7ee787 !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-emphasis {
+  font-style: italic !important;
+}
+
+:root[data-theme='dark'] .markdown-body .hljs-strong {
+  font-weight: bold !important;
+}
 </style>
 

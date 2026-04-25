@@ -245,52 +245,87 @@ if errorlevel 1 (
 exit /b 0
 
 :write_launcher_js
-> "%LAUNCHER_JS%" echo const net = require('net');
->> "%LAUNCHER_JS%" echo const path = require('path');
->> "%LAUNCHER_JS%" echo const { exec } = require('child_process');
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo const rootDir = __dirname;
->> "%LAUNCHER_JS%" echo const serverEntry = path.join(rootDir, 'server', 'index.js');
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo const canUsePort = port =^> new Promise(resolve =^> {
->> "%LAUNCHER_JS%" echo   const tester = net.createServer();
->> "%LAUNCHER_JS%" echo   tester.once('error', () =^> resolve(false));
->> "%LAUNCHER_JS%" echo   tester.once('listening', () =^> tester.close(() =^> resolve(true)));
->> "%LAUNCHER_JS%" echo   tester.listen(port);
->> "%LAUNCHER_JS%" echo });
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo const findPort = async (start, end) =^> {
->> "%LAUNCHER_JS%" echo   for (let port = start; port ^<= end; port += 1) {
->> "%LAUNCHER_JS%" echo     if (await canUsePort(port)) {
->> "%LAUNCHER_JS%" echo       return port;
->> "%LAUNCHER_JS%" echo     }
->> "%LAUNCHER_JS%" echo   }
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo   throw new Error(`No available port found between ${start} and ${end}`);
->> "%LAUNCHER_JS%" echo };
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo const openBrowser = port =^> {
->> "%LAUNCHER_JS%" echo   if (process.env.NO_OPEN_BROWSER === '1') {
->> "%LAUNCHER_JS%" echo     return;
->> "%LAUNCHER_JS%" echo   }
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo   setTimeout(() =^> {
->> "%LAUNCHER_JS%" echo     exec(`start "" "http://localhost:${port}"`);
->> "%LAUNCHER_JS%" echo   }, 1500);
->> "%LAUNCHER_JS%" echo };
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo const main = async () =^> {
->> "%LAUNCHER_JS%" echo   process.chdir(rootDir);
->> "%LAUNCHER_JS%" echo   const port = await findPort(3014, 3024);
->> "%LAUNCHER_JS%" echo   process.env.PORT = String(port);
->> "%LAUNCHER_JS%" echo   require(serverEntry);
->> "%LAUNCHER_JS%" echo   openBrowser(port);
->> "%LAUNCHER_JS%" echo };
->> "%LAUNCHER_JS%" echo.
->> "%LAUNCHER_JS%" echo main().catch(error =^> {
->> "%LAUNCHER_JS%" echo   console.error('[launcher] Failed to start app:', error);
->> "%LAUNCHER_JS%" echo   process.exit(1);
->> "%LAUNCHER_JS%" echo });
+(
+    echo const net = require('net'^);
+    echo const path = require('path'^);
+    echo const fs = require('fs'^);
+    echo const { exec } = require('child_process'^);
+    echo/
+    echo const rootDir = __dirname;
+    echo const serverEntry = path.join(rootDir, 'server', 'index.js'^);
+    echo const logFile = path.join(rootDir, 'launcher.log'^);
+    echo/
+    echo const log = (msg^) =^> {
+    echo   const timestamp = new Date(^).toISOString(^);
+    echo   const line = `[${timestamp}] ${msg}\n`;
+    echo   try { fs.appendFileSync(logFile, line^); } catch (e^) {}
+    echo   console.log(line.trim(^)^);
+    echo };
+    echo/
+    echo const canUsePort = (port^) =^> new Promise((resolve^) =^> {
+    echo   const tester = net.createServer(^);
+    echo   tester.once('error', (err^) =^> {
+    echo     if (err.code === 'EADDRINUSE'^) {
+    echo       resolve(false^);
+    echo     } else {
+    echo       resolve(false^);
+    echo     }
+    echo   }^);
+    echo   tester.once('listening', (^) =^> {
+    echo     tester.close((^) =^> resolve(true^)^);
+    echo   }^);
+    echo   tester.listen(port, '127.0.0.1'^);
+    echo }^);
+    echo/
+    echo const findPort = async (start, end^) =^> {
+    echo   for (let port = start; port ^<= end; port += 1^) {
+    echo     const available = await canUsePort(port^);
+    echo     if (available^) {
+    echo       return port;
+    echo     }
+    echo     log(`Port ${port} is in use, trying next...`^);
+    echo   }
+    echo   throw new Error(`No available port found between ${start} and ${end}`^);
+    echo };
+    echo/
+    echo const openBrowser = (port^) =^> {
+    echo   if (process.env.NO_OPEN_BROWSER === '1'^) {
+    echo     return;
+    echo   }
+    echo   setTimeout((^) =^> {
+    echo     exec(`start "" "http://localhost:${port}"`^);
+    echo   }, 2000^);
+    echo };
+    echo/
+    echo const main = async (^) =^> {
+    echo   log('Starting XingNovel launcher...'^);
+    echo   log(`Root directory: ${rootDir}`^);
+    echo   log(`Server entry: ${serverEntry}`^);
+    echo/
+    echo   if (!fs.existsSync(serverEntry^)^) {
+    echo     throw new Error(`Server entry not found: ${serverEntry}`^);
+    echo   }
+    echo/
+    echo   process.chdir(rootDir^);
+    echo   log(`Working directory changed to: ${process.cwd(^)}`^);
+    echo/
+    echo   const port = await findPort(3014, 3024^);
+    echo   log(`Found available port: ${port}`^);
+    echo/
+    echo   process.env.PORT = String(port^);
+    echo   log(`Loading server entry...`^);
+    echo   require(serverEntry^);
+    echo   log('Server entry loaded successfully'^);
+    echo   openBrowser(port^);
+    echo };
+    echo/
+    echo main(^).catch((error^) =^> {
+    echo   log(`[ERROR] Failed to start app: ${error.message}`^);
+    echo   log(`Stack: ${error.stack}`^);
+    echo   console.error('[launcher] Failed to start app:', error^);
+    echo   process.exit(1^);
+    echo }^);
+) > "%LAUNCHER_JS%"
 if errorlevel 1 (
     echo [ERROR] Failed to write launcher.js
     exit /b 1
@@ -303,7 +338,40 @@ exit /b 0
     echo chcp 65001 ^>nul
     echo setlocal
     echo cd /d "%%~dp0"
+    echo/
+    echo if not exist "%%~dp0%NODE_RUNTIME_EXE%" (
+    echo     echo [ERROR] Node runtime not found: %NODE_RUNTIME_EXE%
+    echo     pause
+    echo     exit /b 1
+    echo ^)
+    echo if not exist "%%~dp0launcher.js" (
+    echo     echo [ERROR] Launcher script not found: launcher.js
+    echo     pause
+    echo     exit /b 1
+    echo ^)
+    echo if not exist "%%~dp0server\index.js" (
+    echo     echo [ERROR] Server entry not found: server\index.js
+    echo     pause
+    echo     exit /b 1
+    echo ^)
+    echo/
+    echo taskkill /F /IM %NODE_RUNTIME_EXE% ^>nul 2^>nul
+    echo timeout /t 1 /nobreak ^>nul
+    echo/
     echo start "%APP_NAME%" "%%~dp0%NODE_RUNTIME_EXE%" "%%~dp0launcher.js"
+    echo/
+    echo timeout /t 2 /nobreak ^>nul
+    echo tasklist /FI "IMAGENAME eq %NODE_RUNTIME_EXE%" 2^>nul ^| find /I "%NODE_RUNTIME_EXE%" ^>nul
+    echo if errorlevel 1 (
+    echo     echo [ERROR] Failed to start %APP_NAME%
+    echo     if exist "%%~dp0launcher.log" (
+    echo         echo/
+    echo         echo === Launcher Log ===
+    echo         type "%%~dp0launcher.log"
+    echo     ^)
+    echo     pause
+    echo     exit /b 1
+    echo ^)
     echo exit /b 0
 ) > "%OUTPUT_DIR%\%APP_LAUNCHER%"
 if errorlevel 1 (
@@ -312,7 +380,7 @@ if errorlevel 1 (
 )
 exit /b 0
 
-:write_stop_bat
+@echo掉
 (
     echo @echo off
     echo chcp 65001 ^>nul
@@ -362,11 +430,11 @@ goto :fail
 :fail
 set "BUILD_EXIT_CODE=%errorlevel%"
 if "%BUILD_EXIT_CODE%"=="0" set "BUILD_EXIT_CODE=1"
-echo.
-echo ========================================
+的回声。
+回显：========================================
 echo [ERROR] Build failed (errorlevel=%BUILD_EXIT_CODE%)
-echo ========================================
-echo.
+回显：========================================
+的回声。
 popd >nul
 if /i "%NO_PAUSE%"=="1" goto :fail_exit
 pause
