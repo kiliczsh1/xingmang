@@ -9,32 +9,21 @@
     modal-class="history-center-dialog-modal"
   >
     <div class="history-center-content">
-      <div class="history-tabs">
-        <el-tabs v-model="activeTab" class="history-tabs-component">
-          <el-tab-pane label="全部" name="all">
-            <span class="tab-badge">{{ totalRecords }}</span>
-          </el-tab-pane>
-          <el-tab-pane label="创意工坊" name="creative">
-            <span class="tab-badge">{{ creativeRecords.length }}</span>
-          </el-tab-pane>
-          <el-tab-pane label="拆书库" name="bookAnalysis">
-            <span class="tab-badge">{{ bookAnalysisRecords.length }}</span>
-          </el-tab-pane>
-          <el-tab-pane label="正文 AI" name="textEditor">
-            <span class="tab-badge">{{ textEditorRecords.length }}</span>
-          </el-tab-pane>
-          <el-tab-pane label="工作流" name="workflow">
-            <span class="tab-badge">{{ workflowRecords.length }}</span>
-          </el-tab-pane>
-        </el-tabs>
-      </div>
-
       <div class="history-header">
         <div class="header-left">
           <el-icon class="header-icon"><Clock /></el-icon>
           <span class="history-count">
             共 {{ filteredRecords.length }} 条记录
           </span>
+        </div>
+        <div class="header-tabs">
+          <el-tabs v-model="activeTab" class="history-tabs-component">
+            <el-tab-pane label="全部" name="all"></el-tab-pane>
+            <el-tab-pane label="创意工坊" name="creative"></el-tab-pane>
+            <el-tab-pane label="拆书库" name="bookAnalysis"></el-tab-pane>
+            <el-tab-pane label="正文 AI" name="textEditor"></el-tab-pane>
+            <el-tab-pane label="工作流" name="workflow"></el-tab-pane>
+          </el-tabs>
         </div>
         <div class="history-actions">
           <el-button 
@@ -135,24 +124,36 @@
             </div>
 
             <div class="history-item-actions">
-              <el-button 
-                size="small" 
-                type="primary" 
-                @click.stop="viewHistoryDetail(record)"
-                class="view-detail-btn"
-              >
-                <el-icon><View /></el-icon>
-                查看详情
-              </el-button>
-              <el-button 
-                size="small" 
-                type="danger" 
-                @click.stop="deleteHistoryRecord(index, record)"
-                class="delete-btn"
-              >
-                <el-icon><Delete /></el-icon>
-                删除
-              </el-button>
+              <el-tooltip content="继续对话" placement="top">
+                <el-button 
+                  size="small" 
+                  type="success" 
+                  @click.stop="continueConversation(record)"
+                  class="continue-btn"
+                  :icon="ChatDotRound"
+                  circle
+                />
+              </el-tooltip>
+              <el-tooltip content="查看详情" placement="top">
+                <el-button 
+                  size="small" 
+                  type="primary" 
+                  @click.stop="viewHistoryDetail(record)"
+                  class="view-detail-btn"
+                  :icon="View"
+                  circle
+                />
+              </el-tooltip>
+              <el-tooltip content="删除" placement="top">
+                <el-button 
+                  size="small" 
+                  type="danger" 
+                  @click.stop="deleteHistoryRecord(index, record)"
+                  class="delete-btn"
+                  :icon="Delete"
+                  circle
+                />
+              </el-tooltip>
             </div>
           </div>
         </div>
@@ -172,11 +173,7 @@
       </div>
     </div>
 
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="dialogVisible = false" class="cancel-btn">关闭</el-button>
-      </div>
-    </template>
+
   </el-dialog>
 
   <!-- 历史记录详情对话框 -->
@@ -235,11 +232,147 @@
       <el-button @click="detailDialogVisible = false">关闭</el-button>
     </template>
   </el-dialog>
+
+  <!-- 追问弹窗 -->
+  <el-dialog
+    v-model="continueDialogVisible"
+    width="800px"
+    class="continue-dialog"
+    modal-class="continue-dialog-modal"
+    destroy-on-close
+  >
+    <template #header>
+      <div class="continue-dialog-header">
+        <div class="header-title">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>继续对话</span>
+        </div>
+        <el-select
+          v-model="selectedModelId"
+          placeholder="选择模型"
+          class="model-select"
+          size="small"
+        >
+          <el-option
+            v-for="model in availableModels"
+            :key="model.id"
+            :label="model.name"
+            :value="model.id"
+          >
+            <div class="model-option-content">
+              <span>{{ model.name }}</span>
+              <el-tag v-if="model.provider_name" size="small" type="info">{{ model.provider_name }}</el-tag>
+            </div>
+          </el-option>
+        </el-select>
+      </div>
+    </template>
+    <div class="continue-dialog-content">
+      <div class="continue-messages" ref="continueMessagesContainer">
+        <div v-if="continueMessages.length > 2 && !isHistoryExpanded" class="history-collapsed-hint">
+          <el-button 
+            text 
+            type="primary" 
+            @click="isHistoryExpanded = true"
+            size="small"
+          >
+            <el-icon><Folder /></el-icon>
+            展开 {{ continueMessages.length - 2 }} 条历史消息
+          </el-button>
+        </div>
+        
+        <template v-if="isHistoryExpanded">
+          <div
+            v-for="(msg, msgIndex) in continueMessages"
+            :key="msgIndex"
+            :class="['continue-message-bubble', msg.role, { 'history-message': msgIndex < continueMessages.length - 2 }]"
+          >
+            <div class="continue-message-sender">
+              <el-icon class="sender-icon">
+                <User v-if="msg.role === 'user'" />
+                <ChatDotRound v-if="msg.role === 'assistant'" />
+                <Setting v-if="msg.role === 'system'" />
+              </el-icon>
+              <span class="sender-name">
+                {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统' }}
+              </span>
+            </div>
+            <div class="continue-message-content">
+              <MarkdownRenderer :content="msg.content" />
+            </div>
+          </div>
+        </template>
+        
+        <template v-else>
+          <div
+            v-for="(msg, msgIndex) in continueMessages.slice(-2)"
+            :key="continueMessages.length - 2 + msgIndex"
+            :class="['continue-message-bubble', msg.role]"
+          >
+            <div class="continue-message-sender">
+              <el-icon class="sender-icon">
+                <User v-if="msg.role === 'user'" />
+                <ChatDotRound v-if="msg.role === 'assistant'" />
+                <Setting v-if="msg.role === 'system'" />
+              </el-icon>
+              <span class="sender-name">
+                {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统' }}
+              </span>
+            </div>
+            <div class="continue-message-content">
+              <MarkdownRenderer :content="msg.content" />
+            </div>
+          </div>
+        </template>
+        
+        <div v-if="isGenerating" class="continue-message-bubble assistant">
+          <div class="continue-message-sender">
+            <el-icon class="sender-icon"><ChatDotRound /></el-icon>
+            <span class="sender-name">AI</span>
+          </div>
+          <div class="continue-message-content">
+            <div class="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="continue-input-area">
+        <el-input
+          v-model="userInput"
+          type="textarea"
+          :rows="2"
+          placeholder="输入您的问题，按 Ctrl+Enter 发送..."
+          @keydown.enter.ctrl="sendMessage"
+          :disabled="isGenerating"
+          resize="none"
+          class="continue-input"
+        />
+        <div class="continue-input-actions">
+          <el-tooltip content="发送 (Ctrl+Enter)" placement="top">
+            <el-button 
+              type="primary" 
+              @click="sendMessage"
+              :loading="isGenerating"
+              :disabled="!userInput.trim()"
+              :icon="ChatDotRound"
+              circle
+              class="send-btn"
+            />
+          </el-tooltip>
+        </div>
+      </div>
+    </div>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { aiAPI, configAPI } from '@/api'
 import {
   Clock,
   Delete,
@@ -256,7 +389,7 @@ import {
 import MarkdownRenderer from './MarkdownRenderer.vue'
 
 interface HistoryMessage {
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'prompt'
   content: string
   timestamp: number
 }
@@ -298,6 +431,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
+  (e: 'continue-conversation', record: UnifiedHistoryRecord): void
 }>()
 
 const dialogVisible = computed({
@@ -308,6 +442,16 @@ const dialogVisible = computed({
 const activeTab = ref<'all' | 'creative' | 'bookAnalysis' | 'textEditor' | 'workflow'>('all')
 const detailDialogVisible = ref(false)
 const selectedRecord = ref<UnifiedHistoryRecord | null>(null)
+
+const continueDialogVisible = ref(false)
+const continueMessages = ref<HistoryMessage[]>([])
+const userInput = ref('')
+const isGenerating = ref(false)
+const continueMessagesContainer = ref<HTMLElement | null>(null)
+const currentContinueRecord = ref<UnifiedHistoryRecord | null>(null)
+const selectedModelId = ref<number | null>(null)
+const availableModels = ref<any[]>([])
+const isHistoryExpanded = ref(false)
 
 const creativeRecords = ref<UnifiedHistoryRecord[]>([])
 const bookAnalysisRecords = ref<UnifiedHistoryRecord[]>([])
@@ -470,6 +614,27 @@ const loadAllHistory = () => {
   loadWorkflowHistory()
 }
 
+const loadAvailableModels = async () => {
+  try {
+    const res = await configAPI.getAll()
+    if (res.success && res.data) {
+      availableModels.value = res.data
+      const defaultModel = res.data.find((m: any) => m.is_default === 1)
+      if (defaultModel) {
+        selectedModelId.value = defaultModel.id
+      } else if (res.data.length > 0) {
+        selectedModelId.value = res.data[0].id
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load models:', error)
+  }
+}
+
+onMounted(() => {
+  loadAvailableModels()
+})
+
 watch(dialogVisible, (newValue) => {
   if (newValue) {
     loadAllHistory()
@@ -502,6 +667,155 @@ const formatTimestamp = (timestamp: number | string) => {
 const viewHistoryDetail = (record: UnifiedHistoryRecord) => {
   selectedRecord.value = record
   detailDialogVisible.value = true
+}
+
+const continueConversation = (record: UnifiedHistoryRecord) => {
+  if (!record.messages || record.messages.length === 0) {
+    ElMessage.warning('该历史记录没有对话内容，无法继续对话')
+    return
+  }
+  currentContinueRecord.value = record
+  continueMessages.value = [...record.messages]
+  userInput.value = ''
+  isGenerating.value = false
+  isHistoryExpanded.value = false
+  continueDialogVisible.value = true
+  
+  nextTick(() => {
+    scrollToBottom()
+  })
+}
+
+const scrollToBottom = () => {
+  if (continueMessagesContainer.value) {
+    continueMessagesContainer.value.scrollTop = continueMessagesContainer.value.scrollHeight
+  }
+}
+
+const sendMessage = async () => {
+  if (!userInput.value.trim() || isGenerating.value) return
+  
+  const userMessage: HistoryMessage = {
+    role: 'user',
+    content: userInput.value.trim(),
+    timestamp: Date.now()
+  }
+  
+  continueMessages.value.push(userMessage)
+  const currentInput = userInput.value
+  userInput.value = ''
+  isGenerating.value = true
+  
+  nextTick(() => {
+    scrollToBottom()
+  })
+  
+  try {
+    const validRoles = ['system', 'user', 'assistant', 'tool', 'latest_reminder']
+    const messages = continueMessages.value
+      .filter(msg => validRoles.includes(msg.role) || msg.role === 'prompt')
+      .map(msg => ({
+        role: msg.role === 'prompt' ? 'system' : msg.role,
+        content: msg.content
+      }))
+    
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages,
+        configId: selectedModelId.value
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error('请求失败')
+    }
+    
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    let assistantMessage = ''
+    
+    const assistantMsg: HistoryMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now()
+    }
+    continueMessages.value.push(assistantMsg)
+    
+    while (reader) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      const chunk = decoder.decode(value)
+      const lines = chunk.split('\n')
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') continue
+          
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.content) {
+              assistantMessage += parsed.content
+              assistantMsg.content = assistantMessage
+              nextTick(() => {
+                scrollToBottom()
+              })
+            } else if (parsed.error) {
+              throw new Error(parsed.error)
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue
+            throw e
+          }
+        }
+      }
+    }
+    
+    saveContinueHistory(assistantMessage)
+    
+    ElMessage.success('对话完成')
+  } catch (error: any) {
+    ElMessage.error(error.message || '发送失败')
+    continueMessages.value.pop()
+    continueMessages.value.pop()
+  } finally {
+    isGenerating.value = false
+  }
+}
+
+const saveContinueHistory = (aiResponse: string) => {
+  const relatedContext = currentContinueRecord.value?.originalRecord?.relatedContext || []
+  
+  const historyRecord = {
+    id: Date.now(),
+    generatorName: '追问对话',
+    generatorIcon: 'ChatDotRound',
+    fixedPrompt: '',
+    selectedPrompts: [],
+    inputParams: '',
+    additionalInfo: '',
+    fieldValues: {},
+    relatedContext: relatedContext,
+    messages: [...continueMessages.value],
+    previewContent: aiResponse,
+    timestamp: Date.now()
+  }
+  
+  const allRecords = JSON.parse(localStorage.getItem('creative-history') || '[]')
+  allRecords.push(historyRecord)
+  localStorage.setItem('creative-history', JSON.stringify(allRecords))
+  
+  loadCreativeHistory()
+}
+
+const closeContinueDialog = () => {
+  continueDialogVisible.value = false
+  currentContinueRecord.value = null
 }
 
 const deleteHistoryRecord = (index: number, record: UnifiedHistoryRecord) => {
@@ -611,6 +925,8 @@ const handleClearAllHistory = () => {
   left: auto !important;
   right: auto !important;
   bottom: auto !important;
+  max-height: 90vh;
+  overflow: hidden;
 }
 
 .history-center-dialog :deep(.el-overlay-dialog) {
@@ -653,11 +969,6 @@ const handleClearAllHistory = () => {
   padding: 24px;
 }
 
-.history-tabs {
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0;
-}
-
 .history-tabs-component {
   margin-bottom: 0;
 }
@@ -667,28 +978,43 @@ const handleClearAllHistory = () => {
 }
 
 .tab-badge {
-  margin-left: 8px;
-  padding: 2px 8px;
-  background: #e5e7eb;
-  border-radius: 12px;
-  font-size: 12px;
-  color: #6b7280;
+  display: none;
 }
 
 .history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: #f9fafb;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
+  gap: 16px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+}
+
+.header-tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+}
+
+.header-tabs :deep(.el-tabs__nav-wrap::after) {
+  display: none;
+}
+
+.header-tabs :deep(.el-tabs__item) {
+  padding: 0 12px;
+  font-size: 13px;
 }
 
 .header-icon {
@@ -727,10 +1053,10 @@ const handleClearAllHistory = () => {
 }
 
 .history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 55vh;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-height: 65vh;
   overflow-y: auto;
   padding: 0 4px;
 }
@@ -777,6 +1103,9 @@ const handleClearAllHistory = () => {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  height: 280px;
+  display: flex;
+  flex-direction: column;
 }
 
 .history-item-card:hover {
@@ -819,6 +1148,10 @@ const handleClearAllHistory = () => {
 
 .history-item-body {
   margin-bottom: 6px;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .history-item-title {
@@ -865,18 +1198,41 @@ const handleClearAllHistory = () => {
   padding: 4px 8px;
   border-radius: 4px;
   border-left: 2px solid #409eff;
+  max-height: 120px;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+  word-break: break-all;
+  flex: 1;
 }
 
 .history-item-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.continue-btn {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: #10b981;
+  color: #10b981;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.continue-btn:hover:not(:disabled) {
+  background: #10b981;
+  color: #ffffff;
 }
 
 .view-detail-btn {
   background: rgba(64, 158, 255, 0.1);
   border-color: #409eff;
   color: #409eff;
+  width: 32px;
+  height: 32px;
+  padding: 0;
 }
 
 .view-detail-btn:hover:not(:disabled) {
@@ -888,6 +1244,9 @@ const handleClearAllHistory = () => {
   background: rgba(244, 63, 94, 0.1);
   border-color: #f43f5e;
   color: #f43f5e;
+  width: 32px;
+  height: 32px;
+  padding: 0;
 }
 
 .delete-btn:hover:not(:disabled) {
@@ -1110,5 +1469,651 @@ const handleClearAllHistory = () => {
   background: #f9fafb;
   padding: 8px 12px;
   border-radius: 4px;
+}
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .history-detail-dialog :deep(.el-dialog) {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
+  border-color: rgba(94, 234, 212, 0.3);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .history-detail-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(51, 65, 85, 0.95) 100%);
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .history-detail-dialog :deep(.el-dialog__title) {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .history-detail-dialog :deep(.el-dialog__body) {
+  background: rgba(15, 23, 42, 0.98);
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .history-detail-dialog :deep(.el-dialog__footer) {
+  background: rgba(30, 41, 59, 0.98);
+  border-top-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .history-detail-content {
+  background: #0f172a;
+}
+
+:root[data-theme='dark'] .detail-header {
+  background: rgba(30, 41, 59, 0.95);
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .detail-source-badge.creative {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.8) 0%, rgba(118, 75, 162, 0.8) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+:root[data-theme='dark'] .detail-source-badge.bookAnalysis {
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.8) 0%, rgba(245, 87, 108, 0.8) 100%);
+  border: 1px solid rgba(240, 147, 251, 0.3);
+}
+
+:root[data-theme='dark'] .detail-time {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .detail-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .detail-preview {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .conversation-messages {
+  background: rgba(15, 23, 42, 0.95);
+}
+
+:root[data-theme='dark'] .message-bubble.user {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+:root[data-theme='dark'] .message-bubble.assistant {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .message-bubble.system {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .sender-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .sender-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .message-content {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .message-content :deep(blockquote) {
+  border-left-color: rgba(94, 234, 212, 0.4);
+  color: #9ca3af;
+  background: rgba(30, 41, 59, 0.6);
+}
+
+:root[data-theme='dark'] .history-header {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .header-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-count {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .history-list::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+:root[data-theme='dark'] .history-list::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.8);
+}
+
+:root[data-theme='dark'] .history-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.6);
+}
+
+:root[data-theme='dark'] .history-item-card {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .history-item-card:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+  box-shadow: 0 4px 16px rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .history-source-badge.creative {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.8) 0%, rgba(118, 75, 162, 0.8) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+:root[data-theme='dark'] .history-source-badge.bookAnalysis {
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.8) 0%, rgba(245, 87, 108, 0.8) 100%);
+  border: 1px solid rgba(240, 147, 251, 0.3);
+}
+
+:root[data-theme='dark'] .history-time {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .item-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .title-text {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .meta-tag {
+  background: rgba(51, 65, 85, 0.6);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .history-item-preview {
+  color: #9ca3af;
+  background: rgba(30, 41, 59, 0.6);
+  border-left-color: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .view-detail-btn {
+  background: rgba(94, 234, 212, 0.15);
+  border-color: rgba(94, 234, 212, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .view-detail-btn:hover:not(:disabled) {
+  background: #5eead4;
+  border-color: #5eead4;
+  color: #0f172a;
+}
+
+:root[data-theme='dark'] .continue-btn {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+:root[data-theme='dark'] .continue-btn:hover:not(:disabled) {
+  background: #10b981;
+  border-color: #10b981;
+  color: #ffffff;
+}
+
+:root[data-theme='dark'] .delete-btn {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: #fb7185;
+}
+
+:root[data-theme='dark'] .delete-btn:hover:not(:disabled) {
+  background: #f43f5e;
+  border-color: #f43f5e;
+  color: #ffffff;
+}
+
+/* 追问弹窗样式 */
+.continue-dialog :deep(.el-dialog) {
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.continue-dialog :deep(.el-dialog__header) {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 16px 16px 0 0;
+  margin-right: 0;
+}
+
+.continue-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.header-title .el-icon {
+  color: #667eea;
+  font-size: 20px;
+}
+
+.continue-dialog :deep(.el-dialog__body) {
+  padding: 0;
+  background: #ffffff;
+}
+
+.continue-dialog :deep(.el-dialog__footer) {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 0 0 16px 16px;
+}
+
+.continue-dialog-content {
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+}
+
+.continue-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: #f0f2f5;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-collapsed-hint {
+  text-align: center;
+  padding: 8px 0;
+  margin-bottom: 8px;
+}
+
+.history-collapsed-hint .el-button {
+  font-size: 13px;
+  color: #667eea;
+}
+
+.history-collapsed-hint .el-button:hover {
+  color: #764ba2;
+}
+
+.history-message {
+  opacity: 0.7;
+}
+
+.history-message .continue-message-content {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.continue-message-bubble {
+  border-radius: 16px;
+  padding: 16px 20px;
+  max-width: 85%;
+  animation: messageSlideIn 0.3s ease;
+}
+
+.continue-message-bubble.user {
+  background: #e3f2fd;
+  border: 1px solid #bbdefb;
+  margin-left: auto;
+}
+
+.continue-message-bubble.assistant {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.continue-message-bubble.system {
+  background: #f3e5f5;
+  border: 1px solid #e1bee7;
+  width: 100%;
+  max-width: 100%;
+}
+
+.continue-message-sender {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.continue-message-content {
+  color: #374151;
+  line-height: 1.7;
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #409eff;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typing {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.continue-input-area {
+  padding: 16px 24px;
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.continue-input {
+  flex: 1;
+}
+
+.continue-input :deep(.el-textarea__inner) {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.continue-input :deep(.el-textarea__inner):focus {
+  border-color: #409eff;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.continue-input-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-items: flex-end;
+}
+
+.model-select {
+  width: 180px;
+}
+
+.model-select :deep(.el-select__wrapper) {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  transition: all 0.3s ease;
+  height: 40px;
+}
+
+.model-select :deep(.el-select__wrapper):hover {
+  border-color: #409eff;
+}
+
+.model-select :deep(.el-select__wrapper).is-focused {
+  border-color: #409eff;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.model-option-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-option-content span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.send-btn {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.send-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 追问弹窗暗色主题 */
+:root[data-theme='dark'] .continue-dialog :deep(.el-dialog) {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
+  border-color: rgba(94, 234, 212, 0.3);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .continue-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(51, 65, 85, 0.95) 100%);
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .continue-dialog-header {
+  width: 100%;
+}
+
+:root[data-theme='dark'] .header-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .header-title .el-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .continue-dialog :deep(.el-dialog__body) {
+  background: rgba(15, 23, 42, 0.98);
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .continue-dialog :deep(.el-dialog__footer) {
+  background: rgba(30, 41, 59, 0.98);
+  border-top-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .continue-messages {
+  background: rgba(15, 23, 42, 0.95);
+}
+
+:root[data-theme='dark'] .history-collapsed-hint .el-button {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-collapsed-hint .el-button:hover {
+  color: #2dd4bf;
+}
+
+:root[data-theme='dark'] .history-message .continue-message-content {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+:root[data-theme='dark'] .continue-message-bubble.user {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+:root[data-theme='dark'] .continue-message-bubble.assistant {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .continue-message-bubble.system {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .continue-message-content {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .typing-indicator span {
+  background: #5eead4;
+}
+
+:root[data-theme='dark'] .continue-input-area {
+  background: rgba(30, 41, 59, 0.98);
+  border-top-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .continue-input :deep(.el-textarea__inner) {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .continue-input :deep(.el-textarea__inner):focus {
+  border-color: rgba(94, 234, 212, 0.4);
+  background: rgba(51, 65, 85, 0.8);
+  box-shadow: 0 2px 8px rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .send-btn {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.8) 0%, rgba(118, 75, 162, 0.8) 100%);
+}
+
+:root[data-theme='dark'] .send-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(94, 234, 212, 0.3);
+}
+
+:root[data-theme='dark'] .model-select :deep(.el-select__wrapper) {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .model-select :deep(.el-select__wrapper):hover {
+  border-color: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .model-select :deep(.el-select__wrapper).is-focused {
+  border-color: rgba(94, 234, 212, 0.4);
+  background: rgba(51, 65, 85, 0.8);
+  box-shadow: 0 2px 8px rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .model-option-content span {
+  color: #e5e7eb;
+}
+</style>
+
+<style>
+/* 模型选择下拉菜单暗色主题 - 全局样式 */
+:root[data-theme='dark'] .el-select-dropdown,
+:root[data-theme='dark'] .el-select__popper,
+:root[data-theme='dark'] .el-popper.el-select__popper {
+  background: rgba(30, 41, 59, 0.98) !important;
+  border: 1px solid rgba(71, 85, 105, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__item {
+  color: #e5e7eb !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__item:hover {
+  background: rgba(51, 65, 85, 0.6) !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__item.is-selected {
+  color: #5eead4 !important;
+  background: rgba(94, 234, 212, 0.1) !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__item.is-hovering {
+  background: rgba(51, 65, 85, 0.8) !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__wrap {
+  background: rgba(30, 41, 59, 0.98) !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__list {
+  background: rgba(30, 41, 59, 0.98) !important;
+  padding: 4px 0 !important;
+}
+
+:root[data-theme='dark'] .el-popper.is-light,
+:root[data-theme='dark'] .el-popper.is-pure {
+  background: rgba(30, 41, 59, 0.98) !important;
+  border: 1px solid rgba(71, 85, 105, 0.4) !important;
+}
+
+:root[data-theme='dark'] .el-popper.is-light .el-popper__arrow::before,
+:root[data-theme='dark'] .el-popper.is-pure .el-popper__arrow::before {
+  background: rgba(30, 41, 59, 0.98) !important;
+  border-color: rgba(71, 85, 105, 0.4) !important;
+}
+
+:root[data-theme='dark'] .el-scrollbar {
+  background: rgba(30, 41, 59, 0.98) !important;
+}
+
+:root[data-theme='dark'] .el-scrollbar__view {
+  background: rgba(30, 41, 59, 0.98) !important;
+}
+
+:root[data-theme='dark'] .el-scrollbar__bar {
+  background: rgba(71, 85, 105, 0.4) !important;
+}
+
+:root[data-theme='dark'] .el-scrollbar__thumb {
+  background: rgba(94, 234, 212, 0.3) !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__empty {
+  color: #9ca3af !important;
+  background: rgba(30, 41, 59, 0.98) !important;
+}
+
+:root[data-theme='dark'] .el-select-dropdown__item .el-tag {
+  background: rgba(71, 85, 105, 0.5) !important;
+  border-color: rgba(94, 234, 212, 0.3) !important;
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .model-option-content .el-tag {
+  background: rgba(71, 85, 105, 0.5) !important;
+  border-color: rgba(94, 234, 212, 0.3) !important;
+  color: #5eead4 !important;
 }
 </style>

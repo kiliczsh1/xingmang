@@ -6,25 +6,58 @@
         <p>沉淀案例方法、实操心得和可复用的经验卡片。</p>
       </div>
 
-      <el-dropdown trigger="click" @command="handleCreateCommand">
-        <el-button type="primary" size="large">
-          <el-icon><Plus /></el-icon>
-          创建
-          <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-        </el-button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="manual">
-              <el-icon><EditPen /></el-icon>
-              手动创建
-            </el-dropdown-item>
-            <el-dropdown-item command="pdf_import">
-              <el-icon><UploadFilled /></el-icon>
-              PDF 导入创建
-            </el-dropdown-item>
-          </el-dropdown-menu>
+      <div class="header-actions">
+        <template v-if="selectionMode">
+          <el-checkbox
+            v-model="selectAll"
+            :indeterminate="isIndeterminate"
+            @change="handleSelectAllChange"
+          >
+            全选
+          </el-checkbox>
+          <span class="selection-count">已选 {{ selectedIds.length }} 项</span>
+          <el-button size="large" type="primary" @click="handleExportSelected">
+            <el-icon><Download /></el-icon>
+            导出选中
+          </el-button>
+          <el-button size="large" @click="cancelSelection">
+            取消选择
+          </el-button>
         </template>
-      </el-dropdown>
+        <template v-else>
+          <el-button size="large" @click="enterSelectionMode">
+            <el-icon><Select /></el-icon>
+            选择
+          </el-button>
+          <el-button size="large" @click="handleImport">
+            <el-icon><Upload /></el-icon>
+            导入
+          </el-button>
+          <el-button size="large" @click="handleExport">
+            <el-icon><Download /></el-icon>
+            导出全部
+          </el-button>
+        </template>
+        <el-dropdown trigger="click" @command="handleCreateCommand">
+          <el-button type="primary" size="large">
+            <el-icon><Plus /></el-icon>
+            创建
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="manual">
+                <el-icon><EditPen /></el-icon>
+                手动创建
+              </el-dropdown-item>
+              <el-dropdown-item command="pdf_import">
+                <el-icon><UploadFilled /></el-icon>
+                PDF 导入创建
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
     <div v-loading="loading" class="content-wrap">
@@ -33,10 +66,17 @@
           v-for="item in experienceShares"
           :key="item.id"
           class="experience-card"
-          @click="openDetail(item)"
+          :class="{ 'is-selected': selectedIds.includes(item.id) }"
+          @click="handleCardClick(item)"
         >
           <div class="card-top">
             <div class="card-tags">
+              <el-checkbox
+                v-if="selectionMode"
+                :model-value="selectedIds.includes(item.id)"
+                @change="(val: boolean) => handleSelectChange(item.id, val)"
+                @click.stop
+              />
               <el-tag size="small" :type="item.create_type === 'pdf_import' ? 'warning' : 'success'">
                 {{ item.create_type === 'pdf_import' ? 'PDF 导入' : '手动创建' }}
               </el-tag>
@@ -46,6 +86,9 @@
             <div class="card-actions" @click.stop>
               <el-button type="primary" link size="small" @click="openEdit(item)">
                 编辑
+              </el-button>
+              <el-button type="info" link size="small" @click="handleExportSingle(item)">
+                导出
               </el-button>
               <el-button type="danger" link size="small" @click="handleDelete(item)">
                 删除
@@ -283,6 +326,14 @@
       style="display: none"
       @change="handlePdfFileChange"
     />
+
+    <input
+      ref="importFileInputRef"
+      type="file"
+      accept=".json,application/json"
+      style="display: none"
+      @change="handleImportFileChange"
+    />
   </div>
 </template>
 
@@ -342,6 +393,9 @@ const importingPdf = ref(false)
 const experienceShares = ref<ExperienceShare[]>([])
 const dialogVisible = ref(false)
 const pdfPreviewVisible = ref(false)
+
+const selectionMode = ref(false)
+const selectedIds = ref<number[]>([])
 
 const isEdit = ref(false)
 const pdfPreviewUrl = ref('')
@@ -415,6 +469,20 @@ const currentPdfDisplay = computed(() => {
   }
 
   return null
+})
+
+const selectAll = computed({
+  get: () => {
+    if (experienceShares.value.length === 0) return false
+    return selectedIds.value.length === experienceShares.value.length
+  },
+  set: () => {}
+})
+
+const isIndeterminate = computed(() => {
+  const total = experienceShares.value.length
+  const selected = selectedIds.value.length
+  return selected > 0 && selected < total
 })
 
 const revokeLocalPdf = () => {
@@ -763,6 +831,168 @@ watch(
     syncEditFromQuery()
   }
 )
+
+const handleExport = async () => {
+  if (experienceShares.value.length === 0) {
+    ElMessage.warning('没有可导出的经验卡片')
+    return
+  }
+
+  try {
+    const exportData = experienceShares.value.map(item => ({
+      title: item.title,
+      summary: item.summary,
+      content: item.content,
+      content_render_mode: item.content_render_mode,
+      author_name: item.author_name,
+      create_type: item.create_type
+    }))
+
+    const jsonStr = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([jsonStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `经验卡片导出_${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`成功导出 ${exportData.length} 张经验卡片`)
+  } catch (error: any) {
+    ElMessage.error(error.message || '导出失败')
+  }
+}
+
+const handleExportSingle = (item: ExperienceShare) => {
+  try {
+    const exportData = [{
+      title: item.title,
+      summary: item.summary,
+      content: item.content,
+      content_render_mode: item.content_render_mode,
+      author_name: item.author_name,
+      create_type: item.create_type
+    }]
+
+    const jsonStr = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([jsonStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const safeTitle = item.title.replace(/[^\w\u4e00-\u9fa5]/g, '_').slice(0, 50) || '经验卡片'
+    link.download = `${safeTitle}_${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error: any) {
+    ElMessage.error(error.message || '导出失败')
+  }
+}
+
+const handleExportSelected = () => {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('请先选择要导出的经验卡片')
+    return
+  }
+
+  try {
+    const selectedItems = experienceShares.value.filter(item => selectedIds.value.includes(item.id))
+    const exportData = selectedItems.map(item => ({
+      title: item.title,
+      summary: item.summary,
+      content: item.content,
+      content_render_mode: item.content_render_mode,
+      author_name: item.author_name,
+      create_type: item.create_type
+    }))
+
+    const jsonStr = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([jsonStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `经验卡片导出_${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`成功导出 ${exportData.length} 张经验卡片`)
+    cancelSelection()
+  } catch (error: any) {
+    ElMessage.error(error.message || '导出失败')
+  }
+}
+
+const enterSelectionMode = () => {
+  selectionMode.value = true
+  selectedIds.value = []
+}
+
+const cancelSelection = () => {
+  selectionMode.value = false
+  selectedIds.value = []
+}
+
+const handleSelectAllChange = (val: boolean) => {
+  if (val) {
+    selectedIds.value = experienceShares.value.map(item => item.id)
+  } else {
+    selectedIds.value = []
+  }
+}
+
+const handleSelectChange = (id: number, val: boolean) => {
+  if (val) {
+    if (!selectedIds.value.includes(id)) {
+      selectedIds.value.push(id)
+    }
+  } else {
+    selectedIds.value = selectedIds.value.filter(i => i !== id)
+  }
+}
+
+const handleCardClick = (item: ExperienceShare) => {
+  if (selectionMode.value) {
+    const isSelected = selectedIds.value.includes(item.id)
+    handleSelectChange(item.id, !isSelected)
+  } else {
+    openDetail(item)
+  }
+}
+
+const importFileInputRef = ref<HTMLInputElement | null>(null)
+
+const handleImport = () => {
+  importFileInputRef.value?.click()
+}
+
+const handleImportFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  try {
+    if (!file) return
+
+    if (!file.name.endsWith('.json')) {
+      throw new Error('仅支持 JSON 格式文件')
+    }
+
+    const text = await file.text()
+    const data = JSON.parse(text)
+
+    if (!Array.isArray(data)) {
+      throw new Error('文件格式错误，应为经验卡片数组')
+    }
+
+    const res = await experienceShareAPI.importAll({ cards: data })
+    if (res.success) {
+      ElMessage.success(`成功导入 ${data.length} 张经验卡片`)
+      await fetchExperienceShares()
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '导入失败')
+  } finally {
+    target.value = ''
+  }
+}
+
 </script>
 
 <style scoped>
@@ -786,6 +1016,18 @@ watch(
 
 .page-header p {
   margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.selection-count {
   color: #64748b;
   font-size: 14px;
 }
@@ -818,6 +1060,12 @@ watch(
   transform: translateY(-4px);
   box-shadow: 0 18px 40px rgba(8, 198, 190, 0.12);
   border-color: rgba(8, 198, 190, 0.28);
+}
+
+.experience-card.is-selected {
+  border-color: #08c6be;
+  background: linear-gradient(180deg, rgba(8, 198, 190, 0.08) 0%, rgba(244, 251, 250, 0.98) 100%);
+  box-shadow: 0 18px 40px rgba(8, 198, 190, 0.18);
 }
 
 .card-top,
@@ -1119,6 +1367,10 @@ watch(
     align-items: stretch;
   }
 
+  .header-actions {
+    justify-content: flex-start;
+  }
+
   .card-grid {
     grid-template-columns: 1fr;
   }
@@ -1126,5 +1378,10 @@ watch(
   .card-footer {
     justify-content: flex-start;
   }
+}
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .card-title {
+  color: #f3f4f6;
 }
 </style>
