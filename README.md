@@ -1,3 +1,17 @@
+星芒写作V-0.5.7
+1.增加酒馆世界书兼容转换，可选择导入世界书创建新的，也可以选择直接导入其他世界书
+2.世界书中可创建分组
+3.模型选择增加更多调试按钮【仅限AI对话板块】
+4.调整了部分UI
+5.修复了AI对话模型切换问题
+6.修复了变量抽卡区追问不显示的功能
+7.删除了正则表达式功能
+8.提示词管理卡包弹窗内卡片增加，单独导出，转入其他卡包，单独删除功能
+9.增加功能反馈文档
+11.增加官方社区按钮
+12.增加创建生成器自动创建卡包
+
+
 # 网文创作辅助系统
 
 > 🎉 经过 60+ 次迭代，专业级网文 AI 辅助创作工具
@@ -5,7 +19,7 @@
 ## 🚀 快速启动
 
 ### 方式一：一键启动（推荐 ⭐）
-**从 GitHub 下载后，直接双击运行 `start.bat`**
+After downloading from GitHub, simply double-click to run `start.bat`.
 
 脚本会自动完成：
 - ✅ 检查 Node.js 环境
@@ -19,37 +33,37 @@
 如果已经安装过依赖，双击运行 `quick-start.bat` 即可快速启动。
 
 ### 方式三：手动安装依赖并启动
-```bash
-# 1. 安装所有依赖（首次使用必须执行）
-npm run install-all
+好的，请提供您需要翻译的文本。
+运行开发环境：npm run dev 1. 安装所有依赖（首次使用必须执行）
+运行install-all
 
 # 2. 启动后端服务
-cd server
-npm start
+CD 服务器
+运行 npm start 命令
 
 # 3. 启动前端（新开终端）
-cd novel
-npm run dev
+CD 小说
+运行开发环境：npm run dev
 ```
 
-### 方式四：分别安装依赖（如遇网络问题）
-```bash
+好的，请提供您需要翻译的文本。
+好的，请提供您需要翻译的文本。
 # 安装根目录依赖
 npm install
 
 # 安装后端依赖
-cd server
+CD 服务器
 npm install
 
 # 安装前端依赖
-cd novel
+CD 小说
 npm install
 ```
 
 ## 📱 访问地址
 
 启动成功后，在浏览器访问：
-- **前端界面**: http://localhost:5173
+- **Front-end Interface**: http://localhost:5173
 - **后端 API**: http://localhost:3000
 
 ## 🛠️ 功能特性
