@@ -263,7 +263,7 @@ router.post('/analyze', async (req, res) => {
           { role: 'user', content: truncatedText }
         ],
         temperature: 0.3,
-        max_tokens: config.max_tokens
+        max_tokens: Math.min(Math.max(Number(config.max_tokens) || 2000, 1), 8192)
       },
       buildAuthHeaders(config.api_key)
     );

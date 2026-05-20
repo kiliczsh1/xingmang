@@ -572,7 +572,7 @@ const fetchModels = async () => {
   try {
     const res = await configAPI.getAll()
     if (res.success && res.data) {
-      models.value = res.data
+      models.value = res.data.filter(m => m.enabled !== 0)
       // 选择默认模型
       const defaultModel = res.data.find(m => m.is_default)
       if (defaultModel) {

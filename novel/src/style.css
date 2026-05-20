@@ -11,8 +11,12 @@ html, body, #app {
 }
 
 body {
-  background: #f0f5f0;
+  background: #060b14;
   background-attachment: fixed;
+}
+
+:root:not([data-theme='dark']) body {
+  background: #f0fdf9;
 }
 
 /* 美化滚动条 */

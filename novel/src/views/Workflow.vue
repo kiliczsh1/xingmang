@@ -86,6 +86,7 @@
       title="导出工作流"
       width="480px"
       destroy-on-close
+      append-to-body
     >
       <div class="export-dialog-body">
         <p class="export-hint">请选择要导出的工作流：</p>
@@ -124,6 +125,7 @@
       :title="isEdit ? '编辑工作流' : '创建工作流'"
       width="560px"
       destroy-on-close
+      append-to-body
     >
       <div class="dialog-body">
         <div class="form-block">

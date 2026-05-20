@@ -19,7 +19,7 @@ router.get('/', (req, res) => {
         p.api_url
       FROM api_models m
       LEFT JOIN api_providers p ON m.provider_id = p.id
-      ORDER BY m.created_at DESC
+      ORDER BY m.sort_order ASC, m.created_at DESC
     `).all();
     res.json({ success: true, data: models });
   } catch (error) {
@@ -38,7 +38,7 @@ router.get('/default', (req, res) => {
         p.api_url
       FROM api_models m
       LEFT JOIN api_providers p ON m.provider_id = p.id
-      WHERE m.is_default = 1
+      WHERE m.is_default = 1 AND m.enabled = 1
       LIMIT 1
     `).get();
     res.json({ success: true, data: model });
@@ -49,7 +49,7 @@ router.get('/default', (req, res) => {
 
 router.get('/provider/:providerId', (req, res) => {
   try {
-    const models = db.prepare('SELECT * FROM api_models WHERE provider_id = ? ORDER BY created_at DESC').all(req.params.providerId);
+    const models = db.prepare('SELECT * FROM api_models WHERE provider_id = ? ORDER BY sort_order ASC, created_at DESC').all(req.params.providerId);
     res.json({ success: true, data: models });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -115,7 +115,7 @@ router.post('/:id/test', async (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { provider_id, name, model, temperature, max_tokens, is_default } = req.body;
+    const { provider_id, name, model, temperature, max_tokens, top_p, frequency_penalty, description, is_default, enabled, sort_order } = req.body;
     
     if (!provider_id || !name || !model) {
       return res.status(400).json({ success: false, message: '请填写完整信息' });
@@ -125,8 +125,8 @@ router.post('/', (req, res) => {
       db.prepare('UPDATE api_models SET is_default = 0').run();
     }
     
-    const stmt = db.prepare('INSERT INTO api_models (provider_id, name, model, temperature, max_tokens, is_default) VALUES (?, ?, ?, ?, ?, ?)');
-    const result = stmt.run(provider_id, name, model, temperature || 0.7, max_tokens || 2000, is_default ? 1 : 0);
+    const stmt = db.prepare('INSERT INTO api_models (provider_id, name, model, temperature, max_tokens, top_p, frequency_penalty, description, is_default, enabled, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const result = stmt.run(provider_id, name, model, temperature ?? 0.7, max_tokens ?? 2000, top_p ?? 0.9, frequency_penalty ?? 0.0, description ?? '', is_default ? 1 : 0, enabled != null ? (enabled ? 1 : 0) : 1, sort_order ?? 0);
     
     const modelWithProvider = db.prepare(`
       SELECT 
@@ -148,7 +148,7 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
-    const { provider_id, name, model, temperature, max_tokens, is_default } = req.body;
+    const { provider_id, name, model, temperature, max_tokens, top_p, frequency_penalty, description, is_default, enabled, sort_order } = req.body;
     
     if (!provider_id || !name || !model) {
       return res.status(400).json({ success: false, message: '请填写完整信息' });
@@ -158,8 +158,8 @@ router.put('/:id', (req, res) => {
       db.prepare('UPDATE api_models SET is_default = 0').run();
     }
     
-    const stmt = db.prepare('UPDATE api_models SET provider_id = ?, name = ?, model = ?, temperature = ?, max_tokens = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    stmt.run(provider_id, name, model, temperature, max_tokens, is_default ? 1 : 0, req.params.id);
+    const stmt = db.prepare('UPDATE api_models SET provider_id = ?, name = ?, model = ?, temperature = ?, max_tokens = ?, top_p = ?, frequency_penalty = ?, description = ?, is_default = ?, enabled = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    stmt.run(provider_id, name, model, temperature ?? 0.7, max_tokens ?? 2000, top_p ?? 0.9, frequency_penalty ?? 0.0, description ?? '', is_default ? 1 : 0, enabled != null ? (enabled ? 1 : 0) : 1, sort_order ?? 0, req.params.id);
     
     const modelWithProvider = db.prepare(`
       SELECT 
@@ -174,6 +174,39 @@ router.put('/:id', (req, res) => {
     `).get(req.params.id);
     
     res.json({ success: true, data: modelWithProvider });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/:id/toggle', (req, res) => {
+  try {
+    const model = db.prepare('SELECT * FROM api_models WHERE id = ?').get(req.params.id);
+    if (!model) {
+      return res.status(404).json({ success: false, message: '模型不存在' });
+    }
+    const newEnabled = model.enabled ? 0 : 1;
+    db.prepare('UPDATE api_models SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newEnabled, req.params.id);
+    res.json({ success: true, data: { id: Number(req.params.id), enabled: newEnabled } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/reorder/all', (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) {
+      return res.status(400).json({ success: false, message: '请提供模型ID数组' });
+    }
+    const stmt = db.prepare('UPDATE api_models SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    const updateMany = db.transaction((idList) => {
+      for (let i = 0; i < idList.length; i++) {
+        stmt.run(i, idList[i]);
+      }
+    });
+    updateMany(ids);
+    res.json({ success: true, message: '排序已更新' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

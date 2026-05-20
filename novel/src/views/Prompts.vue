@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="prompts-container" :style="promptSkinCssVars">
     <div class="header">
       <div class="header-main">
@@ -60,31 +60,8 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button-group class="size-selector">
-          <el-button 
-            :type="cardSize === 'small' ? 'primary' : ''" 
-            size="small"
-            @click="cardSize = 'small'"
-          >
-            小
-          </el-button>
-          <el-button 
-            :type="cardSize === 'medium' ? 'primary' : ''" 
-            size="small"
-            @click="cardSize = 'medium'"
-          >
-            中
-          </el-button>
-          <el-button 
-            :type="cardSize === 'large' ? 'primary' : ''" 
-            size="small"
-            @click="cardSize = 'large'"
-          >
-            大
-          </el-button>
-        </el-button-group>
         <el-dropdown trigger="click" @command="handleExportCommand">
-          <el-button type="warning">
+          <el-button class="btn-export" plain>
             <el-icon><Download /></el-icon>
             导出
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -107,7 +84,7 @@
           </template>
         </el-dropdown>
         <el-dropdown trigger="click" @command="handleImportCommand">
-          <el-button type="info">
+          <el-button class="btn-import" plain>
             <el-icon><Upload /></el-icon>
             导入
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -133,11 +110,11 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button type="success" @click="openCategoryDialog">
+        <el-button class="btn-create-pack" @click="openCategoryDialog">
           <el-icon><FolderAdd /></el-icon>
           创建卡包
         </el-button>
-        <el-button type="primary" @click="handleCreate">
+        <el-button class="btn-create-prompt" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           创建提示词
         </el-button>
@@ -148,120 +125,66 @@
     <div class="section-title">
       <el-icon><FolderOpened /></el-icon>
       <span>卡包</span>
+      <span class="section-count">{{ totalPackCards }}</span>
+      <div class="pack-view-toggle">
+        <button
+          class="pack-view-btn"
+          :class="{ active: packViewMode === 'grid' }"
+          @click="packViewMode = 'grid'"
+          title="网格视图"
+        >
+          <el-icon><Grid /></el-icon>
+        </button>
+        <button
+          class="pack-view-btn"
+          :class="{ active: packViewMode === 'list' }"
+          @click="packViewMode = 'list'"
+          title="列表视图"
+        >
+          <el-icon><List /></el-icon>
+        </button>
+      </div>
     </div>
-    <div class="packs-wrapper">
+    <div class="packs-wrapper" :class="packViewMode">
       <div
         v-for="category in categoryList"
         :key="category.name"
-        class="card-pack-vertical"
-        :class="[cardSize, { 'drag-over': isDragging && draggedPrompt?.category !== category.name }]"
+        class="pack-info-card"
+        :class="{ 'drag-over': isDragging && draggedPrompt?.category !== category.name }"
         @dragover.prevent="onDragOver"
         @drop.prevent="onDrop(category.name, $event)"
       >
-        <!-- 卡片列表区域 -->
-        <div 
-          class="cards-scroll-area"
-        >
-          <div
-            v-for="prompt in category.prompts"
-            :key="prompt.id"
-            class="pack-card"
-            :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }, { encrypted: prompt.card_type === 'encrypted' }]"
-            draggable="true"
-            @dragstart="onDragStart(prompt, $event)"
-            @dragend="onDragEnd"
-            @click="handleEdit(prompt)"
-          >
-            <div class="pack-card-header">
-              <el-icon class="pack-card-drag-handle"><Rank /></el-icon>
-              <span class="pack-card-name">{{ prompt.name }}</span>
-              <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-card-lock"><Lock /></el-icon>
-            </div>
-            <div class="pack-card-content">
-              <el-tag size="small" :type="getTagType(prompt.category)" class="pack-card-tag">
-                {{ prompt.category }}
-              </el-tag>
-              <div class="pack-card-preview">
-                <template v-if="prompt.card_type === 'encrypted'">
-                  <el-icon><Lock /></el-icon> 内容已加密
-                </template>
-                <template v-else>
-                  {{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}
-                </template>
-              </div>
-            </div>
-            <div class="pack-card-footer">
-              <span class="pack-card-time">{{ formatDate(prompt.created_at) }}</span>
-              <div class="pack-card-actions" @click.stop>
-                <el-button type="primary" link size="small" @click="handleEdit(prompt)">
-                  <el-icon><Edit /></el-icon>
-                </el-button>
-                <el-button type="primary" link size="small" @click="handlePreview(prompt)">
-                  <el-icon><View /></el-icon>
-                </el-button>
-                <el-button type="danger" link size="small" @click="handleDelete(prompt)">
-                  <el-icon><Delete /></el-icon>
-                </el-button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 空卡包提示 -->
-          <div v-if="category.prompts.length === 0" class="empty-pack-hint" @click="handleCreateInCategory(category.name)">
-            <el-icon><Plus /></el-icon>
-            <span>点击添加卡片</span>
+        <div class="pack-info-icon">
+          <el-icon><FolderOpened /></el-icon>
+        </div>
+        <div class="pack-info-body">
+          <div class="pack-info-name">{{ category.name }}</div>
+          <div class="pack-info-meta">
+            <span class="pack-info-count">{{ category.prompts.length }} 张卡片</span>
           </div>
         </div>
-
-        <!-- 卡包底部操作 -->
-        <div class="pack-footer-vertical">
-          <div class="pack-footer-info">
-            <el-icon class="pack-footer-icon"><FolderOpened /></el-icon>
-            <span class="pack-footer-name">{{ category.name }}</span>
-            <span class="pack-footer-count">{{ category.prompts.length }}</span>
-          </div>
-          <div class="pack-footer-actions">
-            <el-button
-              type="primary"
-              link
-              size="small"
-              @click="handleCreateInCategory(category.name)"
-            >
+        <div class="pack-info-spacer"></div>
+        <div class="pack-info-actions" @click.stop>
+          <el-tooltip content="添加卡片" placement="top" :show-after="300">
+            <el-button class="pack-action-btn" size="small" circle @click="handleCreateInCategory(category.name)">
               <el-icon><Plus /></el-icon>
-              添加
             </el-button>
-            <el-tooltip content="预览卡包内容" placement="top" :show-after="150">
-              <el-button
-                v-if="category.prompts.length > 0"
-                type="primary"
-                size="small"
-                circle
-                @click="openPackPreviewDialog(category.name)"
-              >
-                <el-icon><View /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-tooltip content="批量删除" placement="top" :show-after="150">
-              <el-button
-                v-if="category.prompts.length > 0 && !DEFAULT_CATEGORIES.includes(category.name)"
-                type="danger"
-                size="small"
-                circle
-                @click="openBatchDeleteDialog(category.name)"
-              >
-                <el-icon><Delete /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-button
-              v-if="!DEFAULT_CATEGORIES.includes(category.name)"
-              type="danger"
-              link
-              size="small"
-              @click="handleDeleteCategory(category.name)"
-            >
+          </el-tooltip>
+          <el-tooltip v-if="category.prompts.length > 0" content="预览卡包" placement="top" :show-after="300">
+            <el-button class="pack-action-btn" size="small" circle @click="openPackPreviewDialog(category.name)">
+              <el-icon><View /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip v-if="category.prompts.length > 0 && !DEFAULT_CATEGORIES.includes(category.name)" content="批量删除" placement="top" :show-after="300">
+            <el-button class="pack-action-btn" size="small" circle @click="openBatchDeleteDialog(category.name)">
               <el-icon><Delete /></el-icon>
             </el-button>
-          </div>
+          </el-tooltip>
+          <el-tooltip v-if="!DEFAULT_CATEGORIES.includes(category.name)" content="删除卡包" placement="top" :show-after="300">
+            <el-button class="pack-action-btn pack-action-btn--danger" size="small" circle @click="handleDeleteCategory(category.name)">
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </el-tooltip>
         </div>
       </div>
     </div>
@@ -271,6 +194,13 @@
       <el-icon><Document /></el-icon>
       <span>独立卡片</span>
       <span class="section-count">{{ uncategorizedPrompts.length }}</span>
+      <div class="section-actions" v-if="uncategorizedPrompts.length > 0">
+        <el-tooltip content="批量删除" placement="top" :show-after="300">
+          <el-button class="section-action-btn" size="small" circle @click="openStandaloneBatchDeleteDialog">
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
     </div>
     <div 
       v-if="uncategorizedPrompts.length > 0"
@@ -341,6 +271,7 @@
       title="创建卡包"
       width="400px"
       :close-on-click-modal="false"
+      append-to-body
     >
       <el-form :model="categoryForm" label-width="80px">
         <el-form-item label="卡包名称" required>
@@ -360,6 +291,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="export-dialog"
+      append-to-body
     >
       <div class="export-standalone-content">
         <div class="export-hint">
@@ -429,6 +361,7 @@
       width="600px"
       :close-on-click-modal="false"
       class="export-dialog"
+      append-to-body
     >
       <div class="export-pack-content">
         <div class="export-hint">
@@ -481,6 +414,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="import-dialog"
+      append-to-body
     >
       <div class="import-content">
         <div class="import-upload">
@@ -558,6 +492,7 @@
       width="600px"
       :close-on-click-modal="false"
       class="import-dialog"
+      append-to-body
     >
       <div class="import-content">
         <div class="import-upload">
@@ -611,6 +546,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="batch-delete-dialog"
+      append-to-body
     >
       <div class="batch-delete-content">
         <div class="batch-delete-hint">
@@ -673,6 +609,125 @@
       </template>
     </el-dialog>
 
+    <!-- 移动卡片到其他卡包对话框 -->
+    <el-dialog
+      v-model="movePromptDialogVisible"
+      title="移动到其他卡包"
+      width="500px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <div class="move-prompt-content">
+        <div class="move-prompt-hint">
+          <el-alert
+            title="选择目标卡包"
+            type="info"
+            :closable="false"
+            show-icon
+          >
+            将卡片"{{ movePromptData?.name }}"移动到以下卡包：
+          </el-alert>
+        </div>
+        <div class="move-prompt-options">
+          <el-radio-group v-model="moveTargetCategory" class="move-prompt-radio-group">
+            <el-radio 
+              v-for="category in categoryList" 
+              :key="category.name" 
+              :label="category.name"
+              :disabled="category.name === movePromptData?.category"
+              class="move-prompt-radio-item"
+            >
+              <div class="move-prompt-category-info">
+                <el-icon><FolderOpened /></el-icon>
+                <span>{{ category.name }}</span>
+                <el-tag size="small" type="info">{{ category.prompts.length }} 张</el-tag>
+              </div>
+            </el-radio>
+          </el-radio-group>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="movePromptDialogVisible = false">取消</el-button>
+        <el-button 
+          type="primary" 
+          :disabled="!moveTargetCategory || moveTargetCategory === movePromptData?.category"
+          @click="executeMovePrompt"
+        >
+          移动
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 独立卡片批量删除对话框 -->
+    <el-dialog
+      v-model="standaloneBatchDeleteDialogVisible"
+      title="批量删除独立卡片"
+      width="800px"
+      :close-on-click-modal="false"
+      class="batch-delete-dialog"
+      append-to-body
+    >
+      <div class="batch-delete-content">
+        <div class="batch-delete-hint">
+          <el-alert
+            title="正在删除独立卡片"
+            type="warning"
+            :closable="false"
+            show-icon
+          >
+            勾选需要删除的独立卡片，然后点击删除按钮。此操作不可恢复。
+          </el-alert>
+        </div>
+        <div class="batch-delete-select-all">
+          <el-checkbox 
+            v-model="selectAllStandaloneBatchDelete" 
+            @change="handleSelectAllStandaloneBatchDelete"
+          >
+            全选 ({{ selectedStandaloneBatchDeleteCards.length }}/{{ uncategorizedPrompts.length }})
+          </el-checkbox>
+        </div>
+        <div v-if="uncategorizedPrompts.length > 0" class="batch-delete-cards-grid">
+          <div
+            v-for="prompt in uncategorizedPrompts"
+            :key="prompt.id"
+            class="batch-delete-card-item"
+            :class="{ selected: selectedStandaloneBatchDeleteCards.includes(prompt.id) }"
+            @click="toggleStandaloneBatchDeleteCard(prompt.id)"
+          >
+            <el-checkbox 
+              :model-value="selectedStandaloneBatchDeleteCards.includes(prompt.id)"
+              @click.stop
+              @change="toggleStandaloneBatchDeleteCard(prompt.id)"
+            />
+            <div class="batch-delete-card-content">
+              <div class="batch-delete-card-name">{{ prompt.name }}</div>
+              <div class="batch-delete-card-preview">
+                <template v-if="prompt.card_type === 'encrypted'">
+                  <el-icon><Lock /></el-icon> 已加密
+                </template>
+                <template v-else>
+                  {{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="batch-delete-empty">
+          <el-empty description="暂无独立卡片" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="standaloneBatchDeleteDialogVisible = false">取消</el-button>
+        <el-button 
+          type="danger" 
+          :disabled="selectedStandaloneBatchDeleteCards.length === 0"
+          @click="executeStandaloneBatchDelete"
+        >
+          删除 ({{ selectedStandaloneBatchDeleteCards.length }})
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 导入并转换txt/md弹窗 -->
     <el-dialog
       v-model="importConvertDialogVisible"
@@ -680,6 +735,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="import-dialog"
+      append-to-body
     >
       <div class="import-content">
         <div class="import-upload">
@@ -760,6 +816,7 @@
       width="600px"
       :close-on-click-modal="false"
       class="import-all-dialog"
+      append-to-body
     >
       <div class="import-all-content">
         <div class="import-all-upload">
@@ -1159,52 +1216,63 @@
       </template>
     </el-dialog>
 
-    <transition name="pack-fan-stage">
-      <div v-if="packPreviewVisible" class="pack-fan-stage" @click.self="closePackPreview">
-        <div class="pack-fan-board">
-          <div v-if="packPreviewPrompts.length > 0" class="pack-fan-row">
-            <button
-              v-for="prompt in packPreviewPrompts"
-              :key="prompt.id"
-              type="button"
-              class="pack-fan-card"
-              @click="handlePackPreviewItemClick(prompt)"
-            >
-              <span class="pack-fan-card-inner">
-                <span class="pack-fan-card-face pack-fan-card-back">
-                  <span class="pack-fan-card-back-core">
-                    <span class="pack-fan-card-back-title">{{ packPreviewCategory }}</span>
-                    <span class="pack-fan-card-back-mark">Prompt Deck</span>
-                  </span>
-                </span>
-                <span class="pack-fan-card-face pack-fan-card-front">
-                  <span class="pack-fan-card-front-header">
-                    <el-icon class="pack-fan-card-front-handle"><Rank /></el-icon>
-                    <span class="pack-fan-card-front-name">{{ prompt.name }}</span>
-                    <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-fan-card-front-lock"><Lock /></el-icon>
-                  </span>
-                  <span class="pack-fan-card-front-content">
-                    <el-tag size="small" :type="getTagType(prompt.category)" class="pack-fan-card-front-tag">{{ prompt.category }}</el-tag>
-                    <span class="pack-fan-card-front-preview">
-                      <template v-if="prompt.card_type === 'encrypted'">
+    <Teleport to="body">
+      <transition name="pack-fan-stage">
+        <div v-if="packPreviewVisible" class="pack-fan-stage" @click.self="closePackPreview">
+          <div class="pack-fan-board">
+            <div v-if="packPreviewPrompts.length > 0" class="pack-fan-row">
+              <button
+                v-for="prompt in packPreviewPrompts"
+                :key="prompt.id"
+                type="button"
+                class="pack-fan-card"
+                @click="handlePackPreviewItemClick(prompt)"
+              >
+                <div class="pack-fan-card-head">
+                  <el-icon class="pack-fan-card-head-icon"><Document /></el-icon>
+                  <span class="pack-fan-card-head-name">{{ prompt.name }}</span>
+                  <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-fan-card-head-lock"><Lock /></el-icon>
+                </div>
+                <div class="pack-fan-card-body">
+                  <el-tag size="small" :type="getTagType(prompt.category)" class="pack-fan-card-tag">{{ prompt.category }}</el-tag>
+                  <div class="pack-fan-card-content" :class="{ 'is-empty': !prompt.description }">
+                    <template v-if="prompt.card_type === 'encrypted'">
+                      <span class="pack-fan-card-content-encrypted">
                         <el-icon><Lock /></el-icon> 内容已加密
-                      </template>
-                      <template v-else>
-                        {{ prompt.content.slice(0, 60) }}{{ prompt.content.length > 60 ? '...' : '' }}
-                      </template>
-                    </span>
-                  </span>
-                  <span class="pack-fan-card-front-footer">
-                    <span class="pack-fan-card-front-time">{{ formatDate(prompt.created_at) }}</span>
-                  </span>
-                </span>
-              </span>
-            </button>
+                      </span>
+                    </template>
+                    <template v-else>
+                      {{ prompt.description || '暂无简介' }}
+                    </template>
+                  </div>
+                </div>
+                <div class="pack-fan-card-foot">
+                  <span class="pack-fan-card-foot-time">{{ formatDate(prompt.created_at) }}</span>
+                  <div class="pack-fan-card-actions" @click.stop>
+                    <el-tooltip content="导出卡片" placement="top" :show-after="300">
+                      <el-button class="pack-fan-action-btn" size="small" circle @click="handleExportSinglePrompt(prompt)">
+                        <el-icon><Download /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="移动到其他卡包" placement="top" :show-after="300">
+                      <el-button class="pack-fan-action-btn" size="small" circle @click="openMovePromptDialog(prompt)">
+                        <el-icon><FolderRemove /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="删除" placement="top" :show-after="300">
+                      <el-button class="pack-fan-action-btn pack-fan-action-btn--danger" size="small" circle @click="handlePackPreviewDelete(prompt)">
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                  </div>
+                </div>
+              </button>
+            </div>
+            <el-empty v-else description="该卡包暂无可预览的卡片" />
           </div>
-          <el-empty v-else description="该卡包暂无可预览的卡片" />
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <!-- 预览弹窗 -->
     <el-dialog
@@ -1213,6 +1281,7 @@
       width="50vw"
       destroy-on-close
       class="preview-dialog"
+      append-to-body
     >
       <div class="preview-dialog-content">
         <div class="preview-dialog-header">
@@ -1234,6 +1303,7 @@
       width="400px"
       :close-on-click-modal="false"
       class="password-dialog"
+      append-to-body
     >
       <div class="password-dialog-content">
         <div class="password-dialog-icon">
@@ -1261,6 +1331,7 @@
       width="400px"
       :close-on-click-modal="false"
       class="password-dialog"
+      append-to-body
     >
       <div class="password-dialog-content">
         <div class="password-dialog-icon">
@@ -1293,7 +1364,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowUp, ArrowDown, Delete, CopyDocument, FolderAdd, FolderOpened, Edit, Document, Rank, Check, Close, Download, Upload, UploadFilled, View, Switch, InfoFilled, Lock } from '@element-plus/icons-vue'
+import { Plus, ArrowUp, ArrowDown, Delete, CopyDocument, FolderAdd, FolderOpened, FolderRemove, Edit, Document, Rank, Check, Close, Download, Upload, UploadFilled, View, Switch, InfoFilled, Lock, Grid, List } from '@element-plus/icons-vue'
 import { promptAPI } from '@/api'
 import type { Prompt } from '@/types'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
@@ -1630,6 +1701,72 @@ const verifyPassword = async (inputPassword: string, storedHash: string): Promis
   return inputHash === storedHash
 }
 
+const bufferToBase64 = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  bytes.forEach(b => binary += String.fromCharCode(b))
+  return btoa(binary)
+}
+
+const base64ToBuffer = (base64: string): ArrayBuffer => {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+const ENCRYPT_MARKER = 'XNC1:'
+
+const encryptContent = async (plaintext: string, password: string): Promise<string> => {
+  const enc = new TextEncoder()
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey'])
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  )
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext))
+  const combined = new Uint8Array(16 + 12 + ciphertext.byteLength)
+  combined.set(salt, 0)
+  combined.set(iv, 16)
+  combined.set(new Uint8Array(ciphertext), 28)
+  return ENCRYPT_MARKER + bufferToBase64(combined.buffer)
+}
+
+const decryptContent = async (wrapped: string, password: string): Promise<string | null> => {
+  if (!wrapped.startsWith(ENCRYPT_MARKER)) {
+    return wrapped
+  }
+  try {
+    const enc = new TextEncoder()
+    const dec = new TextDecoder()
+    const combined = new Uint8Array(base64ToBuffer(wrapped.slice(ENCRYPT_MARKER.length)))
+    const salt = combined.slice(0, 16)
+    const iv = combined.slice(16, 28)
+    const ciphertext = combined.slice(28)
+    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey'])
+    const key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    )
+    const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
+    return dec.decode(plaintext)
+  } catch {
+    return null
+  }
+}
+
+const currentSessionPassword = ref('')
+
 const passwordDialogVisible = ref(false)
 const passwordDialogMode = ref<'verify' | 'set' | 'change'>('verify')
 const passwordInput = ref('')
@@ -1667,10 +1804,14 @@ const saveSubcategoriesOnly = async () => {
   }
   
   try {
+    let contentToSave = formData.value.content
+    if (formData.value.card_type === 'encrypted' && currentSessionPassword.value) {
+      contentToSave = await encryptContent(contentToSave, currentSessionPassword.value)
+    }
     await promptAPI.update(formData.value.id, {
       name: formData.value.name,
       description: formData.value.description,
-      content: formData.value.content,
+      content: contentToSave,
       category: formData.value.category,
       order_num: formData.value.order_num,
       fields: fieldsConfig.value,
@@ -1718,6 +1859,16 @@ const selectAllBatchDelete = ref(false)
 const packPreviewVisible = ref(false)
 const packPreviewCategory = ref('')
 
+// 移动卡片相关状态
+const movePromptDialogVisible = ref(false)
+const movePromptData = ref<Prompt | null>(null)
+const moveTargetCategory = ref('')
+
+// 独立卡片批量删除相关状态
+const standaloneBatchDeleteDialogVisible = ref(false)
+const selectedStandaloneBatchDeleteCards = ref<number[]>([])
+const selectAllStandaloneBatchDelete = ref(false)
+
 // 导入转换 txt/md 相关状态
 const importConvertDialogVisible = ref(false)
 const importConvertPreview = ref<{ name: string; content: string }[]>([])
@@ -1739,6 +1890,7 @@ const importAllUploadRef = ref<any>()
 
 // 卡片尺寸状态
 const cardSize = ref<'small' | 'medium' | 'large'>('medium')
+const packViewMode = ref<'grid' | 'list'>('grid')
 const promptSkinInputRef = ref<HTMLInputElement | null>(null)
 const customPromptSkins = ref<PromptSkinPreset[]>(loadPromptCustomSkinsFromStorage())
 const selectedPromptSkinId = ref(loadSelectedPromptSkinFromStorage())
@@ -1770,7 +1922,7 @@ const saveCategoriesToStorage = (categories: string[]) => {
 }
 
 // 卡包列表（从localStorage加载）
-const DEFAULT_CATEGORIES = ['默认', '写作要求', '写作风格']
+const DEFAULT_CATEGORIES = ['默认', '写作要求', '写作风格', '续写', '脑洞', '书名', '简介', '大纲', '细纲', '黄金开篇', '金手指', '名字', '人设', '世界观', '卡包']
 
 const customCategories = ref<string[]>(loadCategoriesFromStorage())
 
@@ -1828,6 +1980,10 @@ const categoryList = computed(() => {
     name,
     prompts: prompts.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
   }))
+})
+
+const totalPackCards = computed(() => {
+  return categoryList.value.reduce((sum, cat) => sum + cat.prompts.length, 0)
 })
 
 const categoryOptions = computed(() => {
@@ -2132,6 +2288,7 @@ const fetchPrompts = async () => {
 
 const handleCreate = () => {
   isEdit.value = false
+  currentSessionPassword.value = ''
   formData.value = {
     id: 0,
     name: '',
@@ -2144,9 +2301,7 @@ const handleCreate = () => {
     creator_name: '',
     version: ''
   }
-  // 重置字段配置
   fieldsConfig.value = []
-  // 重置小分类
   formSubcategories.value = []
   newSubcategory.value = ''
   dialogVisible.value = true
@@ -2212,14 +2367,22 @@ const handlePasswordDialogConfirm = async () => {
     if (isValid) {
       const promptToProcess = pendingEditPrompt.value
       const action = passwordAction.value
+      const rawPassword = passwordInput.value
       passwordDialogVisible.value = false
+      passwordInput.value = ''
       pendingEditPrompt.value = null
       if (action === 'edit') {
+        currentSessionPassword.value = rawPassword
+        const decrypted = await decryptContent(promptToProcess.content, rawPassword)
+        if (decrypted !== null) {
+          promptToProcess.content = decrypted
+        }
         openEditDialog(promptToProcess)
       } else if (action === 'delete') {
         executeDelete(promptToProcess)
       } else if (action === 'preview') {
-        previewContent.value = promptToProcess.content
+        const decrypted = await decryptContent(promptToProcess.content, rawPassword)
+        previewContent.value = decrypted !== null ? decrypted : promptToProcess.content
         previewDialogVisible.value = true
       }
     } else {
@@ -2244,6 +2407,7 @@ const handleSetPasswordConfirm = async () => {
   const hashed = await hashPassword(setPasswordInput.value.trim())
   formData.value.card_type = 'encrypted'
   formData.value.password = hashed
+  currentSessionPassword.value = setPasswordInput.value.trim()
   setPasswordDialogVisible.value = false
   setPasswordInput.value = ''
   setConfirmPasswordInput.value = ''
@@ -2259,12 +2423,14 @@ const openSetPasswordDialog = () => {
 const removeCardPassword = () => {
   formData.value.card_type = 'normal'
   formData.value.password = null
+  currentSessionPassword.value = ''
   ElMessage.success('已移除密码，卡片已切换为普通卡片')
 }
 
 const handleCardTypeChange = (val: 'normal' | 'encrypted') => {
   if (val === 'normal') {
     formData.value.password = null
+    currentSessionPassword.value = ''
   }
 }
 
@@ -2484,9 +2650,14 @@ const handleSubmit = async () => {
   }
 
   try {
-    // 准备要保存的数据，包括字段配置和小分类
+    let saveContent = formData.value.content
+    if (formData.value.card_type === 'encrypted' && currentSessionPassword.value) {
+      saveContent = await encryptContent(saveContent, currentSessionPassword.value)
+    }
+
     const dataToSave = {
       ...formData.value,
+      content: saveContent,
       fields: fieldsConfig.value.map(field => ({
         name: field.name,
         label: field.label,
@@ -2512,9 +2683,9 @@ const handleSubmit = async () => {
       }
     }
     dialogVisible.value = false
+    currentSessionPassword.value = ''
     await fetchPrompts()
   } catch (error) {
-    // 错误已在拦截器中处理
   }
 }
 
@@ -2652,6 +2823,91 @@ const handlePackPreviewKeydown = (event: KeyboardEvent) => {
   }
 }
 
+const handlePackPreviewDelete = async (prompt: Prompt) => {
+  if (prompt.card_type === 'encrypted' && prompt.password) {
+    pendingEditPrompt.value = prompt
+    passwordAction.value = 'delete'
+    passwordDialogVisible.value = true
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定删除提示词"${prompt.name}"吗？`,
+      '提示',
+      { type: 'warning' }
+    )
+    await promptAPI.delete(prompt.id)
+    await fetchPrompts()
+    ElMessage.success('删除成功')
+    if (packPreviewPrompts.value.length === 0) {
+      packPreviewVisible.value = false
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+const handleExportSinglePrompt = (prompt: Prompt) => {
+  const exportData = {
+    version: '1.0',
+    type: 'single-prompt',
+    exportTime: new Date().toISOString(),
+    prompt: {
+      id: prompt.id,
+      name: prompt.name,
+      content: prompt.content,
+      description: prompt.description,
+      category: prompt.category,
+      created_at: prompt.created_at,
+      updated_at: prompt.updated_at,
+      card_type: prompt.card_type,
+      fields: prompt.fields
+    }
+  }
+  
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `prompt-${prompt.name.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '_')}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('导出成功')
+}
+
+const openMovePromptDialog = (prompt: Prompt) => {
+  movePromptData.value = prompt
+  moveTargetCategory.value = ''
+  movePromptDialogVisible.value = true
+}
+
+const executeMovePrompt = async () => {
+  if (!movePromptData.value || !moveTargetCategory.value) return
+  
+  const prompt = movePromptData.value
+  const oldCategory = prompt.category || '默认'
+  
+  if (moveTargetCategory.value === oldCategory) {
+    ElMessage.warning('卡片已在该卡包中')
+    return
+  }
+  
+  try {
+    await promptAPI.update(prompt.id, { ...prompt, category: moveTargetCategory.value })
+    await fetchPrompts()
+    ElMessage.success(`已移动到"${moveTargetCategory.value}"`)
+    movePromptDialogVisible.value = false
+    if (packPreviewPrompts.value.length === 0) {
+      packPreviewVisible.value = false
+    }
+  } catch (error) {
+    ElMessage.error('移动失败')
+  }
+}
+
 // 全选/取消全选批量删除卡片
 const handleSelectAllBatchDelete = (val: boolean) => {
   if (val) {
@@ -2691,6 +2947,57 @@ const executeBatchDelete = async () => {
     
     ElMessage.success(`成功删除 ${selectedBatchDeleteCards.value.length} 张卡片`)
     batchDeleteDialogVisible.value = false
+    await fetchPrompts()
+  } catch (error) {
+    // 取消删除
+  }
+}
+
+// 打开独立卡片批量删除对话框
+const openStandaloneBatchDeleteDialog = () => {
+  selectedStandaloneBatchDeleteCards.value = []
+  selectAllStandaloneBatchDelete.value = false
+  standaloneBatchDeleteDialogVisible.value = true
+}
+
+// 全选/取消全选独立卡片批量删除
+const handleSelectAllStandaloneBatchDelete = (val: boolean) => {
+  if (val) {
+    selectedStandaloneBatchDeleteCards.value = uncategorizedPrompts.value.map(p => p.id)
+  } else {
+    selectedStandaloneBatchDeleteCards.value = []
+  }
+}
+
+// 切换单个独立卡片批量删除选择
+const toggleStandaloneBatchDeleteCard = (id: number) => {
+  const index = selectedStandaloneBatchDeleteCards.value.indexOf(id)
+  if (index > -1) {
+    selectedStandaloneBatchDeleteCards.value.splice(index, 1)
+  } else {
+    selectedStandaloneBatchDeleteCards.value.push(id)
+  }
+  selectAllStandaloneBatchDelete.value = selectedStandaloneBatchDeleteCards.value.length === uncategorizedPrompts.value.length
+}
+
+// 执行独立卡片批量删除
+const executeStandaloneBatchDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${selectedStandaloneBatchDeleteCards.value.length} 张独立卡片吗？此操作不可恢复。`,
+      '批量删除独立卡片',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const deletePromises = selectedStandaloneBatchDeleteCards.value.map(id => promptAPI.delete(id))
+    await Promise.all(deletePromises)
+    
+    ElMessage.success(`成功删除 ${selectedStandaloneBatchDeleteCards.value.length} 张独立卡片`)
+    standaloneBatchDeleteDialogVisible.value = false
     await fetchPrompts()
   } catch (error) {
     // 取消删除
@@ -2771,7 +3078,8 @@ const executeImportAll = async () => {
           order_num: prompt.order_num || 0,
           fields: prompt.fields || [],
           subcategories: prompt.subcategories || [],
-          card_type: prompt.card_type || 'normal'
+          card_type: prompt.card_type || 'normal',
+          password: prompt.password || null
         })
       }
     }
@@ -2788,7 +3096,8 @@ const executeImportAll = async () => {
               order_num: prompt.order_num || 0,
               fields: prompt.fields || [],
               subcategories: prompt.subcategories || [],
-              card_type: prompt.card_type || 'normal'
+              card_type: prompt.card_type || 'normal',
+              password: prompt.password || null
             })
           }
         }
@@ -2850,7 +3159,8 @@ const executeExportStandalone = () => {
       category: p.category,
       order_num: p.order_num,
       fields: p.fields,
-      card_type: p.card_type || 'normal'
+      card_type: p.card_type || 'normal',
+      password: p.password || null
     }))
   }
   
@@ -2890,7 +3200,8 @@ const executeExportPack = () => {
       category: p.category,
       order_num: p.order_num,
       fields: p.fields,
-      card_type: p.card_type || 'normal'
+      card_type: p.card_type || 'normal',
+      password: p.password || null
     }))
   }
   
@@ -2916,10 +3227,10 @@ const executeExportAll = () => {
     order_num: p.order_num,
     fields: p.fields,
     subcategories: p.subcategories,
-    card_type: p.card_type || 'normal'
+    card_type: p.card_type || 'normal',
+    password: p.password || null
   }))
   
-  // 收集所有卡包及其卡片
   const packs: Record<string, any[]> = {}
   categoryList.value.forEach(category => {
     if (category.name !== '未分类') {
@@ -2930,7 +3241,8 @@ const executeExportAll = () => {
         order_num: p.order_num,
         fields: p.fields,
         subcategories: p.subcategories,
-        card_type: p.card_type || 'normal'
+        card_type: p.card_type || 'normal',
+        password: p.password || null
       }))
     }
   })
@@ -3027,7 +3339,8 @@ const executeImportStandalone = async () => {
         category: '未分类',
         order_num: card.order_num || 0,
         fields: card.fields,
-        card_type: card.card_type || 'normal'
+        card_type: card.card_type || 'normal',
+        password: card.password || null
       })
       if (res.success) {
         successCount++
@@ -3106,7 +3419,8 @@ const executeImportPack = async () => {
         category: packName,
         order_num: card.order_num || 0,
         fields: card.fields,
-        card_type: card.card_type || 'normal'
+        card_type: card.card_type || 'normal',
+        password: card.password || null
       })
       if (res.success) {
         successCount++
@@ -3278,329 +3592,203 @@ const executeImportConvert = async () => {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 10;
-  pointer-events: auto;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 40px;
 }
 
 .pack-fan-board {
-  display: grid;
-  gap: 18px;
-  justify-items: center;
-  padding: 40px 40px 50px 120px;
-  border-radius: 28px;
+  max-width: 90vw;
   background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  pointer-events: auto;
-  min-height: 320px;
-}
-
-.pack-fan-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.pack-fan-summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.pack-fan-summary-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #184e4c;
-}
-
-.pack-fan-summary-count {
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(24, 119, 114, 0.1);
-  color: #187772;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.pack-fan-close {
-  border-color: rgba(24, 119, 114, 0.16);
-  background: rgba(255, 255, 255, 0.86);
-  color: #1b4d4a;
 }
 
 .pack-fan-row {
-  width: 100%;
   display: flex;
-  justify-content: flex-start;
-  align-items: flex-end;
-  gap: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 50px 30px 10px 80px;
-  perspective: 1600px;
-  min-height: 320px;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 24px;
+  overflow-y: auto;
+  max-height: 80vh;
+  pointer-events: auto;
 }
 
 .pack-fan-card {
   position: relative;
-  flex: 0 0 156px;
-  width: 156px;
-  height: 220px;
-  margin-left: -100px;
-  isolation: isolate;
-  padding: 0;
+  width: 220px;
+  height: 240px;
+  padding: 16px 18px;
   border: none;
-  background: transparent;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.06),
+    0 1px 3px rgba(15, 23, 42, 0.04);
   cursor: pointer;
-  transform: translateY(0) rotate(0deg);
-  transform-origin: center bottom;
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), filter 280ms ease;
-  filter: drop-shadow(0 14px 22px rgba(15, 23, 42, 0.12));
-}
-
-.pack-fan-card:first-child {
-  margin-left: 0;
-}
-
-.pack-fan-card::before {
-  content: "";
-  position: absolute;
-  top: -10px;
-  bottom: -10px;
-  left: -12px;
-  right: -12px;
-  z-index: -1;
-}
-
-.pack-fan-card:first-child::before {
-  left: 0;
-  right: -12px;
-}
-
-.pack-fan-card:last-child::before {
-  left: -12px;
-  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+  outline: none;
+  font-family: inherit;
 }
 
 .pack-fan-card:hover {
-  z-index: 12;
-  transform: translateY(-28px) rotate(0deg) scale(1.03);
-  filter: drop-shadow(0 24px 34px rgba(15, 23, 42, 0.2));
-}
-
-.pack-fan-row:hover .pack-fan-card:not(:hover) {
-  filter: drop-shadow(0 10px 18px rgba(15, 23, 42, 0.08)) saturate(0.92);
-}
-
-.pack-fan-card-inner {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-  transition: transform 620ms cubic-bezier(0.2, 0.75, 0.25, 1);
-}
-
-.pack-fan-card:hover .pack-fan-card-inner {
-  transform: rotateY(180deg);
-}
-
-.pack-fan-card-face {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-radius: 20px;
-  overflow: hidden;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.pack-fan-card-back {
-  padding: 16px;
-  border: 1px solid rgba(18, 74, 71, 0.14);
-  background:
-    linear-gradient(135deg, rgba(13, 148, 136, 0.94), rgba(17, 94, 89, 0.96)),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0, rgba(255, 255, 255, 0.08) 8px, transparent 8px, transparent 16px);
+  transform: translateY(-6px);
   box-shadow:
-    0 12px 20px rgba(8, 47, 46, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
-    inset 0 0 0 10px rgba(255, 255, 255, 0.06);
+    0 12px 32px rgba(15, 23, 42, 0.1),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  border-color: #e2e8f0;
 }
 
-.pack-fan-card-back::before {
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
+.pack-fan-card:active {
+  transform: translateY(-2px) scale(0.985);
 }
 
-.pack-fan-card-back::after {
-  content: "";
-  position: absolute;
-  inset: 28px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 72%);
-  mix-blend-mode: screen;
-}
-
-.pack-fan-card-back-core {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  height: 100%;
-  text-align: center;
-  color: #effcfb;
-}
-
-.pack-fan-card-back-title {
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
-.pack-fan-card-back-mark {
-  margin-top: 10px;
-  font-size: 12px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  opacity: 0.76;
-}
-
-.pack-fan-card-front {
-  padding: 12px;
-  border: 1px solid rgba(39, 107, 103, 0.16);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(240, 248, 247, 0.98) 100%);
-  box-shadow:
-    0 18px 30px rgba(22, 77, 75, 0.14),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  color: #163d3b;
-  transform: rotateY(180deg);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-.pack-fan-card-front-header {
+/* ---- 卡片头部 ---- */
+.pack-fan-card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: linear-gradient(135deg, rgba(133, 184, 178, 0.2) 0%, rgba(245, 249, 248, 0.94) 100%);
-  border-bottom: 1px solid rgba(39, 107, 103, 0.10);
-  margin: -12px -12px 8px -12px;
-  padding: 8px 12px;
-  border-radius: 20px 20px 0 0;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.pack-fan-card-front-handle {
-  color: #0d9488;
-  font-size: 14px;
+.pack-fan-card-head-icon {
+  color: #6366f1;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
-.pack-fan-card-front-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f4c48;
+.pack-fan-card-head-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: left;
-  letter-spacing: 0.02em;
 }
 
-.pack-fan-card-front-lock {
+.pack-fan-card-head-lock {
   color: #e6a23c;
   font-size: 14px;
   flex-shrink: 0;
-  margin-left: 4px;
 }
 
-.pack-fan-card-front-content {
+/* ---- 卡片主体 ---- */
+.pack-fan-card-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
 }
 
-.pack-fan-card-front-tag {
+.pack-fan-card-tag {
   align-self: flex-start;
 }
 
-.pack-fan-card-front-preview {
+.pack-fan-card-content {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #475569;
   display: -webkit-box;
-  color: #3d5c58;
-  font-size: 12px;
-  line-height: 1.6;
-  text-align: left;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  letter-spacing: 0.01em;
+  word-break: break-all;
 }
 
-.pack-fan-card-front-footer {
+.pack-fan-card-content.is-empty {
+  color: #94a3b8;
+  font-style: italic;
   display: flex;
-  justify-content: flex-start;
   align-items: center;
-  border-top: 1px solid rgba(39, 107, 103, 0.10);
-  background: linear-gradient(180deg, rgba(241, 247, 246, 0.96) 0%, rgba(233, 241, 240, 0.98) 100%);
-  margin: 8px -12px -12px -12px;
-  padding: 6px 12px;
-  border-radius: 0 0 20px 20px;
+  justify-content: center;
+  flex: 1;
+  -webkit-line-clamp: unset;
 }
 
-.pack-fan-card-front-time {
+.pack-fan-card-content-encrypted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #b45309;
+  font-style: italic;
+}
+
+/* ---- 卡片底部 ---- */
+.pack-fan-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.pack-fan-card-foot-time {
   font-size: 11px;
-  color: #4a6b67;
-  font-weight: 500;
+  color: #94a3b8;
+}
+
+.pack-fan-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pack-fan-action-btn {
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #fff !important;
+  color: #64748b !important;
+  transition: all 0.2s ease;
+}
+
+.pack-fan-action-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.pack-fan-action-btn--danger:hover {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #dc2626 !important;
 }
 
 .pack-fan-stage-enter-active,
 .pack-fan-stage-leave-active {
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition: opacity 240ms ease;
 }
 
 .pack-fan-stage-enter-from,
 .pack-fan-stage-leave-to {
   opacity: 0;
-  transform: translate(-50%, calc(-50% + 18px));
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .pack-fan-stage {
-    width: calc(100vw - 28px);
-  }
-
-  .pack-fan-board {
-    padding: 8px 4px 12px;
+    padding: 16px;
   }
 
   .pack-fan-row {
-    justify-content: flex-start;
-    gap: 0;
-    padding: 14px 22px 8px;
+    gap: 12px;
+    padding: 12px;
   }
 
   .pack-fan-card {
-    flex-basis: 138px;
-    width: 138px;
-    height: 200px;
-    margin-left: -26px;
-  }
-
-  .pack-fan-card:hover {
-    transform: translateY(-22px) rotate(0deg) scale(1.02);
+    width: 100%;
+    max-width: 320px;
   }
 }
 
@@ -3643,7 +3831,7 @@ const executeImportConvert = async () => {
   align-items: flex-start;
   margin-bottom: 28px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #f0f2f5;
+  border-bottom: 1px solid #e5e7eb;
   gap: 16px;
 }
 
@@ -3683,7 +3871,18 @@ const executeImportConvert = async () => {
 }
 
 .skin-config-btn {
-  border-radius: 999px;
+  border-radius: 10px;
+  border: 1.5px solid #d1d5db;
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 500;
+  transition: all 0.22s ease;
+}
+
+.skin-config-btn:hover {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+  color: #111827;
 }
 
 .hidden-input {
@@ -3692,27 +3891,79 @@ const executeImportConvert = async () => {
 
 .header-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
 }
 
-:deep(.el-button--primary) {
-  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
-  border: none;
+/* ========== 导出按钮 ========== */
+.btn-export {
+  --btn-color: #f59e0b;
+  border: 1.5px solid #fde68a !important;
+  background: #fffbeb !important;
+  color: #b45309 !important;
+  border-radius: 10px !important;
+  font-weight: 500;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-:deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%);
+.btn-export:hover {
+  border-color: #f59e0b !important;
+  background: #fffbeb !important;
+  color: #92400e !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
 }
 
-:deep(.el-button--success) {
-  background: linear-gradient(135deg, #722ed1 0%, #531dab 100%);
-  border: none;
+/* ========== 导入按钮 ========== */
+.btn-import {
+  border: 1.5px solid #c7d2fe !important;
+  background: #eef2ff !important;
+  color: #4338ca !important;
+  border-radius: 10px !important;
+  font-weight: 500;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-:deep(.el-button--success:hover) {
-  background: linear-gradient(135deg, #9254de 0%, #722ed1 100%);
+.btn-import:hover {
+  border-color: #818cf8 !important;
+  background: #eef2ff !important;
+  color: #3730a3 !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+/* ========== 创建卡包按钮 ========== */
+.btn-create-pack {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.btn-create-pack:hover {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%) !important;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ========== 创建提示词按钮 ========== */
+.btn-create-prompt {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.btn-create-prompt:hover {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.4);
+  transform: translateY(-1px);
 }
 
 /* 区块标题 */
@@ -3741,79 +3992,243 @@ const executeImportConvert = async () => {
   margin-left: 8px;
 }
 
+.section-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-action-btn {
+  background: rgba(255, 77, 79, 0.1);
+  border-color: transparent;
+  color: #ff4d4f;
+  transition: all 0.2s ease;
+}
+
+.section-action-btn:hover {
+  background: rgba(255, 77, 79, 0.2);
+  color: #ff7875;
+}
+
 /* 卡包横向排列容器 */
 .packs-wrapper {
   display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  align-items: flex-start;
-}
-
-/* 竖向卡包样式 - 基础 */
-.card-pack-vertical {
-  --pack-shell-top: var(--prompt-pack-shell-top, #edf5f4);
-  --pack-shell-mid: var(--prompt-pack-shell-mid, #e5efee);
-  --pack-shell-bottom: var(--prompt-pack-shell-bottom, #dbe8e7);
-  --pack-shell-border: var(--prompt-pack-shell-border, rgba(74, 126, 123, 0.28));
-  --pack-shell-hover-border: var(--prompt-pack-shell-hover-border, rgba(40, 111, 108, 0.44));
-  --pack-header-top: var(--prompt-pack-header-top, #c3ddd8);
-  --pack-header-mid: var(--prompt-pack-header-mid, #afd2cd);
-  --pack-header-bottom: var(--prompt-pack-header-bottom, #98c2bc);
-  --pack-header-border: var(--prompt-pack-header-border, rgba(31, 89, 86, 0.18));
-  --pack-header-text: var(--prompt-pack-header-text, #154d4b);
-  --pack-muted-text: var(--prompt-pack-muted-text, #607d79);
-  --pack-badge-bg: var(--prompt-pack-badge-bg, rgba(239, 246, 245, 0.94));
-  --pack-badge-border: var(--prompt-pack-badge-border, rgba(83, 131, 127, 0.18));
-  --pack-badge-text: var(--prompt-pack-badge-text, #276b67);
-  position: relative;
-  background: linear-gradient(180deg, var(--pack-shell-top) 0%, var(--pack-shell-mid) 52%, var(--pack-shell-bottom) 100%);
-  border-radius: var(--prompt-pack-shell-radius, 20px);
-  border: 1px solid var(--pack-shell-border);
-  box-shadow: var(--prompt-pack-shell-shadow, 0 14px 30px rgba(25, 70, 68, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.38));
-  display: flex;
   flex-direction: column;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(8px);
+  gap: 10px;
 }
 
-.card-pack-vertical::before {
+.packs-wrapper.grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+/* ========== 视图切换按钮 ========== */
+.pack-view-toggle {
+  display: inline-flex;
+  margin-left: auto;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 1px;
+  border: 1px solid #e2e8f0;
+}
+
+.pack-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 15px;
+  outline: none;
+}
+
+.pack-view-btn:hover {
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.pack-view-btn.active {
+  background: #ffffff;
+  color: #6366f1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ========== 卡包信息卡片 ========== */
+.pack-info-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+  position: relative;
+}
+
+.pack-info-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--prompt-pack-shell-overlay, linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 34%), linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.07) 48%, transparent 70%));
+  border-radius: 14px;
   pointer-events: none;
+  transition: opacity 0.25s ease;
+  opacity: 0;
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
 }
 
-.card-pack-vertical:hover {
-  transform: translateY(-4px);
-  border-color: var(--pack-shell-hover-border);
-  box-shadow: var(--prompt-pack-shell-hover-shadow, 0 20px 40px rgba(18, 84, 81, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.46));
+.pack-info-card:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
 }
 
-/* 卡包尺寸 - 小 */
-.card-pack-vertical.small {
-  width: 160px;
-  height: 200px;
+.pack-info-card:hover::before {
+  opacity: 1;
 }
 
-/* 卡包尺寸 - 中 */
-.card-pack-vertical.medium {
-  width: 200px;
-  height: 260px;
+.pack-info-card.drag-over {
+  border-color: #34d399;
+  background: #f0fdf4;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
 }
 
-/* 卡包尺寸 - 大 */
-.card-pack-vertical.large {
-  width: 260px;
-  height: 340px;
+.pack-info-card.drag-over::before {
+  opacity: 1;
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.5);
 }
 
-.card-pack-vertical.drag-over {
-  border-color: var(--prompt-pack-drag-border, #3d8e89);
-  background: var(--prompt-pack-drag-bg, linear-gradient(180deg, #e7f1f0 0%, #ddeceb 100%));
-  transform: scale(1.02);
-  box-shadow: var(--prompt-pack-drag-shadow, 0 22px 44px rgba(22, 96, 93, 0.18), inset 0 0 0 1px rgba(123, 177, 171, 0.18));
+/* ========== 网格模式 - 卡片竖向布局 ========== */
+.packs-wrapper.grid .pack-info-card {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 16px 16px;
+  text-align: center;
+}
+
+.packs-wrapper.grid .pack-info-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+.packs-wrapper.grid .pack-info-icon .el-icon {
+  font-size: 26px;
+}
+
+.packs-wrapper.grid .pack-info-body {
+  align-items: center;
+}
+
+.packs-wrapper.grid .pack-info-name {
+  font-size: 14px;
+  max-width: 100%;
+}
+
+.packs-wrapper.grid .pack-info-spacer {
+  display: none;
+}
+
+.packs-wrapper.grid .pack-info-actions {
+  width: 100%;
+  justify-content: center;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* 图标区 */
+.pack-info-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pack-info-icon .el-icon {
+  font-size: 22px;
+  color: #6366f1;
+}
+
+/* 信息主体 */
+.pack-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pack-info-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pack-info-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pack-info-count {
+  font-size: 12px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.pack-info-spacer {
+  flex: 1;
+}
+
+/* 操作按钮 */
+.pack-info-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pack-action-btn {
+  width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  border: 1px solid #e5e7eb !important;
+  background: #f9fafb !important;
+  color: #6b7280 !important;
+  transition: all 0.2s ease !important;
+}
+
+.pack-action-btn:hover {
+  background: #f3f4f6 !important;
+  border-color: #d1d5db !important;
+  color: #374151 !important;
+}
+
+.pack-action-btn--danger:hover {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #dc2626 !important;
 }
 
 /* 独立卡片区域 */
@@ -4011,8 +4426,7 @@ const executeImportConvert = async () => {
   gap: 4px;
 }
 
-.standalone-card-actions :deep(.el-button),
-.pack-card-actions :deep(.el-button) {
+.standalone-card-actions :deep(.el-button) {
   min-width: 28px;
   height: 28px;
   padding: 0 8px;
@@ -4022,29 +4436,25 @@ const executeImportConvert = async () => {
   transition: all 0.2s ease;
 }
 
-.standalone-card-actions :deep(.el-button.el-button--primary),
-.pack-card-actions :deep(.el-button.el-button--primary) {
+.standalone-card-actions :deep(.el-button.el-button--primary) {
   color: #0f766e;
   border-color: rgba(15, 118, 110, 0.10);
 }
 
-.standalone-card-actions :deep(.el-button.el-button--primary:hover),
-.pack-card-actions :deep(.el-button.el-button--primary:hover) {
+.standalone-card-actions :deep(.el-button.el-button--primary:hover) {
   color: #fff;
   background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
   border-color: transparent;
   box-shadow: 0 8px 18px rgba(20, 184, 166, 0.22);
 }
 
-.standalone-card-actions :deep(.el-button.el-button--danger),
-.pack-card-actions :deep(.el-button.el-button--danger) {
+.standalone-card-actions :deep(.el-button.el-button--danger) {
   color: #c2415b;
   background: rgba(225, 29, 72, 0.06);
   border-color: rgba(225, 29, 72, 0.10);
 }
 
-.standalone-card-actions :deep(.el-button.el-button--danger:hover),
-.pack-card-actions :deep(.el-button.el-button--danger:hover) {
+.standalone-card-actions :deep(.el-button.el-button--danger:hover) {
   color: #fff;
   background: linear-gradient(135deg, #e11d48 0%, #fb7185 100%);
   border-color: transparent;
@@ -4084,402 +4494,6 @@ const executeImportConvert = async () => {
   font-size: 32px;
 }
 
-/* 卡包底部 */
-.pack-footer-vertical {
-  background:
-    linear-gradient(135deg, var(--pack-header-top) 0%, var(--pack-header-mid) 52%, var(--pack-header-bottom) 100%);
-  padding: 10px 12px;
-  border-top: 1px solid var(--pack-header-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-}
-
-.pack-footer-vertical::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--prompt-pack-header-overlay, radial-gradient(circle at top, rgba(255, 255, 255, 0.16), transparent 42%), linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 64%), linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.09) 48%, transparent 72%));
-  pointer-events: none;
-}
-
-.pack-footer-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: relative;
-  z-index: 1;
-}
-
-.pack-footer-icon {
-  color: var(--pack-header-text);
-  font-size: 18px;
-}
-
-.pack-footer-name {
-  font-weight: 600;
-  color: var(--pack-header-text);
-  font-size: 13px;
-  flex: 1;
-}
-
-.pack-footer-count {
-  background: var(--pack-badge-bg);
-  border: 1px solid var(--pack-badge-border);
-  color: var(--pack-badge-text);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  min-width: 20px;
-  text-align: center;
-}
-
-.pack-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  z-index: 1;
-  flex-wrap: wrap;
-}
-
-.pack-footer-actions .el-button {
-  background: var(--prompt-pack-action-bg, rgba(244, 249, 248, 0.58));
-  border-color: var(--prompt-pack-action-border, rgba(210, 228, 225, 0.88));
-  backdrop-filter: blur(8px);
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  min-width: 0;
-  box-shadow: var(--prompt-pack-action-shadow, 0 8px 18px rgba(19, 91, 87, 0.10));
-}
-
-.pack-footer-actions .el-button:hover {
-  background: var(--prompt-pack-action-hover-bg, rgba(249, 252, 251, 0.96));
-  border-color: var(--prompt-pack-action-hover-border, rgba(227, 238, 236, 0.96));
-}
-
-.pack-footer-actions .el-button.el-button--primary {
-  color: var(--prompt-pack-action-primary, #1f6f69);
-}
-
-.pack-footer-actions .el-button.el-button--primary:hover {
-  color: var(--prompt-pack-action-primary-hover, #145b56);
-}
-
-.pack-footer-actions .el-button.el-button--danger {
-  color: var(--prompt-pack-action-danger, #c42727);
-}
-
-.pack-footer-actions .el-button.el-button--danger:hover {
-  color: var(--prompt-pack-action-danger-hover, #a81e1e);
-}
-
-
-
-/* 卡片滚动区域 */
-.cards-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--prompt-pack-scroll-bg, linear-gradient(180deg, rgba(227, 238, 236, 0.82) 0%, rgba(239, 245, 244, 0.96) 100%));
-}
-
-/* 卡包内卡片 - 基础 */
-.pack-card {
-  background: var(--prompt-pack-card-bg, linear-gradient(180deg, rgba(246, 250, 249, 0.98) 0%, #eaf2f1 100%));
-  border-radius: var(--prompt-pack-card-radius, 14px);
-  border: var(--prompt-pack-card-border, 1px solid rgba(39, 107, 103, 0.14));
-  cursor: grab;
-  transition: all 0.2s ease;
-  box-shadow: var(--prompt-pack-card-shadow, 0 8px 18px rgba(21, 77, 75, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.pack-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--prompt-pack-card-hover-border, rgba(24, 99, 95, 0.28));
-  box-shadow: var(--prompt-pack-card-hover-shadow, 0 14px 26px rgba(18, 84, 81, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.82));
-}
-
-.pack-card:active {
-  cursor: grabbing;
-}
-
-.pack-card.dragging {
-  opacity: var(--prompt-pack-card-drag-opacity, 0.56);
-  transform: scale(var(--prompt-pack-card-drag-scale, 0.97));
-}
-
-/* 卡包内卡片尺寸 - 小 */
-.pack-card.small {
-  min-height: 70px;
-}
-
-.pack-card.small .pack-card-header {
-  padding: 6px 8px;
-}
-
-.pack-card.small .pack-card-drag-handle {
-  font-size: 12px;
-}
-
-.pack-card.small .pack-card-name {
-  font-size: 11px;
-}
-
-.pack-card.small .pack-card-content {
-  padding: 0 8px;
-}
-
-.pack-card.small .pack-card-tag {
-  transform: scale(0.75);
-  transform-origin: left center;
-}
-
-.pack-card.small .pack-card-preview {
-  font-size: 9px;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-
-.pack-card.small .pack-card-footer {
-  padding: 4px 8px;
-}
-
-.pack-card.small .pack-card-time {
-  font-size: 9px;
-}
-
-.pack-card.small .pack-card-actions :deep(.el-button) {
-  padding: 1px 3px;
-  font-size: 10px;
-}
-
-/* 卡包内卡片尺寸 - 中 */
-.pack-card.medium {
-  min-height: 90px;
-}
-
-.pack-card.medium .pack-card-header {
-  padding: 8px 10px;
-}
-
-.pack-card.medium .pack-card-drag-handle {
-  font-size: 14px;
-}
-
-.pack-card.medium .pack-card-name {
-  font-size: 12px;
-}
-
-.pack-card.medium .pack-card-content {
-  padding: 0 10px;
-}
-
-.pack-card.medium .pack-card-tag {
-  transform: scale(0.85);
-  transform-origin: left center;
-}
-
-.pack-card.medium .pack-card-preview {
-  font-size: 10px;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
-.pack-card.medium .pack-card-footer {
-  padding: 6px 10px;
-}
-
-.pack-card.medium .pack-card-time {
-  font-size: 10px;
-}
-
-.pack-card.medium .pack-card-actions :deep(.el-button) {
-  padding: 2px 4px;
-  font-size: 11px;
-}
-
-/* 卡包内卡片尺寸 - 大 */
-.pack-card.large {
-  min-height: 120px;
-}
-
-.pack-card.large .pack-card-header {
-  padding: 10px 12px;
-}
-
-.pack-card.large .pack-card-drag-handle {
-  font-size: 16px;
-}
-
-.pack-card.large .pack-card-name {
-  font-size: 13px;
-}
-
-.pack-card.large .pack-card-content {
-  padding: 0 12px;
-}
-
-.pack-card.large .pack-card-tag {
-  transform: scale(0.9);
-  transform-origin: left center;
-}
-
-.pack-card.large .pack-card-preview {
-  font-size: 11px;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
-.pack-card.large .pack-card-footer {
-  padding: 8px 12px;
-}
-
-.pack-card.large .pack-card-time {
-  font-size: 11px;
-}
-
-.pack-card.large .pack-card-actions :deep(.el-button) {
-  padding: 3px 5px;
-  font-size: 12px;
-}
-
-/* 卡包内卡片头部 */
-.pack-card-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--prompt-pack-card-header-bg, linear-gradient(135deg, rgba(133, 184, 178, 0.2) 0%, rgba(245, 249, 248, 0.94) 100%));
-  border-bottom: 1px solid var(--prompt-pack-card-header-border, rgba(39, 107, 103, 0.10));
-}
-
-.pack-card-drag-handle {
-  color: var(--prompt-pack-card-handle-color, #0d9488);
-  cursor: grab;
-}
-
-.pack-card-name {
-  font-weight: 600;
-  color: var(--prompt-pack-card-name-color, #134e4a);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 卡包内卡片内容 */
-.pack-card-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--prompt-pack-card-content-gap, 6px);
-  overflow: hidden;
-}
-
-.pack-card-tag {
-  align-self: flex-start;
-}
-
-.pack-card-preview {
-  color: var(--prompt-pack-card-preview-color, #5f7f7b);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* 卡包内卡片底部 */
-.pack-card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--prompt-pack-card-footer-border, rgba(39, 107, 103, 0.10));
-  background: var(--prompt-pack-card-footer-bg, linear-gradient(180deg, rgba(241, 247, 246, 0.96) 0%, rgba(233, 241, 240, 0.98) 100%));
-}
-
-.pack-card-time {
-  color: var(--prompt-pack-card-time-color, var(--pack-muted-text));
-}
-
-.pack-card-actions {
-  display: flex;
-  gap: 4px;
-}
-
-/* 空卡包提示 */
-.empty-pack-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 30px 10px;
-  color: var(--prompt-pack-empty-text, #7cb9b3);
-  font-size: 12px;
-  gap: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: var(--prompt-pack-empty-border, 1px dashed rgba(94, 234, 212, 0.32));
-  border-radius: var(--prompt-pack-empty-radius, 14px);
-  margin: 4px;
-  background: var(--prompt-pack-empty-bg, linear-gradient(180deg, rgba(236, 254, 255, 0.88) 0%, rgba(255, 255, 255, 0.96) 100%));
-}
-
-.empty-pack-hint:hover {
-  color: var(--prompt-pack-empty-hover-text, #14b8a6);
-  border-color: var(--prompt-pack-empty-hover-border, rgba(45, 212, 191, 0.4));
-  background: var(--prompt-pack-empty-hover-bg, linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%));
-}
-
-/* 卡包底部操作 */
-.pack-footer-vertical {
-  padding: 12px;
-  border-top: 1px solid var(--prompt-pack-footer-border, rgba(94, 234, 212, 0.2));
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  background: var(--prompt-pack-footer-bg, linear-gradient(180deg, rgba(246, 255, 255, 0.98) 0%, rgba(239, 250, 250, 1) 100%));
-}
-
-.pack-footer-vertical :deep(.el-button) {
-  font-size: 12px;
-  border-radius: 999px;
-  padding-inline: 10px;
-  border: 1px solid transparent;
-  background: var(--prompt-pack-footer-button-bg, rgba(255, 255, 255, 0.62));
-  backdrop-filter: blur(8px);
-  box-shadow: var(--prompt-pack-footer-button-shadow, 0 8px 18px rgba(56, 189, 248, 0.08));
-}
-
-.pack-footer-vertical :deep(.el-button--primary) {
-  color: var(--prompt-pack-footer-primary-color, #22c7b8);
-  border-color: var(--prompt-pack-footer-primary-border, rgba(94, 234, 212, 0.34));
-}
-
-.pack-footer-vertical :deep(.el-button--primary:hover) {
-  color: var(--prompt-pack-footer-primary-hover-color, #0f766e);
-  background: var(--prompt-pack-footer-primary-hover-bg, rgba(236, 254, 255, 0.92));
-  border-color: var(--prompt-pack-footer-primary-hover-border, rgba(94, 234, 212, 0.5));
-}
-
-.pack-footer-vertical :deep(.el-button--danger) {
-  color: var(--prompt-pack-footer-danger-color, #fb8fa3);
-  border-color: var(--prompt-pack-footer-danger-border, rgba(251, 113, 133, 0.2));
-}
-
-.pack-footer-vertical :deep(.el-button--danger:hover) {
-  color: var(--prompt-pack-footer-danger-hover-color, #f43f5e);
-  background: var(--prompt-pack-footer-danger-hover-bg, rgba(255, 241, 242, 0.95));
-  border-color: var(--prompt-pack-footer-danger-hover-border, rgba(251, 113, 133, 0.34));
-}
 .form-item-label-with-guide {
   display: inline-flex;
   align-items: center;
@@ -4962,6 +4976,50 @@ const executeImportConvert = async () => {
   padding: 40px;
 }
 
+/* 移动卡片弹窗样式 */
+.move-prompt-content {
+  min-height: 200px;
+}
+
+.move-prompt-hint {
+  margin-bottom: 20px;
+}
+
+.move-prompt-options {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.move-prompt-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.move-prompt-radio-item {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.move-prompt-radio-item:hover {
+  border-color: #6366f1;
+  background: #f8fafc;
+}
+
+.move-prompt-category-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.move-prompt-category-info .el-icon {
+  color: #6366f1;
+}
+
 /* 导入弹窗样式 */
 .import-dialog .import-content {
   min-height: 300px;
@@ -5136,27 +5194,6 @@ const executeImportConvert = async () => {
   color: #52c41a;
 }
 
-.pack-card.encrypted {
-  border-color: rgba(230, 162, 60, 0.4) !important;
-  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
-}
-
-.pack-card.encrypted:hover {
-  border-color: rgba(230, 162, 60, 0.6) !important;
-  box-shadow: 0 8px 20px rgba(230, 162, 60, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
-}
-
-.pack-card.encrypted .pack-card-header {
-  background: linear-gradient(135deg, rgba(230, 162, 60, 0.15) 0%, rgba(245, 249, 248, 0.94) 100%) !important;
-}
-
-.pack-card-lock {
-  color: #e6a23c;
-  font-size: 14px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
 .standalone-card.encrypted {
   border-color: rgba(230, 162, 60, 0.4) !important;
   box-shadow: 0 4px 12px rgba(230, 162, 60, 0.12) !important;
@@ -5247,72 +5284,83 @@ const executeImportConvert = async () => {
   margin-bottom: 12px;
 }
 
-/* 暗色主题适配 - 卡包 */
-:root[data-theme='dark'] .card-pack-vertical {
-  --pack-shell-top: rgba(30, 41, 59, 0.95);
-  --pack-shell-mid: rgba(30, 41, 59, 0.9);
-  --pack-shell-bottom: rgba(15, 23, 42, 0.95);
-  --pack-shell-border: rgba(71, 85, 105, 0.4);
-  --pack-shell-hover-border: rgba(94, 234, 212, 0.4);
-  --pack-header-top: rgba(45, 212, 191, 0.2);
-  --pack-header-mid: rgba(45, 212, 191, 0.15);
-  --pack-header-bottom: rgba(20, 184, 166, 0.1);
-  --pack-header-border: rgba(94, 234, 212, 0.2);
-  --pack-header-text: #5eead4;
-  --pack-muted-text: #9ca3af;
-  --pack-badge-bg: rgba(30, 41, 59, 0.9);
-  --pack-badge-border: rgba(94, 234, 212, 0.3);
-  --pack-badge-text: #5eead4;
-  --prompt-pack-shell-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
-  --prompt-pack-shell-hover-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  --prompt-pack-shell-overlay: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 34%);
-  --prompt-pack-header-overlay: radial-gradient(circle at top, rgba(255, 255, 255, 0.05), transparent 42%), linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 64%), linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.03) 48%, transparent 72%);
-  --prompt-pack-scroll-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.82) 0%, rgba(15, 23, 42, 0.96) 100%);
-  --prompt-pack-action-bg: rgba(30, 41, 59, 0.6);
-  --prompt-pack-action-border: rgba(71, 85, 105, 0.4);
-  --prompt-pack-action-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
-  --prompt-pack-action-hover-bg: rgba(51, 65, 85, 0.8);
-  --prompt-pack-action-hover-border: rgba(94, 234, 212, 0.3);
-  --prompt-pack-action-primary: #5eead4;
-  --prompt-pack-action-primary-hover: #fff;
-  --prompt-pack-action-danger: #f87171;
-  --prompt-pack-action-danger-hover: #fca5a5;
-  --prompt-pack-footer-border: rgba(94, 234, 212, 0.2);
-  --prompt-pack-footer-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 1) 100%);
-  --prompt-pack-footer-button-bg: rgba(30, 41, 59, 0.6);
-  --prompt-pack-footer-button-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
-  --prompt-pack-footer-primary-color: #5eead4;
-  --prompt-pack-footer-primary-border: rgba(94, 234, 212, 0.3);
-  --prompt-pack-footer-primary-hover-color: #fff;
-  --prompt-pack-footer-primary-hover-bg: rgba(94, 234, 212, 0.15);
-  --prompt-pack-footer-primary-hover-border: rgba(94, 234, 212, 0.5);
-  --prompt-pack-footer-danger-color: #f87171;
-  --prompt-pack-footer-danger-border: rgba(248, 113, 113, 0.3);
-  --prompt-pack-footer-danger-hover-color: #fca5a5;
-  --prompt-pack-footer-danger-hover-bg: rgba(248, 113, 113, 0.15);
-  --prompt-pack-footer-danger-hover-border: rgba(248, 113, 113, 0.5);
+/* 暗色主题适配 - 卡包信息卡片 */
+:root[data-theme='dark'] .pack-info-card {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-:root[data-theme='dark'] .pack-card {
-  --prompt-pack-card-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.95) 100%);
-  --prompt-pack-card-border: 1px solid rgba(71, 85, 105, 0.4);
-  --prompt-pack-card-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
-  --prompt-pack-card-hover-border: rgba(94, 234, 212, 0.4);
-  --prompt-pack-card-hover-shadow: 0 14px 26px rgba(0, 0, 0, 0.3);
-  --prompt-pack-card-header-bg: linear-gradient(135deg, rgba(94, 234, 212, 0.15) 0%, rgba(30, 41, 59, 0.9) 100%);
-  --prompt-pack-card-header-border: rgba(94, 234, 212, 0.2);
-  --prompt-pack-card-handle-color: #5eead4;
-  --prompt-pack-card-name-color: #f3f4f6;
-  --prompt-pack-card-preview-color: #9ca3af;
-  --prompt-pack-card-footer-border: rgba(71, 85, 105, 0.3);
-  --prompt-pack-card-footer-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
-  --prompt-pack-card-time-color: #6b7280;
+:root[data-theme='dark'] .pack-info-card:hover {
+  border-color: rgba(148, 163, 184, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-:root[data-theme='dark'] .empty-pack-hint {
-  --prompt-pack-empty-text: #5eead4;
-  --prompt-pack-empty-border: 1px dashed rgba(94, 234, 212, 0.4);
-  --prompt-pack-empty-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+:root[data-theme='dark'] .pack-info-card.drag-over {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.08);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
+}
+
+:root[data-theme='dark'] .pack-info-icon {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+}
+
+:root[data-theme='dark'] .pack-info-icon .el-icon {
+  color: #a5b4fc;
+}
+
+:root[data-theme='dark'] .pack-info-name {
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .pack-info-count {
+  color: #94a3b8;
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .pack-action-btn {
+  border-color: rgba(71, 85, 105, 0.5) !important;
+  background: rgba(51, 65, 85, 0.5) !important;
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .pack-action-btn:hover {
+  border-color: rgba(148, 163, 184, 0.5) !important;
+  background: rgba(71, 85, 105, 0.6) !important;
+  color: #cbd5e1 !important;
+}
+
+:root[data-theme='dark'] .pack-action-btn--danger:hover {
+  background: rgba(220, 38, 38, 0.15) !important;
+  border-color: rgba(248, 113, 113, 0.3) !important;
+  color: #fca5a5 !important;
+}
+
+/* --- 暗色主题 - 视图切换按钮 --- */
+:root[data-theme='dark'] .pack-view-toggle {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+:root[data-theme='dark'] .pack-view-btn {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .pack-view-btn:hover {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme='dark'] .pack-view-btn.active {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* --- 暗色主题 - 网格模式 --- */
+:root[data-theme='dark'] .packs-wrapper.grid .pack-info-actions {
+  border-top-color: rgba(71, 85, 105, 0.3);
 }
 
 :root[data-theme='dark'] .standalone-cards-area {
@@ -5362,32 +5410,27 @@ const executeImportConvert = async () => {
   color: #6b7280;
 }
 
-:root[data-theme='dark'] .standalone-card-actions :deep(.el-button),
-:root[data-theme='dark'] .pack-card-actions :deep(.el-button) {
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button) {
   background: rgba(94, 234, 212, 0.1);
 }
 
-:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary),
-:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--primary) {
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary) {
   color: #5eead4;
   border-color: rgba(94, 234, 212, 0.2);
 }
 
-:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary:hover),
-:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--primary:hover) {
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary:hover) {
   color: #fff;
   background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
 }
 
-:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger),
-:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--danger) {
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger) {
   color: #f87171;
   background: rgba(248, 113, 113, 0.1);
   border-color: rgba(248, 113, 113, 0.2);
 }
 
-:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger:hover),
-:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--danger:hover) {
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger:hover) {
   color: #fff;
   background: linear-gradient(135deg, #e11d48 0%, #fb7185 100%);
 }
@@ -5398,7 +5441,7 @@ const executeImportConvert = async () => {
 }
 
 :root[data-theme='dark'] .header {
-  border-bottom-color: rgba(71, 85, 105, 0.4);
+  border-bottom-color: rgba(71, 85, 105, 0.35);
 }
 
 :root[data-theme='dark'] .header h2 {
@@ -5409,6 +5452,66 @@ const executeImportConvert = async () => {
 
 :root[data-theme='dark'] .skin-toolbar-label {
   color: #9ca3af;
+}
+
+:root[data-theme='dark'] .skin-config-btn {
+  border-color: rgba(71, 85, 105, 0.6);
+  background: rgba(51, 65, 85, 0.5);
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .skin-config-btn:hover {
+  border-color: rgba(148, 163, 184, 0.6);
+  background: rgba(51, 65, 85, 0.8);
+  color: #f1f5f9;
+}
+
+/* --- 暗色主题 - 导出/导入按钮 --- */
+:root[data-theme='dark'] .btn-export {
+  border-color: rgba(251, 191, 36, 0.3) !important;
+  background: rgba(251, 191, 36, 0.08) !important;
+  color: #fbbf24 !important;
+}
+
+:root[data-theme='dark'] .btn-export:hover {
+  border-color: rgba(251, 191, 36, 0.5) !important;
+  background: rgba(251, 191, 36, 0.12) !important;
+  color: #fcd34d !important;
+  box-shadow: 0 2px 12px rgba(251, 191, 36, 0.12);
+}
+
+:root[data-theme='dark'] .btn-import {
+  border-color: rgba(129, 140, 248, 0.3) !important;
+  background: rgba(129, 140, 248, 0.08) !important;
+  color: #a5b4fc !important;
+}
+
+:root[data-theme='dark'] .btn-import:hover {
+  border-color: rgba(129, 140, 248, 0.5) !important;
+  background: rgba(129, 140, 248, 0.12) !important;
+  color: #c7d2fe !important;
+  box-shadow: 0 2px 12px rgba(129, 140, 248, 0.12);
+}
+
+/* --- 暗色主题 - 创建按钮 --- */
+:root[data-theme='dark'] .btn-create-pack {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+}
+
+:root[data-theme='dark'] .btn-create-pack:hover {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.5);
+}
+
+:root[data-theme='dark'] .btn-create-prompt {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
+}
+
+:root[data-theme='dark'] .btn-create-prompt:hover {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.5);
 }
 
 :root[data-theme='dark'] .section-title {
@@ -5423,20 +5526,14 @@ const executeImportConvert = async () => {
   background: #10b981;
 }
 
-:root[data-theme='dark'] :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+:root[data-theme='dark'] .section-action-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 
-:root[data-theme='dark'] :deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-}
-
-:root[data-theme='dark'] :deep(.el-button--success) {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-}
-
-:root[data-theme='dark'] :deep(.el-button--success:hover) {
-  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+:root[data-theme='dark'] .section-action-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
 }
 
 :root[data-theme='dark'] .dialog-header span {
@@ -5519,24 +5616,6 @@ const executeImportConvert = async () => {
   color: #9ca3af;
 }
 
-:root[data-theme='dark'] .pack-card.encrypted {
-  border-color: rgba(251, 191, 36, 0.4) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-}
-
-:root[data-theme='dark'] .pack-card.encrypted:hover {
-  border-color: rgba(251, 191, 36, 0.6) !important;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
-}
-
-:root[data-theme='dark'] .pack-card.encrypted .pack-card-header {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(30, 41, 59, 0.9) 100%) !important;
-}
-
-:root[data-theme='dark'] .pack-card-lock {
-  color: #fbbf24;
-}
-
 :root[data-theme='dark'] .standalone-card.encrypted {
   border-color: rgba(251, 191, 36, 0.4) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
@@ -5553,5 +5632,86 @@ const executeImportConvert = async () => {
 
 :root[data-theme='dark'] .standalone-card-lock {
   color: #fbbf24;
+}
+
+/* --- 暗色主题 - 牌桌预览卡片 --- */
+:root[data-theme='dark'] .pack-fan-stage {
+  background: rgba(2, 6, 23, 0.7);
+}
+
+:root[data-theme='dark'] .pack-fan-card {
+  background: rgba(30, 41, 59, 0.95);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .pack-fan-card:hover {
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .pack-fan-card-head {
+  border-bottom-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .pack-fan-card-head-icon {
+  color: #a5b4fc;
+}
+
+:root[data-theme='dark'] .pack-fan-card-head-name {
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .pack-fan-card-head-lock {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .pack-fan-card-content {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .pack-fan-card-content.is-empty {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .pack-fan-card-content-encrypted {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .pack-fan-card-foot {
+  border-top-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .pack-fan-card-foot-time {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .pack-fan-action-btn {
+  border-color: rgba(71, 85, 105, 0.4) !important;
+  background: rgba(30, 41, 59, 0.8) !important;
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .pack-fan-action-btn:hover {
+  background: rgba(51, 65, 85, 0.8) !important;
+  border-color: rgba(100, 116, 139, 0.5) !important;
+  color: #e2e8f0 !important;
+}
+
+:root[data-theme='dark'] .pack-fan-action-btn--danger:hover {
+  background: rgba(127, 29, 29, 0.3) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #f87171 !important;
+}
+
+:root[data-theme='dark'] .move-prompt-radio-item {
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .move-prompt-radio-item:hover {
+  border-color: #818cf8;
+  background: rgba(30, 41, 59, 0.5);
 }
 </style>

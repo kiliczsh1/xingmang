@@ -13,9 +13,24 @@ const props = defineProps<{
   renderMode?: 'markdown' | 'html'
 }>()
 
+const sanitizeHtml = (raw: string) => {
+  return raw
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<iframe\b[^>]*>/gi, '')
+    .replace(/<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*\/?>/gi, '')
+    .replace(/\bon\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\bon\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\bon\w+\s*=\s*\S+/gi, '')
+    .replace(/<link\b[^>]*>/gi, '')
+    .replace(/<meta\b[^>]*>/gi, '')
+}
+
 const createMarkdownIt = (allowHtml: boolean) => new MarkdownIt({
  html: allowHtml,
- breaks: true,
+ breaks: false,
  linkify: true,
  typographer: true,
  highlight: function (str, lang) {
@@ -32,9 +47,9 @@ const createMarkdownIt = (allowHtml: boolean) => new MarkdownIt({
 
  const renderedContent = computed(() => {
  if (props.renderMode === 'html') {
- return props.content || ''
+ return sanitizeHtml(props.content || '')
  }
- return markdownRenderer.render(props.content || '')
+ return markdownRenderer.render(sanitizeHtml(props.content || ''))
  })
 </script>
 

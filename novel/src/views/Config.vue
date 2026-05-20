@@ -94,22 +94,41 @@
           </el-button>
         </div>
         <el-table :data="models" stripe style="width: 100%">
-          <el-table-column prop="name" label="模型名称" width="180" />
-          <el-table-column prop="provider_name" label="服务商" width="150">
-            <template #default="{ row }">
-              <el-tag>{{ row.provider_name }}</el-tag>
+          <el-table-column label="排序" width="80" align="center">
+            <template #default="{ row, $index }">
+              <el-button size="small" text :disabled="$index === 0" @click="handleMoveModel(row, -1)">
+                <el-icon><Top /></el-icon>
+              </el-button>
+              <el-button size="small" text :disabled="$index === models.length - 1" @click="handleMoveModel(row, 1)">
+                <el-icon><Bottom /></el-icon>
+              </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="model" label="模型标识" width="180" />
-          <el-table-column prop="temperature" label="温度" width="80" />
-          <el-table-column prop="max_tokens" label="最大Token" width="120" />
-          <el-table-column label="默认" width="80">
+          <el-table-column prop="name" label="模型名称" width="150" />
+          <el-table-column prop="provider_name" label="服务商" width="120">
             <template #default="{ row }">
-              <el-tag v-if="row.is_default" type="success">是</el-tag>
-              <span v-else>否</span>
+              <el-tag size="small">{{ row.provider_name }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="280" fixed="right">
+          <el-table-column prop="model" label="模型标识" width="160" />
+          <el-table-column prop="temperature" label="温度" width="60" />
+          <el-table-column prop="max_tokens" label="最大Token" width="100" />
+          <el-table-column label="启用" width="70" align="center">
+            <template #default="{ row }">
+              <el-switch
+                :model-value="row.enabled === 1"
+                size="small"
+                @change="handleToggleModel(row)"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="默认" width="70" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.is_default" type="success" size="small">是</el-tag>
+              <span v-else style="color: #999;">否</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="260" fixed="right">
             <template #default="{ row }">
               <el-button
                 size="small"
@@ -131,6 +150,7 @@
       v-model="providerDialogVisible"
       :title="isEditProvider ? '编辑服务商' : '添加服务商'"
       width="600px"
+      append-to-body
     >
       <el-form :model="providerFormData" label-width="100px">
         <el-form-item label="服务商名称" required>
@@ -147,7 +167,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="API地址" required>
-          <el-input v-model="providerFormData.api_url" placeholder="例如: https://api.openai.com/v1/chat/completions" />
+          <el-input v-model="providerFormData.api_url" placeholder="例如: https://api.openai.com/v1（自动兼容/chat/completions）" />
         </el-form-item>
         <el-form-item label="API密钥" required>
           <el-input v-model="providerFormData.api_key" type="password" placeholder="请输入API密钥" show-password />
@@ -163,6 +183,7 @@
       v-model="modelDialogVisible"
       :title="isEditModel ? '编辑模型' : '添加模型'"
       width="600px"
+      append-to-body
     >
       <el-form :model="modelFormData" label-width="100px">
         <el-form-item label="选择服务商" required>
@@ -173,6 +194,41 @@
               :label="provider.name"
               :value="provider.id"
             />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="获取模型">
+          <el-button
+            type="primary"
+            :loading="discoveringModels"
+            :disabled="!modelFormData.provider_id"
+            @click="handleDiscoverModels"
+          >
+            <el-icon><Search /></el-icon>
+            获取模型列表
+          </el-button>
+          <span v-if="discoveredModels.length > 0" style="margin-left: 12px; color: #67c23a;">
+            已获取 {{ discoveredModels.length }} 个模型
+          </span>
+        </el-form-item>
+        <el-form-item label="选择模型" required v-if="discoveredModels.length > 0">
+          <el-select
+            v-model="selectedDiscoveredModel"
+            filterable
+            placeholder="请选择模型"
+            style="width: 100%"
+            @change="onDiscoveredModelSelect"
+          >
+            <el-option
+              v-for="m in discoveredModels"
+              :key="m.id"
+              :label="m.id"
+              :value="m.id"
+            >
+              <span>{{ m.id }}</span>
+              <span v-if="m.max_tokens" style="float: right; color: #8492a6; font-size: 12px;">
+                {{ (m.max_tokens / 1000).toFixed(0) }}K tokens
+              </span>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="模型名称" required>
@@ -186,10 +242,24 @@
           <span style="margin-left: 10px;">{{ modelFormData.temperature }}</span>
         </el-form-item>
         <el-form-item label="最大Token">
-          <el-input-number v-model="modelFormData.max_tokens" :min="100" :max="128000" :step="100" style="width: 100%" />
+          <el-input-number v-model="modelFormData.max_tokens" :min="100" :max="resolvedModelMaxTokens" :step="100" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="Top P">
+          <el-slider v-model="modelFormData.top_p" :min="0" :max="1" :step="0.05" />
+          <span style="margin-left: 10px;">{{ modelFormData.top_p }}</span>
+        </el-form-item>
+        <el-form-item label="惩罚力度">
+          <el-slider v-model="modelFormData.frequency_penalty" :min="-2" :max="2" :step="0.1" />
+          <span style="margin-left: 10px;">{{ modelFormData.frequency_penalty }}</span>
+        </el-form-item>
+        <el-form-item label="模型描述">
+          <el-input v-model="modelFormData.description" type="textarea" :rows="3" placeholder="模型的简介描述" />
         </el-form-item>
         <el-form-item label="设为默认">
           <el-switch v-model="modelFormData.is_default" />
+        </el-form-item>
+        <el-form-item label="启用模型">
+          <el-switch v-model="modelFormData.enabled" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -203,6 +273,7 @@
       title="导入API配置"
       width="600px"
       :close-on-click-modal="false"
+      append-to-body
     >
       <div class="import-content">
         <div class="import-upload">
@@ -255,7 +326,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, Download, ArrowDown, Document, UploadFilled } from '@element-plus/icons-vue'
+import { Upload, Download, ArrowDown, Document, UploadFilled, Search, Top, Bottom } from '@element-plus/icons-vue'
 import { providerAPI, configAPI } from '@/api'
 import type { ApiProvider, ApiModel } from '@/types'
 
@@ -276,6 +347,10 @@ const models = ref<ApiModel[]>([])
 const modelDialogVisible = ref(false)
 const isEditModel = ref(false)
 const testingModelId = ref<number | null>(null)
+const discoveredModels = ref<Array<{ id: string; name: string; max_tokens?: number | null }>>([])
+const discoveringModels = ref(false)
+const selectedDiscoveredModel = ref('')
+const resolvedModelMaxTokens = ref(128000)
 const modelFormData = ref({
   id: 0,
   provider_id: 0,
@@ -283,7 +358,11 @@ const modelFormData = ref({
   model: '',
   temperature: 0.7,
   max_tokens: 2000,
-  is_default: false
+  top_p: 0.9,
+  frequency_penalty: 0.0,
+  description: '',
+  is_default: false,
+  enabled: true
 })
 
 const providerTypeCount = computed(() => new Set(providers.value.map(provider => provider.provider_type)).size)
@@ -575,11 +654,19 @@ const handleDeleteProvider = async (provider: ApiProvider) => {
   }
 }
 
+const normalizeApiUrl = (url: string) => {
+  const trimmed = url.trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  if (trimmed.endsWith('/chat/completions')) return trimmed
+  return `${trimmed}/chat/completions`
+}
+
 const handleSubmitProvider = async () => {
   if (!providerFormData.value.name || !providerFormData.value.provider_type || !providerFormData.value.api_url) {
     ElMessage.warning('请填写完整信息')
     return
   }
+  providerFormData.value.api_url = normalizeApiUrl(providerFormData.value.api_url)
   try {
     if (isEditProvider.value) {
       const res = await providerAPI.update(providerFormData.value.id, providerFormData.value)
@@ -605,6 +692,9 @@ const handleCreateModel = () => {
     return
   }
   isEditModel.value = false
+  discoveredModels.value = []
+  selectedDiscoveredModel.value = ''
+  resolvedModelMaxTokens.value = 128000
   modelFormData.value = {
     id: 0,
     provider_id: providers.value[0]?.id || 0,
@@ -612,13 +702,20 @@ const handleCreateModel = () => {
     model: '',
     temperature: 0.7,
     max_tokens: 2000,
-    is_default: false
+    top_p: 0.9,
+    frequency_penalty: 0.0,
+    description: '',
+    is_default: false,
+    enabled: true
   }
   modelDialogVisible.value = true
 }
 
 const handleEditModel = (model: ApiModel) => {
   isEditModel.value = true
+  discoveredModels.value = []
+  selectedDiscoveredModel.value = ''
+  resolvedModelMaxTokens.value = 128000
   modelFormData.value = {
     id: model.id,
     provider_id: model.provider_id,
@@ -626,7 +723,11 @@ const handleEditModel = (model: ApiModel) => {
     model: model.model,
     temperature: model.temperature,
     max_tokens: model.max_tokens,
-    is_default: model.is_default === 1
+    top_p: model.top_p ?? 0.9,
+    frequency_penalty: model.frequency_penalty ?? 0.0,
+    description: model.description ?? '',
+    is_default: model.is_default === 1,
+    enabled: model.enabled !== 0
   }
   modelDialogVisible.value = true
 }
@@ -661,6 +762,120 @@ const handleTestModel = async (model: ApiModel) => {
   }
 }
 
+const handleDiscoverModels = async () => {
+  if (!modelFormData.value.provider_id) {
+    ElMessage.warning('请先选择服务商')
+    return
+  }
+  discoveringModels.value = true
+  discoveredModels.value = []
+  selectedDiscoveredModel.value = ''
+  try {
+    const res = await providerAPI.discoverModels(modelFormData.value.provider_id)
+    if (res.success && res.data && res.data.length > 0) {
+      discoveredModels.value = res.data
+      ElMessage.success(`成功获取 ${res.data.length} 个可用模型`)
+    } else {
+      ElMessage.warning('该服务商未返回可用模型列表')
+    }
+  } catch (error) {
+    ElMessage.error('获取模型列表失败，请检查 API 地址和密钥是否正确')
+  } finally {
+    discoveringModels.value = false
+  }
+}
+
+const KNOWN_MODEL_MAX_TOKENS: Record<string, number> = {
+  'gpt-4': 8192,
+  'gpt-4-turbo': 128000,
+  'gpt-4o': 128000,
+  'gpt-4o-mini': 128000,
+  'gpt-4-32k': 32768,
+  'gpt-3.5-turbo': 4096,
+  'gpt-3.5-turbo-16k': 16384,
+  'claude-3-opus': 200000,
+  'claude-3-sonnet': 200000,
+  'claude-3-haiku': 200000,
+  'claude-3.5-sonnet': 200000,
+  'claude-3.5-haiku': 200000,
+  'claude-3-opus-20240229': 200000,
+  'claude-3-sonnet-20240229': 200000,
+  'claude-3-haiku-20240307': 200000,
+  'deepseek-chat': 128000,
+  'deepseek-reasoner': 128000,
+  'deepseek-r1': 128000,
+  'qwen-turbo': 131072,
+  'qwen-plus': 131072,
+  'qwen-max': 32768,
+  'qwen-max-longcontext': 1048576,
+  'gemini-1.5-pro': 2097152,
+  'gemini-1.5-flash': 1048576,
+  'gemini-2.0-flash': 1048576,
+  'gemini-2.5-pro': 1048576,
+  'gemini-2.5-flash': 1048576,
+  'gemini-3-pro-preview': 1048576,
+  'gemini-3-flash-preview': 1048576,
+  'kimi-k2.5': 131072,
+  'glm-4': 131072,
+  'glm-5': 131072,
+  'llama-3-70b': 8192,
+  'llama-3-8b': 8192,
+  'mixtral-8x7b': 32768,
+  'mistral-large': 131072,
+  'mistral-small': 32768,
+  'command-r': 131072,
+  'command-r-plus': 131072
+}
+
+const resolveMaxTokens = (modelId: string, apiMaxTokens?: number | null) => {
+  if (apiMaxTokens != null) return apiMaxTokens
+  const lower = modelId.toLowerCase()
+  for (const [key, value] of Object.entries(KNOWN_MODEL_MAX_TOKENS)) {
+    if (lower.includes(key)) return value
+  }
+  return 2000
+}
+
+const onDiscoveredModelSelect = (modelId: string) => {
+  modelFormData.value.model = modelId
+  if (!modelFormData.value.name) {
+    modelFormData.value.name = modelId
+  }
+  const selected = discoveredModels.value.find(m => m.id === modelId)
+  const maxTokens = resolveMaxTokens(modelId, selected?.max_tokens)
+  modelFormData.value.max_tokens = maxTokens
+  resolvedModelMaxTokens.value = maxTokens
+}
+
+const handleToggleModel = async (model: ApiModel) => {
+  try {
+    const res = await configAPI.toggleModel(model.id)
+    if (res.success && res.data) {
+      model.enabled = res.data.enabled
+      ElMessage.success(res.data.enabled ? '已启用' : '已禁用')
+    }
+  } catch (error) {
+  }
+}
+
+const handleMoveModel = async (model: ApiModel, direction: number) => {
+  const currentIndex = models.value.findIndex(m => m.id === model.id)
+  if (currentIndex === -1) return
+  const newIndex = currentIndex + direction
+  if (newIndex < 0 || newIndex >= models.value.length) return
+
+  const reordered = [...models.value]
+  const [moved] = reordered.splice(currentIndex, 1)
+  reordered.splice(newIndex, 0, moved)
+
+  models.value = reordered
+  try {
+    await configAPI.reorderModels(reordered.map(m => m.id))
+  } catch (error) {
+    await fetchModels()
+  }
+}
+
 const handleSubmitModel = async () => {
   if (!modelFormData.value.provider_id || !modelFormData.value.name || !modelFormData.value.model) {
     ElMessage.warning('请填写完整信息')
@@ -669,7 +884,8 @@ const handleSubmitModel = async () => {
   try {
     const submitData = {
       ...modelFormData.value,
-      is_default: modelFormData.value.is_default ? 1 : 0
+      is_default: modelFormData.value.is_default ? 1 : 0,
+      enabled: modelFormData.value.enabled ? 1 : 0
     }
     if (isEditModel.value) {
       const res = await configAPI.update(modelFormData.value.id, submitData)
@@ -820,7 +1036,12 @@ const executeImport = async () => {
             model: model.model,
             temperature: model.temperature || 0.7,
             max_tokens: model.max_tokens || 2000,
-            is_default: model.is_default ? 1 : 0
+            top_p: model.top_p ?? 0.9,
+            frequency_penalty: model.frequency_penalty ?? 0.0,
+            description: model.description ?? '',
+            is_default: model.is_default ? 1 : 0,
+            enabled: model.enabled != null ? model.enabled : 1,
+            sort_order: model.sort_order ?? 0
           })
           if (res.success) {
             modelSuccessCount++
@@ -839,7 +1060,12 @@ const executeImport = async () => {
           model: model.model,
           temperature: model.temperature || 0.7,
           max_tokens: model.max_tokens || 2000,
-          is_default: model.is_default ? 1 : 0
+          top_p: model.top_p ?? 0.9,
+          frequency_penalty: model.frequency_penalty ?? 0.0,
+          description: model.description ?? '',
+          is_default: model.is_default ? 1 : 0,
+          enabled: model.enabled != null ? model.enabled : 1,
+          sort_order: model.sort_order ?? 0
         })
         if (res.success) {
           modelSuccessCount++
@@ -874,7 +1100,12 @@ const executeExportAll = () => {
       provider_name: m.provider_name,
       temperature: m.temperature,
       max_tokens: m.max_tokens,
-      is_default: m.is_default
+      top_p: m.top_p,
+      frequency_penalty: m.frequency_penalty,
+      description: m.description,
+      is_default: m.is_default,
+      enabled: m.enabled,
+      sort_order: m.sort_order
     }))
   }
 

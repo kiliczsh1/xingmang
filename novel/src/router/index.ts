@@ -32,7 +32,7 @@ const router = createRouter({
           path: 'creative',
           name: 'Creative',
           component: () => import('@/views/Creative.vue'),
-          meta: { title: '创意区' }
+          meta: { title: '抽卡区' }
         },
         {
           path: 'workflow',

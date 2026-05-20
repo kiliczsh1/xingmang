@@ -209,6 +209,8 @@ router.post('/chat', async (req, res) => {
       messages: chatMessages,
       temperature: config.temperature,
       max_tokens: maxTokens,
+      top_p: config.top_p ?? 0.9,
+      frequency_penalty: config.frequency_penalty ?? 0.0,
       stream: true
     };
 

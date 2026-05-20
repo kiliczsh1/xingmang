@@ -7,7 +7,9 @@ const db = require('../database/db');
 const router = express.Router();
 
 const MAX_PDF_SIZE = 20 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const PDF_URL_PREFIX = '/api/uploads/experience-shares/';
+const IMAGE_URL_PREFIX = '/api/uploads/experience-shares/covers/';
 let pdfJsLoaderPromise = null;
 
 const loadPdfJs = async () => {
@@ -139,6 +141,84 @@ const savePdfAttachment = pdfFile => {
   };
 };
 
+const decodeBase64Image = (value = '') => {
+  const cleanBase64 = String(value).replace(/^data:image\/[a-zA-Z+]+;base64,/i, '');
+  return Buffer.from(cleanBase64, 'base64');
+};
+
+const sanitizeImageFileName = (fileName = 'cover.jpg') => {
+  const ext = path.extname(fileName) || '.jpg';
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  const finalExt = allowedExts.includes(ext.toLowerCase()) ? ext.toLowerCase() : '.jpg';
+  const baseName = path.basename(fileName, ext).replace(/[^\w\u4e00-\u9fa5.-]+/g, '_').slice(0, 80) || 'cover';
+  return `${baseName}${finalExt}`;
+};
+
+const validateImagePayload = imageFile => {
+  if (!imageFile || typeof imageFile !== 'object') {
+    throw new Error('请先选择图片文件');
+  }
+
+  const fileName = String(imageFile.name || '').trim();
+  if (!fileName) {
+    throw new Error('图片文件名无效');
+  }
+
+  const fileSize = Number(imageFile.size || 0);
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    throw new Error('图片文件大小无效');
+  }
+
+  if (fileSize > MAX_IMAGE_SIZE) {
+    throw new Error(`图片大小不能超过 ${Math.floor(MAX_IMAGE_SIZE / 1024 / 1024)}MB`);
+  }
+
+  if (!imageFile.data_base64 || typeof imageFile.data_base64 !== 'string') {
+    throw new Error('图片文件内容不能为空');
+  }
+};
+
+const getCoverUploadDir = () => {
+  const dir = path.join(getExperienceShareUploadDir(), 'covers');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+};
+
+const saveCoverImage = imageFile => {
+  validateImagePayload(imageFile);
+
+  const buffer = decodeBase64Image(imageFile.data_base64);
+  const safeOriginalName = sanitizeImageFileName(imageFile.name);
+  const storedFileName = `${Date.now()}-${randomUUID()}-${safeOriginalName}`;
+  const uploadDir = getCoverUploadDir();
+  const absolutePath = path.join(uploadDir, storedFileName);
+
+  fs.writeFileSync(absolutePath, buffer);
+
+  return {
+    cover_url: `${IMAGE_URL_PREFIX}${storedFileName}`,
+    cover_file_name: imageFile.name,
+    cover_file_size: Number(imageFile.size || buffer.length)
+  };
+};
+
+const getCoverAbsolutePathFromUrl = fileUrl => {
+  if (!fileUrl || typeof fileUrl !== 'string' || !fileUrl.startsWith(IMAGE_URL_PREFIX)) {
+    return null;
+  }
+
+  const relativeName = fileUrl.slice(IMAGE_URL_PREFIX.length);
+  if (!relativeName) return null;
+  return path.join(getCoverUploadDir(), path.basename(relativeName));
+};
+
+const removeUploadedCover = fileUrl => {
+  const targetPath = getCoverAbsolutePathFromUrl(fileUrl);
+  if (targetPath && fs.existsSync(targetPath)) {
+    fs.unlinkSync(targetPath);
+  }
+};
+
 const extractTextFromPageContent = textContent => {
   if (!textContent || !Array.isArray(textContent.items)) {
     return '';
@@ -228,6 +308,28 @@ router.get('/', (req, res) => {
   }
 });
 
+router.get('/export', (req, res) => {
+  try {
+    const rows = db
+      .prepare('SELECT * FROM experience_shares ORDER BY datetime(created_at) DESC, id DESC')
+      .all()
+      .map(normalizeShare);
+
+    const exportData = rows.map(item => ({
+      title: item.title,
+      summary: item.summary,
+      content: item.content,
+      content_render_mode: item.content_render_mode,
+      author_name: item.author_name,
+      create_type: item.create_type
+    }));
+
+    res.json({ success: true, data: exportData });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM experience_shares WHERE id = ?').get(req.params.id);
@@ -251,6 +353,70 @@ router.post('/import-pdf', async (req, res) => {
   }
 });
 
+router.post('/import', (req, res) => {
+  try {
+    const { cards } = req.body || {};
+
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return res.status(400).json({ success: false, message: '导入数据格式错误或为空' });
+    }
+
+    const insertStmt = db.prepare(`
+      INSERT INTO experience_shares (
+        title,
+        summary,
+        content,
+        content_render_mode,
+        cover_url,
+        pdf_file_url,
+        pdf_file_name,
+        pdf_file_size,
+        create_type,
+        author_id,
+        author_name,
+        status,
+        pdf_parse_status,
+        pdf_parse_result,
+        source_file_name
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let importedCount = 0;
+
+    for (const card of cards) {
+      const title = String(card.title || '').trim();
+      if (!title) continue;
+
+      const nextCreateType = card.create_type === 'pdf_import' ? 'pdf_import' : 'manual';
+      const nextRenderMode = card.content_render_mode === 'html' ? 'html' : 'markdown';
+
+      insertStmt.run(
+        title,
+        String(card.summary || '').trim() || null,
+        String(card.content || '').trim(),
+        nextRenderMode,
+        null,
+        null,
+        null,
+        0,
+        nextCreateType,
+        null,
+        String(card.author_name || '').trim() || '星芒用户',
+        'published',
+        null,
+        null,
+        null
+      );
+
+      importedCount += 1;
+    }
+
+    res.json({ success: true, message: `成功导入 ${importedCount} 张经验卡片` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.post('/', (req, res) => {
   try {
     const {
@@ -262,11 +428,13 @@ router.post('/', (req, res) => {
       create_type,
       author_id,
       author_name,
+      version,
       status,
       pdf_parse_status,
       pdf_parse_result,
       source_file_name,
-      pdf_file
+      pdf_file,
+      cover_image
     } = req.body || {};
 
     if (!String(title || '').trim()) {
@@ -290,6 +458,13 @@ router.post('/', (req, res) => {
       pdfMeta = savePdfAttachment(pdf_file);
     }
 
+    let finalCoverUrl = String(cover_url || '').trim() || null;
+
+    if (cover_image) {
+      const coverMeta = saveCoverImage(cover_image);
+      finalCoverUrl = coverMeta.cover_url;
+    }
+
     const result = db.prepare(`
       INSERT INTO experience_shares (
         title,
@@ -303,23 +478,25 @@ router.post('/', (req, res) => {
         create_type,
         author_id,
         author_name,
+        version,
         status,
         pdf_parse_status,
         pdf_parse_result,
         source_file_name
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       String(title).trim(),
       String(summary || '').trim() || null,
       String(content || '').trim(),
       nextRenderMode,
-      String(cover_url || '').trim() || null,
+      finalCoverUrl,
       pdfMeta.pdf_file_url,
       pdfMeta.pdf_file_name,
       pdfMeta.pdf_file_size,
       nextCreateType,
       author_id || null,
       String(author_name || '').trim() || '星芒用户',
+      String(version || '').trim() || null,
       String(status || '').trim() || 'published',
       String(pdf_parse_status || '').trim() || null,
       String(pdf_parse_result || '').trim() || null,
@@ -350,12 +527,15 @@ router.put('/:id', (req, res) => {
       create_type,
       author_id,
       author_name,
+      version,
       status,
       pdf_parse_status,
       pdf_parse_result,
       source_file_name,
       pdf_file,
-      remove_pdf
+      remove_pdf,
+      cover_image,
+      remove_cover
     } = req.body || {};
 
     if (!String(title || '').trim()) {
@@ -391,6 +571,23 @@ router.put('/:id', (req, res) => {
       pdfMeta = nextPdfMeta;
     }
 
+    let finalCoverUrl = existing.cover_url;
+
+    if (remove_cover) {
+      removeUploadedCover(existing.cover_url);
+      finalCoverUrl = null;
+    }
+
+    if (cover_image) {
+      console.log('[experienceShares] PUT 收到封面图:', { name: cover_image.name, size: cover_image.size, base64Len: cover_image.data_base64?.length });
+      removeUploadedCover(existing.cover_url);
+      const coverMeta = saveCoverImage(cover_image);
+      finalCoverUrl = coverMeta.cover_url;
+      console.log('[experienceShares] 封面图已更新:', finalCoverUrl);
+    } else if (!remove_cover && cover_url !== undefined) {
+      finalCoverUrl = String(cover_url || '').trim() || null;
+    }
+
     db.prepare(`
       UPDATE experience_shares
       SET
@@ -405,6 +602,7 @@ router.put('/:id', (req, res) => {
         create_type = ?,
         author_id = ?,
         author_name = ?,
+        version = ?,
         status = ?,
         pdf_parse_status = ?,
         pdf_parse_result = ?,
@@ -416,13 +614,14 @@ router.put('/:id', (req, res) => {
       String(summary || '').trim() || null,
       String(content || '').trim(),
       nextRenderMode,
-      String(cover_url || '').trim() || null,
+      finalCoverUrl,
       pdfMeta.pdf_file_url,
       pdfMeta.pdf_file_name,
       Number(pdfMeta.pdf_file_size || 0),
       nextCreateType,
       author_id || null,
       String(author_name || existing.author_name || '').trim() || '星芒用户',
+      String(version || existing.version || '').trim() || null,
       String(status || existing.status || '').trim() || 'published',
       String(pdf_parse_status || existing.pdf_parse_status || '').trim() || null,
       String(pdf_parse_result || existing.pdf_parse_result || '').trim() || null,
@@ -446,6 +645,7 @@ router.delete('/:id', (req, res) => {
     }
 
     removeUploadedPdf(existing.pdf_file_url);
+    removeUploadedCover(existing.cover_url);
     db.prepare('DELETE FROM experience_shares WHERE id = ?').run(req.params.id);
 
     res.json({ success: true, message: '删除成功' });

@@ -58,7 +58,7 @@
         >
           <div class="history-item-card">
             <div class="history-item-header">
-              <div class="history-source-badge" :class="record.sourceType">
+              <div class="history-source-badge" :class="record.sourceType" style="display: none;">
                 <el-icon><component :is="record.sourceIcon" /></el-icon>
                 <span>{{ record.sourceName }}</span>
               </div>
@@ -186,14 +186,6 @@
     destroy-on-close
   >
     <div class="history-detail-content" v-if="selectedRecord">
-      <div class="detail-header">
-        <div class="detail-source-badge" :class="selectedRecord.sourceType">
-          <el-icon :size="24"><component :is="selectedRecord.sourceIcon" /></el-icon>
-          <span>{{ selectedRecord.sourceName }}</span>
-        </div>
-        <span class="detail-time">{{ formatTimestamp(selectedRecord.timestamp) }}</span>
-      </div>
-
       <div class="conversation-messages" v-if="selectedRecord.messages && selectedRecord.messages.length > 0">
         <template v-for="(msg, msgIndex) in selectedRecord.messages" :key="msgIndex">
           <div
@@ -210,6 +202,28 @@
                 {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '提示词' }}
               </span>
               <span class="message-time">{{ formatTimestamp(msg.timestamp) }}</span>
+            </div>
+            <div v-if="msg.role === 'user' && selectedRecord.originalRecord?.relatedContext?.length > 0 && msgIndex === selectedRecord.messages.findIndex(m => m.role === 'user')" class="message-related-context">
+              <div class="related-context-inline">
+                <el-icon class="related-icon"><Connection /></el-icon>
+                <span class="related-label">关联内容</span>
+              </div>
+              <div class="related-context-list">
+                <div v-for="(item, idx) in selectedRecord.originalRecord.relatedContext" :key="idx" class="related-item">
+                  <div class="related-item-header">
+                    <el-tag 
+                      :type="item.type === 'book' ? 'primary' : item.type === 'chapter' ? 'success' : item.type === 'memo' ? 'warning' : 'info'"
+                      size="small"
+                    >
+                      {{ item.type === 'book' ? '作品' : item.type === 'chapter' ? '章节' : item.type === 'memo' ? '备忘录' : item.type === 'character' ? '角色' : item.type }}
+                    </el-tag>
+                    <span class="related-item-title">{{ item.title }}</span>
+                  </div>
+                  <div v-if="item.content" class="related-item-content">
+                    <MarkdownRenderer :content="item.content" />
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="message-content">
               <MarkdownRenderer :content="msg.content" />
@@ -275,54 +289,107 @@
             type="primary" 
             @click="isHistoryExpanded = true"
             size="small"
+            class="expand-btn"
           >
-            <el-icon><Folder /></el-icon>
+            <el-icon><ArrowDown /></el-icon>
             展开 {{ continueMessages.length - 2 }} 条历史消息
           </el-button>
         </div>
         
         <template v-if="isHistoryExpanded">
-          <div
-            v-for="(msg, msgIndex) in continueMessages"
-            :key="msgIndex"
-            :class="['continue-message-bubble', msg.role, { 'history-message': msgIndex < continueMessages.length - 2 }]"
-          >
-            <div class="continue-message-sender">
-              <el-icon class="sender-icon">
-                <User v-if="msg.role === 'user'" />
-                <ChatDotRound v-if="msg.role === 'assistant'" />
-                <Setting v-if="msg.role === 'system'" />
-              </el-icon>
-              <span class="sender-name">
-                {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统' }}
-              </span>
+          <transition-group name="message-slide">
+            <div
+              v-for="(msg, msgIndex) in continueMessages"
+              :key="msgIndex"
+              :class="['continue-message-bubble', msg.role, { 'history-message': msgIndex < continueMessages.length - 2 }]"
+            >
+              <div class="continue-message-sender">
+                <el-icon class="sender-icon">
+                  <User v-if="msg.role === 'user'" />
+                  <ChatDotRound v-if="msg.role === 'assistant'" />
+                  <Setting v-if="msg.role === 'system'" />
+                </el-icon>
+                <span class="sender-name">
+                  {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统' }}
+                </span>
+              </div>
+              <div v-if="msg.role === 'user' && currentContinueRecord?.originalRecord?.relatedContext?.length > 0 && msgIndex === continueMessages.findIndex(m => m.role === 'user')" class="message-related-context">
+                <div class="related-context-inline">
+                  <el-icon class="related-icon"><Connection /></el-icon>
+                  <span class="related-label">关联内容</span>
+                </div>
+                <div class="related-context-list">
+                  <div v-for="(item, idx) in currentContinueRecord?.originalRecord?.relatedContext || []" :key="idx" class="related-item">
+                    <div class="related-item-header">
+                      <el-tag 
+                        :type="item.type === 'book' ? 'primary' : item.type === 'chapter' ? 'success' : item.type === 'memo' ? 'warning' : 'info'"
+                        size="small"
+                      >
+                        {{ item.type === 'book' ? '作品' : item.type === 'chapter' ? '章节' : item.type === 'memo' ? '备忘录' : item.type === 'character' ? '角色' : item.type }}
+                      </el-tag>
+                      <span class="related-item-title">{{ item.title }}</span>
+                    </div>
+                    <div v-if="item.content" class="related-item-content">
+                      <MarkdownRenderer :content="item.content" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="continue-message-content">
+                <MarkdownRenderer :content="msg.content" />
+              </div>
             </div>
-            <div class="continue-message-content">
-              <MarkdownRenderer :content="msg.content" />
-            </div>
-          </div>
+          </transition-group>
         </template>
         
         <template v-else>
-          <div
-            v-for="(msg, msgIndex) in continueMessages.slice(-2)"
-            :key="continueMessages.length - 2 + msgIndex"
-            :class="['continue-message-bubble', msg.role]"
-          >
-            <div class="continue-message-sender">
-              <el-icon class="sender-icon">
-                <User v-if="msg.role === 'user'" />
-                <ChatDotRound v-if="msg.role === 'assistant'" />
-                <Setting v-if="msg.role === 'system'" />
-              </el-icon>
-              <span class="sender-name">
-                {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统' }}
-              </span>
+          <transition-group name="message-slide">
+            <div
+              v-for="(msg, msgIndex) in continueMessages.slice(-2)"
+              :key="continueMessages.length - 2 + msgIndex"
+              :class="['continue-message-bubble', msg.role]"
+            >
+              <div class="continue-message-sender">
+                <el-icon class="sender-icon">
+                  <User v-if="msg.role === 'user'" />
+                  <ChatDotRound v-if="msg.role === 'assistant'" />
+                  <Setting v-if="msg.role === 'system'" />
+                </el-icon>
+                <span class="sender-name">
+                  {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统' }}
+                </span>
+              </div>
+              <div v-if="msg.role === 'user' && currentContinueRecord?.originalRecord?.relatedContext?.length > 0 && msgIndex === continueMessages.slice(-2).findIndex(m => m.role === 'user')" class="message-related-context">
+                <div class="related-context-inline">
+                  <el-icon class="related-icon"><Connection /></el-icon>
+                  <span class="related-label">关联内容</span>
+                  <el-button text type="primary" size="small" @click="isHistoryExpanded = true" class="inline-expand-btn">
+                    <el-icon><ArrowDown /></el-icon>
+                    展开完整内容
+                  </el-button>
+                </div>
+                <div class="related-context-list">
+                  <div v-for="(item, idx) in currentContinueRecord?.originalRecord?.relatedContext || []" :key="idx" class="related-item">
+                    <div class="related-item-header">
+                      <el-tag 
+                        :type="item.type === 'book' ? 'primary' : item.type === 'chapter' ? 'success' : item.type === 'memo' ? 'warning' : 'info'"
+                        size="small"
+                      >
+                        {{ item.type === 'book' ? '作品' : item.type === 'chapter' ? '章节' : item.type === 'memo' ? '备忘录' : item.type === 'character' ? '角色' : item.type }}
+                      </el-tag>
+                      <span class="related-item-title">{{ item.title }}</span>
+                    </div>
+                    <div v-if="item.content" class="related-item-content">
+                      <MarkdownRenderer :content="item.content" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="continue-message-content">
+                <MarkdownRenderer :content="msg.content" />
+              </div>
             </div>
-            <div class="continue-message-content">
-              <MarkdownRenderer :content="msg.content" />
-            </div>
-          </div>
+          </transition-group>
         </template>
         
         <div v-if="isGenerating" class="continue-message-bubble assistant">
@@ -384,7 +451,8 @@ import {
   User,
   ChatDotRound,
   Setting,
-  Connection
+  Connection,
+  ArrowDown
 } from '@element-plus/icons-vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 
@@ -618,7 +686,7 @@ const loadAvailableModels = async () => {
   try {
     const res = await configAPI.getAll()
     if (res.success && res.data) {
-      availableModels.value = res.data
+      availableModels.value = res.data.filter(m => m.enabled !== 0)
       const defaultModel = res.data.find((m: any) => m.is_default === 1)
       if (defaultModel) {
         selectedModelId.value = defaultModel.id
@@ -1380,6 +1448,78 @@ const handleClearAllHistory = () => {
   overflow-y: auto;
 }
 
+.message-related-context {
+  margin-bottom: 8px;
+}
+
+.related-context-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.related-icon {
+  color: #409eff;
+  font-size: 12px;
+}
+
+.related-label {
+  font-size: 11px;
+  color: #909399;
+  font-weight: 500;
+}
+
+.related-context-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.related-item {
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.related-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.related-item-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #606266;
+}
+
+.related-item-content {
+  font-size: 12px;
+  color: #606266;
+  line-height: 1.5;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.related-item-content :deep(p) {
+  margin: 4px 0;
+}
+
+.related-item-content :deep(ul),
+.related-item-content :deep(ol) {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.related-tag {
+  font-size: 12px;
+}
+
 .message-bubble {
   border-radius: 16px;
   padding: 16px 20px;
@@ -1531,6 +1671,30 @@ const handleClearAllHistory = () => {
 
 :root[data-theme='dark'] .conversation-messages {
   background: rgba(15, 23, 42, 0.95);
+}
+
+:root[data-theme='dark'] .related-context-inline {
+  background: rgba(51, 65, 85, 0.3);
+}
+
+:root[data-theme='dark'] .related-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .related-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .related-item {
+  background: rgba(51, 65, 85, 0.3);
+}
+
+:root[data-theme='dark'] .related-item-title {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .related-item-content {
+  color: #9ca3af;
 }
 
 :root[data-theme='dark'] .message-bubble.user {
@@ -1735,25 +1899,87 @@ const handleClearAllHistory = () => {
 
 .history-collapsed-hint {
   text-align: center;
-  padding: 8px 0;
-  margin-bottom: 8px;
+  padding: 12px 0;
+  margin-bottom: 12px;
+  position: relative;
 }
 
-.history-collapsed-hint .el-button {
+.history-collapsed-hint::before,
+.history-collapsed-hint::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #e5e7eb, transparent);
+}
+
+.history-collapsed-hint::before {
+  left: 0;
+}
+
+.history-collapsed-hint::after {
+  right: 0;
+}
+
+.expand-btn {
   font-size: 13px;
   color: #667eea;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: rgba(102, 126, 234, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 1;
 }
 
-.history-collapsed-hint .el-button:hover {
+.expand-btn:hover {
+  color: #764ba2;
+  background: rgba(102, 126, 234, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.inline-expand-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  color: #667eea;
+  transition: all 0.3s ease;
+}
+
+.inline-expand-btn:hover {
   color: #764ba2;
 }
 
 .history-message {
-  opacity: 0.7;
+  opacity: 0.75;
+  transition: all 0.3s ease;
 }
 
-.history-message .continue-message-content {
-  background: rgba(255, 255, 255, 0.8);
+.history-message:hover {
+  opacity: 1;
+}
+
+.message-slide-enter-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-slide-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.message-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.message-slide-move {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .continue-message-bubble {
@@ -1954,16 +2180,36 @@ const handleClearAllHistory = () => {
   background: rgba(15, 23, 42, 0.95);
 }
 
-:root[data-theme='dark'] .history-collapsed-hint .el-button {
+:root[data-theme='dark'] .history-collapsed-hint::before,
+:root[data-theme='dark'] .history-collapsed-hint::after {
+  background: linear-gradient(to right, transparent, rgba(71, 85, 105, 0.6), transparent);
+}
+
+:root[data-theme='dark'] .expand-btn {
+  color: #5eead4;
+  background: rgba(94, 234, 212, 0.08);
+}
+
+:root[data-theme='dark'] .expand-btn:hover {
+  color: #2dd4bf;
+  background: rgba(94, 234, 212, 0.15);
+  box-shadow: 0 2px 8px rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .inline-expand-btn {
   color: #5eead4;
 }
 
-:root[data-theme='dark'] .history-collapsed-hint .el-button:hover {
+:root[data-theme='dark'] .inline-expand-btn:hover {
   color: #2dd4bf;
 }
 
-:root[data-theme='dark'] .history-message .continue-message-content {
-  background: rgba(51, 65, 85, 0.5);
+:root[data-theme='dark'] .history-message {
+  opacity: 0.75;
+}
+
+:root[data-theme='dark'] .history-message:hover {
+  opacity: 1;
 }
 
 :root[data-theme='dark'] .continue-message-bubble.user {

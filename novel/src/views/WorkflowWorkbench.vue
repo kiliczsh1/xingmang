@@ -3132,7 +3132,7 @@ const fetchWorkflowResources = async () => {
   try {
     const [modelsResponse, promptsResponse] = await Promise.all([configAPI.getAll(), promptAPI.getAll()])
 
-    availableModels.value = modelsResponse.success && modelsResponse.data ? modelsResponse.data : []
+    availableModels.value = modelsResponse.success && modelsResponse.data ? modelsResponse.data.filter(m => m.enabled !== 0) : []
     availablePrompts.value = promptsResponse.success && promptsResponse.data ? promptsResponse.data : []
   } catch {
     availableModels.value = []

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿<template>
   <div class="write-container">
     <!-- 顶部工具栏 -->
     <div class="toolbar" :style="{ height: toolbarHeight + 'px' }">
@@ -90,6 +90,15 @@
                     <component :is="isDescending ? 'Switch' : 'Sort'" />
                   </el-icon>
                 </el-button>
+                <el-button 
+                  size="small" 
+                  @click="openAutoSplitDialog"
+                  class="icon-btn auto-split-btn"
+                  title="自动分卷"
+                  :disabled="unchapteredChapters.length === 0"
+                >
+                  <el-icon><Collection /></el-icon>
+                </el-button>
               </div>
             </div>
             <div class="catalog-list">
@@ -97,128 +106,123 @@
                 <div class="empty-catalog">暂无章节</div>
               </template>
               
-              <!-- 未分卷的章节（放在最前面） -->
-              <div v-if="unchapteredChapters.length > 0" class="volume-container">
-                <div 
-                  class="volume-item" 
-                  @click="toggleVolume('unchaptered')"
-                >
-                  <el-icon class="volume-arrow" :class="{ expanded: expandedVolumeId === 'unchaptered' }">
-                    <ArrowRight />
-                  </el-icon>
-                  <span class="volume-title" style="display: none;">未分卷章节</span>
-                  <span class="volume-title">0 号分卷</span>
-                </div>
-                <div class="chapter-list" v-show="expandedVolumeId === 'unchaptered'">
-                  <div
-                    v-for="chapter in unchapteredChapters"
-                    :key="chapter.id"
-                    :class="['catalog-item', { active: currentChapter?.id === chapter.id }]"
-                    @click="selectChapter(chapter)"
-                  >
-                    <div class="catalog-main">
-                      <div class="catalog-title-row">
-                        <span class="catalog-title">{{ chapter.title }}</span>
-                        <span class="catalog-word-count">{{ getContentLength(chapter.content) }} 字</span>
+              <div v-else class="file-tree">
+                <!-- 未分卷的章节 -->
+                <div v-if="unchapteredChapters.length > 0" class="tree-node">
+                  <div class="tree-folder" @click="toggleVolume('unchaptered')">
+                    <el-icon class="tree-arrow" :class="{ expanded: expandedVolumeId === 'unchaptered' }">
+                      <ArrowRight />
+                    </el-icon>
+                    <el-icon class="tree-folder-icon"><Folder /></el-icon>
+                    <span class="tree-folder-name">未分卷章节</span>
+                    <span class="tree-folder-count">{{ unchapteredChapters.length }}</span>
+                  </div>
+                  <div class="tree-children" v-show="expandedVolumeId === 'unchaptered'">
+                    <div
+                      v-for="chapter in unchapteredChapters"
+                      :key="chapter.id"
+                      :class="['tree-node-file', { active: currentChapter?.id === chapter.id }]"
+                      @click="selectChapter(chapter)"
+                    >
+                      <div class="tree-node-file-body">
+                        <el-icon class="tree-file-icon"><Document /></el-icon>
+                        <div class="tree-file-main">
+                          <div class="tree-file-top-row">
+                            <span class="tree-file-title">{{ chapter.title }}</span>
+                            <span class="tree-file-badge">{{ getContentLength(chapter.content) }} 字</span>
+                          </div>
+                          <div class="tree-file-sub-row">
+                            <span class="tree-file-meta">{{ formatTime(chapter.updated_at) }}</span>
+                            <span class="tree-file-meta">{{ chapter.summary?.trim() ? '有概要' : '无概要' }}</span>
+                          </div>
+                        </div>
+                        <div class="tree-file-actions" @click.stop>
+                          <el-tooltip :content="chapter.summary?.trim() ? '编辑概要' : '概要储存'" placement="top">
+                            <button
+                              type="button"
+                              :class="['tree-file-act-btn', 'tree-summary-btn', { filled: !!chapter.summary?.trim() }]"
+                              @click.stop="saveChapterSummary(chapter)"
+                            >
+                              <el-icon><Document /></el-icon>
+                            </button>
+                          </el-tooltip>
+                          <el-tooltip content="删除章节" placement="top">
+                            <button
+                              type="button"
+                              class="tree-file-act-btn tree-delete-btn"
+                              @click.stop="deleteChapter(chapter)"
+                            >
+                              <el-icon><Delete /></el-icon>
+                            </button>
+                          </el-tooltip>
+                        </div>
                       </div>
-                      <div class="catalog-meta-row">
-                        <span class="catalog-meta">{{ formatTime(chapter.updated_at) }}</span>
-                        <span class="catalog-meta">{{ chapter.summary?.trim() ? '有概要' : '未写概要' }}</span>
-                      </div>
-                    </div>
-                    <div class="catalog-actions" @click.stop>
-                      <el-tooltip :content="chapter.summary?.trim() ? '编辑概要' : '概要储存'" placement="top">
-                        <button
-                          type="button"
-                          :class="['catalog-action-btn', 'summary-action-btn', { filled: !!chapter.summary?.trim() }]"
-                          @click.stop="saveChapterSummary(chapter)"
-                        >
-                          <el-icon><Document /></el-icon>
-                        </button>
-                      </el-tooltip>
-                      <el-tooltip content="删除章节" placement="top">
-                        <button
-                          type="button"
-                          class="catalog-action-btn delete-action-btn"
-                          @click.stop="deleteChapter(chapter)"
-                        >
-                          <el-icon><Delete /></el-icon>
-                        </button>
-                      </el-tooltip>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              <!-- 分卷列表 -->
-              <div
-                v-for="volume in volumesWithChapters"
-                :key="volume.id"
-                class="volume-container"
-              >
-                <div 
-                  class="volume-item" 
-                  @click="toggleVolume(volume.id)"
+
+                <!-- 分卷列表 -->
+                <div
+                  v-for="volume in volumesWithChapters"
+                  :key="volume.id"
+                  class="tree-node"
                 >
-                  <el-icon class="volume-arrow" :class="{ expanded: expandedVolumeId === volume.id }">
-                    <ArrowRight />
-                  </el-icon>
-                  <span class="volume-title">{{ volume.title }}</span>
-                  <div class="volume-actions" @click.stop>
-                    <el-button 
-                      size="small" 
-                      text 
-                      @click="editVolume(volume)"
-                      v-if="expandedVolumeId === volume.id"
-                    >
-                      <el-icon><Edit /></el-icon>
-                    </el-button>
-                    <el-button 
-                      size="small" 
-                      text 
-                      @click="deleteVolume(volume)"
-                      v-if="expandedVolumeId === volume.id"
-                    >
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
-                  </div>
-                </div>
-                <div class="chapter-list" v-show="expandedVolumeId === volume.id">
-                  <div
-                    v-for="chapter in volume.chapters"
-                    :key="chapter.id"
-                    :class="['catalog-item', { active: currentChapter?.id === chapter.id }]"
-                    @click="selectChapter(chapter)"
-                  >
-                    <div class="catalog-main">
-                      <div class="catalog-title-row">
-                        <span class="catalog-title">{{ chapter.title }}</span>
-                        <span class="catalog-word-count">{{ getContentLength(chapter.content) }} 字</span>
-                      </div>
-                      <div class="catalog-meta-row">
-                        <span class="catalog-meta">{{ formatTime(chapter.updated_at) }}</span>
-                        <span class="catalog-meta">{{ chapter.summary?.trim() ? '有概要' : '未写概要' }}</span>
-                      </div>
+                  <div class="tree-folder" @click="toggleVolume(volume.id)">
+                    <el-icon class="tree-arrow" :class="{ expanded: expandedVolumeId === volume.id }">
+                      <ArrowRight />
+                    </el-icon>
+                    <el-icon class="tree-folder-icon"><Folder /></el-icon>
+                    <span class="tree-folder-name">{{ volume.title }}</span>
+                    <span class="tree-folder-count">{{ volume.chapters.length }}</span>
+                    <div class="tree-folder-actions" @click.stop>
+                      <button type="button" class="tree-folder-act-btn" @click="editVolume(volume)" v-if="expandedVolumeId === volume.id" title="编辑分卷">
+                        <el-icon><Edit /></el-icon>
+                      </button>
+                      <button type="button" class="tree-folder-act-btn tree-folder-act-danger" @click="deleteVolume(volume)" v-if="expandedVolumeId === volume.id" title="删除分卷">
+                        <el-icon><Delete /></el-icon>
+                      </button>
                     </div>
-                    <div class="catalog-actions" @click.stop>
-                      <el-tooltip :content="chapter.summary?.trim() ? '编辑概要' : '概要储存'" placement="top">
-                        <button
-                          type="button"
-                          :class="['catalog-action-btn', 'summary-action-btn', { filled: !!chapter.summary?.trim() }]"
-                          @click.stop="saveChapterSummary(chapter)"
-                        >
-                          <el-icon><Document /></el-icon>
-                        </button>
-                      </el-tooltip>
-                      <el-tooltip content="删除章节" placement="top">
-                        <button
-                          type="button"
-                          class="catalog-action-btn delete-action-btn"
-                          @click.stop="deleteChapter(chapter)"
-                        >
-                          <el-icon><Delete /></el-icon>
-                        </button>
-                      </el-tooltip>
+                  </div>
+                  <div class="tree-children" v-show="expandedVolumeId === volume.id">
+                    <div
+                      v-for="chapter in volume.chapters"
+                      :key="chapter.id"
+                      :class="['tree-node-file', { active: currentChapter?.id === chapter.id }]"
+                      @click="selectChapter(chapter)"
+                    >
+                      <div class="tree-node-file-body">
+                        <el-icon class="tree-file-icon"><Document /></el-icon>
+                        <div class="tree-file-main">
+                          <div class="tree-file-top-row">
+                            <span class="tree-file-title">{{ chapter.title }}</span>
+                            <span class="tree-file-badge">{{ getContentLength(chapter.content) }} 字</span>
+                          </div>
+                          <div class="tree-file-sub-row">
+                            <span class="tree-file-meta">{{ formatTime(chapter.updated_at) }}</span>
+                            <span class="tree-file-meta">{{ chapter.summary?.trim() ? '有概要' : '无概要' }}</span>
+                          </div>
+                        </div>
+                        <div class="tree-file-actions" @click.stop>
+                          <el-tooltip :content="chapter.summary?.trim() ? '编辑概要' : '概要储存'" placement="top">
+                            <button
+                              type="button"
+                              :class="['tree-file-act-btn', 'tree-summary-btn', { filled: !!chapter.summary?.trim() }]"
+                              @click.stop="saveChapterSummary(chapter)"
+                            >
+                              <el-icon><Document /></el-icon>
+                            </button>
+                          </el-tooltip>
+                          <el-tooltip content="删除章节" placement="top">
+                            <button
+                              type="button"
+                              class="tree-file-act-btn tree-delete-btn"
+                              @click.stop="deleteChapter(chapter)"
+                            >
+                              <el-icon><Delete /></el-icon>
+                            </button>
+                          </el-tooltip>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -249,6 +253,20 @@
                 class="chapter-title"
                 @blur="saveChapter"
               />
+              <el-select
+                v-model="fontFamily"
+                class="font-family-select"
+                placeholder="字体"
+                size="small"
+                @change="saveFontFamily"
+              >
+                <el-option
+                  v-for="font in fontOptions"
+                  :key="font.value"
+                  :label="font.label"
+                  :value="font.value"
+                />
+              </el-select>
               <span class="word-count-inline">
                 {{ getContentLength(currentChapter.content) }} 字
                 <span v-if="selectedTextLength > 0" class="selected-count">
@@ -261,6 +279,7 @@
               v-model="currentChapter.content"
               placeholder="开始创作..."
               class="chapter-content"
+              :style="{ fontFamily: fontFamily }"
               @blur="saveChapter"
             />
           </div>
@@ -274,6 +293,20 @@
                 class="chapter-title"
                 @blur="saveMemo"
               />
+              <el-select
+                v-model="fontFamily"
+                class="font-family-select"
+                placeholder="字体"
+                size="small"
+                @change="saveFontFamily"
+              >
+                <el-option
+                  v-for="font in fontOptions"
+                  :key="font.value"
+                  :label="font.label"
+                  :value="font.value"
+                />
+              </el-select>
               <span class="word-count-inline">
                 {{ getContentLength(currentMemo.content) }} 字
                 <span v-if="selectedTextLength > 0" class="selected-count">
@@ -287,7 +320,7 @@
               type="textarea"
               placeholder="记录你的想法..."
               class="chapter-content"
-              :style="{ fontSize: fontSize + 'px' }"
+              :style="{ fontSize: fontSize + 'px', fontFamily: fontFamily }"
               @blur="saveMemo"
               @select="handleTextSelect"
               @mouseup="handleMouseUp"
@@ -314,109 +347,121 @@
       <div class="right-panel" v-if="showChatPanel" :style="{ width: rightPanelWidth + 'px' }">
         <div class="chat-main">
           <div class="chat-header">
-            <el-button type="primary" size="small" @click="createConversation">
-              <el-icon><Plus /></el-icon>
-              新建对话
-            </el-button>
-            <el-badge 
-              :value="selectedPrompts.length" 
-              class="item"
-              type="primary"
-              :hidden="selectedPrompts.length === 0"
-            >
-              <el-button size="small" @click="promptSelectDialogVisible = true" title="提示词">
-                <el-icon><Document /></el-icon>
-                提示词
+            <el-tooltip content="新建对话" placement="bottom">
+              <el-button type="primary" size="small" @click="createConversation" circle>
+                <el-icon><Plus /></el-icon>
               </el-button>
-            </el-badge>
-            <el-badge 
-              :value="relatedContent.length" 
-              class="item"
-              type="primary"
-              :hidden="relatedContent.length === 0"
-            >
-              <el-button size="small" @click="showRelateDialog = true" title="关联内容">
-                <el-icon><Link /></el-icon>
-                关联
+            </el-tooltip>
+            <el-tooltip content="历史对话" placement="bottom">
+              <el-button size="small" @click="conversationListVisible = true" circle>
+                <el-icon><ChatLineSquare /></el-icon>
               </el-button>
-            </el-badge>
-            <el-select
-              v-model="selectedConfigId"
-              placeholder="API 配置"
-              size="small"
-              style="width: 150px;"
-            >
-              <el-option
-                v-for="config in apiConfigs"
-                :key="config.id"
-                :label="config.name"
-                :value="config.id"
+            </el-tooltip>
+            <el-tooltip :content="`提示词${selectedPrompts.length > 0 ? ` (${selectedPrompts.length})` : ''}`" placement="bottom">
+              <el-badge 
+                :value="selectedPrompts.length" 
+                class="header-badge"
+                type="primary"
+                :hidden="selectedPrompts.length === 0"
+              >
+                <el-button size="small" @click="promptSelectDialogVisible = true" circle>
+                  <el-icon><Document /></el-icon>
+                </el-button>
+              </el-badge>
+            </el-tooltip>
+            <el-tooltip v-if="worldBookStore.enabled" :content="`世界书${relatedContent.length > 0 ? ` (${relatedContent.length})` : ''}`" placement="bottom">
+              <el-badge 
+                :value="relatedContent.length" 
+                class="header-badge"
+                type="primary"
+                :hidden="relatedContent.length === 0"
+              >
+                <el-button size="small" @click="openWorldBookDialog" circle>
+                  <el-icon><Reading /></el-icon>
+                </el-button>
+              </el-badge>
+            </el-tooltip>
+            <el-tooltip content="关联章节/备忘录" placement="bottom">
+              <el-button size="small" @click="openRelateContentDialog" circle>
+                <el-icon><Notebook /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip :content="'模型配置 - ' + (currentModelName || '选择模型')" placement="bottom">
+              <el-button size="small" @click="openModelConfigDialog" class="model-config-btn">
+                <el-icon><Cpu /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip :content="worldBookLinked ? '世界书已关联' : '世界书未关联'" placement="bottom">
+              <el-switch
+                v-model="worldBookLinked"
+                size="small"
+                inline-prompt
+                active-text="联"
+                inactive-text="断"
+                style="--el-switch-on-color: #00c9a7; --el-switch-off-color: #909399"
               />
-            </el-select>
-            <el-button 
-              size="small" 
-              @click="closeChatPanel"
-              circle
-              title="收起"
-            >
-              <el-icon><Close /></el-icon>
-            </el-button>
+            </el-tooltip>
+            <el-tooltip content="查看完整提示词" placement="bottom">
+              <el-button size="small" @click="showFullPromptDialog = true" circle>
+                <el-icon><View /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="收起面板" placement="bottom">
+              <el-button 
+                size="small" 
+                @click="closeChatPanel"
+                circle
+              >
+                <el-icon><Close /></el-icon>
+              </el-button>
+            </el-tooltip>
           </div>
 
           <div v-if="currentConversation" class="chat-content">
             <div class="chat-messages" ref="chatMessagesRef">
-              <div
-                v-for="(msg, index) in chatMessages"
-                :key="index"
-                :class="['message', msg.role]"
-              >
+              <template v-for="(msg, index) in chatMessages" :key="index">
+                <div
+                  v-if="msg.role !== 'system'"
+                  :class="['message', msg.role]"
+                >
                 <div class="message-avatar">
                   <el-icon v-if="msg.role === 'user'"><User /></el-icon>
                   <el-icon v-else><ChatDotRound /></el-icon>
                 </div>
                 <div class="message-wrapper">
-                  <div v-if="msg.role === 'user'" class="user-message-collapsible">
-                    <div class="user-message-toggle" @click="toggleUserMessage(index)">
-                      <el-icon><component :is="collapsedUserMessages.has(index) ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
-                      <span class="user-message-preview">{{ collapsedUserMessages.has(index) ? '展开输入' : '收起输入' }}</span>
-                    </div>
-                    <div v-show="!collapsedUserMessages.has(index)" class="message-content">
-                      <MarkdownRenderer :content="msg.content" />
-                    </div>
+                  <div class="message-content">
+                    <MarkdownRenderer :content="msg.role === 'user' ? (msg.displayContent || extractUserDisplayContent(msg.content)) : msg.content" />
                   </div>
-                  <div v-else-if="editingMessageIndex !== index" class="message-content">
-                    <MarkdownRenderer :content="msg.content" />
-                  </div>
-                  <div v-else class="edit-wrapper">
-                    <el-input
-                      v-model="editingContent"
-                      type="textarea"
-                      :rows="10"
-                      :autosize="{ minRows: 10, maxRows: 20 }"
-                    />
-                    <div class="edit-actions">
-                      <el-button size="small" @click="cancelEdit">取消</el-button>
-                      <el-button size="small" type="primary" @click="saveEdit(index)">
-                        保存 (Ctrl+Enter)
+                  <div class="message-actions">
+                    <el-tooltip content="复制" placement="top">
+                      <el-button size="small" text @click="copyMessage(msg.content)">
+                        <el-icon><DocumentCopy /></el-icon>
                       </el-button>
-                    </div>
-                  </div>
-                  <div class="message-actions" v-if="editingMessageIndex !== index">
-                    <el-button size="small" text @click="copyMessage(msg.content)">
-                      <el-icon><DocumentCopy /></el-icon>
-                    </el-button>
-                    <el-button size="small" text @click="applyToCursor(msg.content)" title="应用此光标">
-                      <el-icon><Position /></el-icon>
-                    </el-button>
-                    <el-button size="small" text @click="startEdit(index, msg.content)">
-                      <el-icon><Edit /></el-icon>
-                    </el-button>
-                    <el-button size="small" text type="danger" @click="deleteMessage(index)">
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="应用到编辑器" placement="top">
+                      <el-button size="small" text @click="applyToCursor(msg.content)">
+                        <el-icon><Position /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip v-if="msg.role === 'assistant'" content="重新生成" placement="top">
+                      <el-button size="small" text @click="regenerateMessage(index)">
+                        <el-icon><RefreshRight /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="编辑" placement="top">
+                      <el-button size="small" text @click="startEdit(index, msg.content)">
+                        <el-icon><Edit /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="删除" placement="top">
+                      <el-button size="small" text type="danger" @click="deleteMessage(index)">
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </el-tooltip>
                   </div>
                 </div>
               </div>
+              </template>
               <div v-if="sending" class="message assistant">
                 <div class="message-avatar">
                   <el-icon><ChatDotRound /></el-icon>
@@ -426,6 +471,21 @@
             </div>
 
             <div class="chat-input-area">
+              <div class="config-row">
+                <el-select
+                  v-model="selectedConfigId"
+                  placeholder="API 配置"
+                  size="small"
+                  style="width: 150px;"
+                >
+                  <el-option
+                    v-for="config in apiConfigs"
+                    :key="config.id"
+                    :label="config.name"
+                    :value="config.id"
+                  />
+                </el-select>
+              </div>
               <div class="input-wrapper">
                 <el-input
                   v-model="userInput"
@@ -474,7 +534,7 @@
         <div class="resize-handle-bar"></div>
       </div>
 
-      <!-- 右侧：AI 写作 2 - 创意区 -->
+      <!-- 右侧：AI 写作 2 - 抽卡区 -->
       <div class="right-panel right-panel-2" v-if="showChatPanel2" :style="{ width: rightPanel2Width + 'px' }">
         <div class="creative-panel">
           <div class="creative-header">
@@ -841,40 +901,335 @@
       </template>
     </el-dialog>
 
-    <!-- 关联内容对话框 -->
+    <!-- 世界书管理对话框 -->
     <el-dialog
       v-model="showRelateDialog"
-      title="关联内容"
-      width="500px"
+      :title="`世界书管理 - ${currentBook?.title || '当前书籍'}`"
+      width="900px"
+      top="3vh"
       align-center
       append-to-body
-      class="relate-dialog"
+      class="worldbook-dialog"
     >
-      <el-tabs v-model="relateType" class="relate-tabs">
-        <el-tab-pane label="章节" name="chapters">
-          <el-scrollbar class="relate-scrollbar" max-height="360px" always>
-            <el-checkbox-group v-model="selectedChapters">
-              <div v-for="chapter in chaptersList" :key="chapter.id" class="relate-option-item">
-                <el-checkbox :label="chapter.id">{{ chapter.title }}</el-checkbox>
+      <div class="worldbook-manager">
+        <div class="worldbook-toolbar">
+          <div class="toolbar-left">
+            <el-input
+              v-model="worldbookSearchKeyword"
+              placeholder="搜索条目..."
+              clearable
+              :prefix-icon="Search"
+              style="width: 300px"
+            />
+            <div class="worldbook-stats-inline">
+              <span>共 {{ worldBookEntryCount }} 条</span>
+              <span>已启用 {{ enabledWorldBookCount }} 条</span>
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <el-button size="small" @click="openCreateGroupDialog">
+              <el-icon><Folder /></el-icon>
+              新建分组
+            </el-button>
+            <el-dropdown @command="handleImportCommand" trigger="click">
+              <el-button size="small">
+                <el-icon><Upload /></el-icon>
+                导入
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="current">
+                    <el-icon><Plus /></el-icon>
+                    导入到当前世界书
+                  </el-dropdown-item>
+                  <el-dropdown-item command="new">
+                    <el-icon><FolderAdd /></el-icon>
+                    导入为新世界书
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <el-dropdown @command="handleExportFormat" trigger="click">
+              <el-button size="small">
+                <el-icon><Download /></el-icon>
+                导出
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="default">
+                    <el-icon><Document /></el-icon>
+                    导出为本项目格式
+                  </el-dropdown-item>
+                  <el-dropdown-item command="sillytavern">
+                    <el-icon><Connection /></el-icon>
+                    导出为酒馆格式
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <el-button type="primary" size="small" @click="createWorldBookEntry">
+              <el-icon><Plus /></el-icon>
+              新建条目
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 世界书选择器 -->
+        <div class="worldbook-selector">
+          <el-select
+            v-model="currentWorldBookName"
+            placeholder="选择世界书"
+            size="small"
+            style="width: 220px"
+            @change="collapsedGroups.clear()"
+          >
+            <el-option
+              v-for="name in worldBookList"
+              :key="name"
+              :label="name"
+              :value="name"
+            />
+          </el-select>
+          <el-button size="small" @click="openCreateWorldBookDialog">
+            <el-icon><Plus /></el-icon>
+            新建
+          </el-button>
+          <el-button size="small" @click="openRenameWorldBookDialog" :disabled="currentWorldBookName === '默认世界书'">
+            <el-icon><Edit /></el-icon>
+            重命名
+          </el-button>
+          <el-button size="small" type="danger" @click="handleDeleteWorldBook">
+            <el-icon><Delete /></el-icon>
+            删除
+          </el-button>
+        </div>
+
+        <div class="worldbook-list-container">
+          <div class="worldbook-grouped-list">
+            <div v-if="worldBookGroups.length === 0" class="worldbook-empty-state">
+              <el-empty description="暂无世界书条目">
+                <el-button type="primary" @click="createWorldBookEntry">创建第一个条目</el-button>
+              </el-empty>
+            </div>
+            <template v-else>
+              <div
+                v-for="[groupName, entries] in worldBookGroups"
+                :key="groupName"
+                class="wb-group-section"
+              >
+                <div class="wb-group-header" @click="toggleGroupCollapse(groupName)">
+                  <el-icon class="group-collapse-icon">
+                    <component :is="collapsedGroups.has(groupName) ? 'ArrowRight' : 'ArrowDown'" />
+                  </el-icon>
+                  <span class="wb-group-name">{{ groupName || '默认' }}</span>
+                  <span class="wb-group-count">{{ entries.length }}条</span>
+                  <div class="wb-group-actions" @click.stop>
+                    <el-button
+                      v-if="groupName"
+                      size="small"
+                      text
+                      @click="openRenameGroupDialog(groupName)"
+                    >
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+                    <el-button
+                      v-if="groupName"
+                      size="small"
+                      text
+                      type="danger"
+                      @click="deleteGroup(groupName)"
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
+                <div v-show="!collapsedGroups.has(groupName)" class="wb-group-body">
+                  <div class="wb-entry-grid">
+                    <div
+                      v-for="entry in entries"
+                      :key="entry.uid"
+                      :class="['wb-entry-card', { disabled: entry.disable }]"
+                    >
+                      <div class="wb-entry-top">
+                        <el-switch
+                          :model-value="!entry.disable"
+                          size="small"
+                          @click.stop
+                          @change="(val: boolean) => toggleWorldBookEntry(entry, val)"
+                        />
+                        <div class="wb-entry-tags">
+                          <el-tag v-if="entry.constant" size="small" type="success">常驻</el-tag>
+                          <el-tag v-if="entry.disable" size="small" type="danger">禁用</el-tag>
+                        </div>
+                      </div>
+                      <div class="wb-entry-title">{{ entry.comment || '未命名条目' }}</div>
+                      <div class="wb-entry-actions">
+                        <el-button size="small" @click="editWorldBookEntry(entry)" circle>
+                          <el-icon><Edit /></el-icon>
+                        </el-button>
+                        <el-button size="small" type="danger" @click="deleteWorldBookEntry(entry)" circle>
+                          <el-icon><Delete /></el-icon>
+                        </el-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </el-checkbox-group>
-          </el-scrollbar>
-        </el-tab-pane>
-        <el-tab-pane label="备忘录" name="memos">
-          <el-scrollbar class="relate-scrollbar" max-height="360px" always>
-            <el-checkbox-group v-model="selectedMemos">
-              <div v-for="memo in memos" :key="memo.id" class="relate-option-item">
-                <el-checkbox :label="memo.id">{{ memo.title }}</el-checkbox>
-              </div>
-            </el-checkbox-group>
-          </el-scrollbar>
-        </el-tab-pane>
-      </el-tabs>
+            </template>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 分组管理弹窗 -->
+    <el-dialog
+      v-model="showGroupDialog"
+      :title="groupDialogMode === 'create' ? '新建分组' : '重命名分组'"
+      width="400px"
+      align-center
+      append-to-body
+      destroy-on-close
+    >
+      <el-input
+        v-model="groupDialogName"
+        placeholder="输入分组名称"
+        @keydown.enter="confirmGroupDialog"
+      />
       <template #footer>
-        <el-button @click="showRelateDialog = false">取消</el-button>
-        <el-button type="primary" @click="confirmRelate">确定</el-button>
+        <el-button @click="showGroupDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmGroupDialog">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 世界书创建/重命名弹窗 -->
+    <el-dialog
+      v-model="showWorldBookDialog"
+      :title="worldBookDialogMode === 'create' ? '新建世界书' : '重命名世界书'"
+      width="400px"
+      align-center
+      append-to-body
+      destroy-on-close
+    >
+      <el-input
+        v-model="worldBookDialogName"
+        placeholder="输入世界书名称"
+        @keydown.enter="confirmWorldBookDialog"
+      />
+      <template #footer>
+        <el-button @click="showWorldBookDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmWorldBookDialog">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 世界书条目编辑对话框 -->
+    <el-dialog
+      v-model="worldBookEditorVisible"
+      :title="editingWorldBookEntry ? '编辑条目' : '新建条目'"
+      width="800px"
+      top="3vh"
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
+      <div class="worldbook-editor-form">
+        <div class="editor-field">
+          <label class="field-label">标题/备注</label>
+          <el-input v-model="worldBookForm.comment" placeholder="输入条目标题或备注" />
+        </div>
+
+        <div class="editor-field">
+          <label class="field-label">内容</label>
+          <el-input
+            v-model="worldBookForm.content"
+            type="textarea"
+            :rows="8"
+            placeholder="触发后注入的内容，支持 Markdown 格式"
+          />
+        </div>
+
+        <div class="editor-row">
+          <div class="editor-field half">
+            <label class="field-label">插入位置</label>
+            <el-select v-model="worldBookForm.position" placeholder="选择插入位置">
+              <el-option :value="0" label="在提示词前" />
+              <el-option :value="1" label="在提示词后" />
+              <el-option :value="2" label="在作者注释后" />
+              <el-option :value="3" label="在角色描述后" />
+              <el-option :value="7" label="世界书顶部" />
+              <el-option :value="8" label="世界书底部" />
+            </el-select>
+          </div>
+
+          <div class="editor-field half">
+            <label class="field-label">优先级</label>
+            <el-input-number v-model="worldBookForm.order" :min="0" :max="1000" />
+          </div>
+        </div>
+
+        <div class="editor-row">
+          <div class="editor-field half">
+            <label class="field-label">扫描深度</label>
+            <el-input-number v-model="worldBookForm.depth" :min="1" :max="999" />
+          </div>
+        </div>
+
+        <div class="editor-field">
+          <label class="field-label">选项</label>
+          <div class="checkbox-group">
+            <label class="field-label">状态</label>
+            <el-radio-group v-model="worldBookEntryStatus" size="small">
+              <el-radio value="normal">启用</el-radio>
+              <el-radio value="constant">常驻激活</el-radio>
+              <el-radio value="disable">禁用</el-radio>
+            </el-radio-group>
+          </div>
+        </div>
+
+        <div class="editor-field">
+          <label class="field-label">分组</label>
+          <el-select
+            v-model="worldBookForm.group"
+            filterable
+            allow-create
+            clearable
+            placeholder="选择或输入分组名称"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="g in availableGroups"
+              :key="g"
+              :label="g || '默认'"
+              :value="g"
+            />
+          </el-select>
+        </div>
+
+      </div>
+
+      <template #footer>
+        <el-button @click="worldBookEditorVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveWorldBookEntry">
+          {{ editingWorldBookEntry ? '保存' : '创建' }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <input
+      ref="worldBookFileInput"
+      type="file"
+      accept=".json"
+      style="display: none"
+      @change="handleWorldBookFileSelect"
+    />
+    <input
+      ref="importAsNewFileInput"
+      type="file"
+      accept=".json"
+      style="display: none"
+      @change="handleWorldBookImportAsNew"
+    />
 
     <!-- 移动文件夹对话框 -->
     <el-dialog
@@ -882,6 +1237,7 @@
       title="移动到文件夹"
       width="400px"
       class="move-folder-dialog"
+      append-to-body
     >
       <div class="move-folder-content">
         <p class="move-folder-hint">选择要移动到的目标文件夹：</p>
@@ -1251,7 +1607,7 @@
     </el-dialog>
 
     <!-- 重命名对话框 -->
-    <el-dialog v-model="showRenameDialog" title="重命名对话" width="400px">
+    <el-dialog v-model="showRenameDialog" title="重命名对话" width="400px" append-to-body>
       <el-input v-model="renameTitle" placeholder="请输入新名称" />
       <template #footer>
         <el-button @click="showRenameDialog = false">取消</el-button>
@@ -1344,7 +1700,7 @@
       </div>
     </el-dialog>
 
-    <!-- 创意区提示词选择弹窗 -->
+    <!-- 抽卡区提示词选择弹窗 -->
     <el-dialog
       v-model="creative2PromptDialogVisible"
       title="写作风格"
@@ -1399,7 +1755,7 @@
       </template>
     </el-dialog>
 
-    <!-- 创意区第二个提示词选择弹窗 -->
+    <!-- 抽卡区第二个提示词选择弹窗 -->
     <el-dialog
       v-model="creative2SecondPromptDialogVisible"
       title="写作要求"
@@ -1461,6 +1817,7 @@
       width="600px"
       destroy-on-close
       class="prompt-intro-dialog"
+      append-to-body
     >
       <div class="prompt-intro-content" v-if="creative2PromptInfo">
         <div class="prompt-intro-header">
@@ -1495,6 +1852,7 @@
       width="600px"
       destroy-on-close
       class="prompt-intro-dialog"
+      append-to-body
     >
       <div class="prompt-intro-content" v-if="creative2SecondPromptInfo">
         <div class="prompt-intro-header">
@@ -1523,7 +1881,7 @@
     </el-dialog>
 
     <!-- 分卷对话框 -->
-    <el-dialog v-model="showVolumeDialog" :title="isEditVolume ? '编辑分卷' : '新建分卷'" width="400px">
+    <el-dialog v-model="showVolumeDialog" :title="isEditVolume ? '编辑分卷' : '新建分卷'" width="400px" append-to-body>
       <el-input 
         v-model="volumeForm.title" 
         placeholder="请输入分卷名称" 
@@ -1536,8 +1894,62 @@
       </template>
     </el-dialog>
 
+    <!-- 自动分卷对话框 -->
+    <el-dialog v-model="showAutoSplitDialog" title="自动分卷" width="480px" align-center append-to-body destroy-on-close>
+      <div class="auto-split-content">
+        <div class="auto-split-info">
+          <el-icon><InfoFilled /></el-icon>
+          <span>当前有 <strong>{{ unchapteredChapters.length }}</strong> 个未分卷章节，将按设定数量自动创建新分卷并归入。</span>
+        </div>
+
+        <div class="auto-split-presets">
+          <span class="auto-split-label">快捷数量：</span>
+          <div class="preset-buttons">
+            <el-button
+              v-for="n in [10, 20, 30, 40, 50, 60]"
+              :key="n"
+              size="small"
+              :type="autoSplitCount === n ? 'primary' : 'default'"
+              @click="autoSplitCount = n"
+            >
+              每{{ n }}章一卷
+            </el-button>
+          </div>
+        </div>
+
+        <div class="auto-split-custom">
+          <span class="auto-split-label">自定义：</span>
+          <el-input-number
+            v-model="autoSplitCount"
+            :min="1"
+            :max="Math.max(unchapteredChapters.length, 1)"
+            placeholder="每卷章节数"
+            style="width: 180px;"
+          />
+          <span class="auto-split-suffix">章 / 卷</span>
+        </div>
+
+        <div class="auto-split-preview" v-if="autoSplitCount > 0 && unchapteredChapters.length > 0">
+          <span>预计创建 <strong>{{ Math.ceil(unchapteredChapters.length / autoSplitCount) }}</strong> 个分卷</span>
+          <span class="preview-divider">|</span>
+          <span>{{ formatAutoSplitPreview() }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showAutoSplitDialog = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="handleAutoSplit"
+          :disabled="autoSplitCount <= 0 || unchapteredChapters.length === 0"
+          :loading="autoSplitting"
+        >
+          开始分卷
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 历史记录对话框 -->
-    <el-dialog v-model="showHistoryDialog" title="正文 AI 历史记录" width="800px" class="history-dialog-modal">
+    <el-dialog v-model="showHistoryDialog" title="正文 AI 历史记录" width="800px" class="history-dialog-modal" append-to-body>
       <div class="history-dialog-content">
         <div v-if="loadingHistory" class="loading-state">
           <el-icon class="is-loading"><Loading /></el-icon>
@@ -1635,6 +2047,7 @@
       width="900px"
       class="history-detail-dialog"
       destroy-on-close
+      append-to-body
     >
       <div v-if="selectedHistoryConversation" class="history-detail-content">
         <div class="history-detail-meta">
@@ -1676,6 +2089,211 @@
         <el-button @click="historyDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="conversationListVisible"
+      title="历史对话"
+      width="400px"
+      align-center
+      append-to-body
+      class="conversation-list-dialog"
+    >
+      <div class="conversation-list">
+        <div
+          v-for="conv in conversations"
+          :key="conv.id"
+          :class="['conversation-item', { active: currentConversation?.id === conv.id }]"
+          @click="selectConversation(conv); conversationListVisible = false"
+        >
+          <div class="conversation-info">
+            <div class="conversation-title">{{ conv.title }}</div>
+            <div class="conversation-time">{{ formatTime(conv.updated_at || conv.created_at) }}</div>
+          </div>
+          <div class="conversation-actions" @click.stop>
+            <el-button size="small" text @click="renameConversation(conv)">
+              <el-icon><Edit /></el-icon>
+            </el-button>
+            <el-button size="small" text type="danger" @click="deleteConversation(conv)">
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </div>
+        </div>
+        <div v-if="conversations.length === 0" class="empty-conversations">
+          暂无对话记录
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 模型配置弹窗 -->
+    <el-dialog
+      v-model="modelConfigDialogVisible"
+      title="模型配置"
+      width="780px"
+      align-center
+      append-to-body
+      destroy-on-close
+      class="model-config-dialog"
+    >
+      <div class="model-config-layout">
+        <div class="model-list-panel">
+          <div class="model-list-title">模型目录</div>
+          <div
+            v-for="config in apiConfigs"
+            :key="config.id"
+            :class="['model-list-item', { active: editingModelId === config.id }]"
+            @click="selectModelForEdit(config)"
+          >
+            <div class="model-item-name">{{ config.name }}</div>
+            <div class="model-item-provider">{{ config.provider_name }}</div>
+          </div>
+        </div>
+        <div class="model-config-panel" v-if="editingModelData">
+          <el-form label-width="100px" size="small">
+            <el-form-item label="模型名称">
+              <el-input v-model="editingModelData.name" placeholder="模型名称" />
+            </el-form-item>
+            <el-form-item label="模型描述" class="model-desc-form-item">
+              <div class="model-desc-row" v-if="!editingDesc">
+                <div class="model-desc-preview">
+                  <div class="model-desc-content" v-if="editingModelData.description">
+                    <MarkdownRenderer :content="editingModelData.description" />
+                  </div>
+                  <div class="model-desc-empty" v-else>
+                    暂无描述
+                  </div>
+                </div>
+                <el-tooltip content="编辑描述" placement="top">
+                  <el-button size="small" circle class="model-desc-edit-btn" @click="editingDesc = true">
+                    <el-icon><Edit /></el-icon>
+                  </el-button>
+                </el-tooltip>
+              </div>
+              <div class="model-desc-editing" v-else>
+                <div class="model-desc-row">
+                  <div class="model-desc-edit-box">
+                    <el-input
+                      v-model="editingModelData.description"
+                      type="textarea"
+                      :autosize="{ minRows: 1, maxRows: 8 }"
+                      placeholder="使用 Markdown 编写模型简介..."
+                    />
+                    <div class="model-desc-editing-actions">
+                      <el-button size="small" @click="editingDesc = false">取消</el-button>
+                      <el-button size="small" type="primary" @click="saveDescription">完成</el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-form-item>
+            <el-form-item label="最大输出">
+              <el-input-number
+                v-model="editingModelData.max_tokens"
+                :min="100"
+                :max="128000"
+                :step="100"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item label="温度">
+              <div class="slider-with-value">
+                <el-slider v-model="editingModelData.temperature" :min="0" :max="2" :step="0.1" style="flex: 1" />
+                <span class="slider-value">{{ editingModelData.temperature }}</span>
+              </div>
+            </el-form-item>
+            <el-form-item label="推理能力">
+              <div class="slider-with-value">
+                <el-slider v-model="editingModelData.top_p" :min="0" :max="1" :step="0.05" style="flex: 1" />
+                <span class="slider-value">{{ editingModelData.top_p }}</span>
+              </div>
+            </el-form-item>
+            <el-form-item label="惩罚力度">
+              <div class="slider-with-value">
+                <el-slider v-model="editingModelData.frequency_penalty" :min="-2" :max="2" :step="0.1" style="flex: 1" />
+                <span class="slider-value">{{ editingModelData.frequency_penalty }}</span>
+              </div>
+            </el-form-item>
+          </el-form>
+        </div>
+        <div class="model-config-empty" v-else>
+          <el-empty description="请从左侧选择一个模型" :image-size="80" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="modelConfigDialogVisible = false">取消</el-button>
+        <el-button type="success" @click="useSelectedModel" :disabled="!editingModelData">使用</el-button>
+        <el-button type="primary" @click="saveModelConfig" :disabled="!editingModelData">保存配置</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="showRelateContentDialog"
+      title="关联内容管理"
+      width="600px"
+      align-center
+      append-to-body
+      destroy-on-close
+    >
+      <el-tabs v-model="relateContentTab">
+        <el-tab-pane label="章节" name="chapters">
+          <div class="relate-content-list">
+            <div v-if="chaptersList.length === 0" class="relate-empty">
+              <el-empty description="暂无章节" />
+            </div>
+            <el-checkbox-group v-else v-model="selectedRelateChapterIds">
+              <div
+                v-for="chapter in chaptersList"
+                :key="chapter.id"
+                class="relate-item"
+              >
+                <el-checkbox :label="chapter.id" :value="chapter.id">
+                  {{ chapter.title || '无标题' }}
+                </el-checkbox>
+              </div>
+            </el-checkbox-group>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="备忘录" name="memos">
+          <div class="relate-content-list">
+            <div v-if="memos.length === 0" class="relate-empty">
+              <el-empty description="暂无备忘录" />
+            </div>
+            <el-checkbox-group v-else v-model="selectedRelateMemoIds">
+              <div
+                v-for="memo in memos"
+                :key="memo.id"
+                class="relate-item"
+              >
+                <el-checkbox :label="memo.id" :value="memo.id">
+                  {{ memo.title || '无标题' }}
+                </el-checkbox>
+              </div>
+            </el-checkbox-group>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="showRelateContentDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmRelateContent">确认关联</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 完整提示词预览 -->
+    <el-dialog
+      v-model="showFullPromptDialog"
+      title="完整提示词预览"
+      width="800px"
+      top="3vh"
+      append-to-body
+      destroy-on-close
+    >
+      <div class="full-prompt-content">
+        <pre>{{ fullPromptContent }}</pre>
+      </div>
+      <template #footer>
+        <el-button @click="showFullPromptDialog = false">关闭</el-button>
+        <el-button type="primary" @click="copyFullPrompt">复制全部</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -1686,16 +2304,21 @@ import SplitRichTextEditor from '@/components/SplitRichTextEditor.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useBookStore } from '@/stores/book'
+import { useWorldBookStore } from '@/stores/worldbook'
 import { onUnmounted } from 'vue'
 import { chapterAPI, memoAPI, promptAPI, configAPI, conversationAPI, volumeAPI, characterAPI } from '@/api'
 import type { Chapter, Memo, Prompt, ApiConfig, ChatMessage, RelatedContent, Volume, Character, KnowledgeGraphData } from '@/types'
+import type { WorldBookEntry } from '@/types/worldbook'
+import { createDefaultWorldBookEntry } from '@/types/worldbook'
+import { matchWorldBookEntries, injectWorldBookContent } from '@/utils/worldbook'
 import KnowledgeGraph from '@/components/KnowledgeGraph.vue'
 import { 
   ChatDotSquare, User, Notebook, ChatLineSquare, 
   Plus, MoreFilled, Delete, Folder, Switch, Sort, 
   ArrowRight, ArrowLeft, ArrowDown, Edit, EditPen, RefreshLeft, RefreshRight,
   Star, Grid, Refresh, Search, CopyDocument, Checked, Loading, View,
-  Monitor, MagicStick, DocumentCopy, Document, Close, Promotion, ChatDotRound, Link, Lightning, Setting, Download, Connection, VideoPause, Position
+  Monitor, MagicStick, DocumentCopy, Document, Close, Promotion, ChatDotRound, Link, Lightning, Setting, Download, Connection, VideoPause, Position, Reading, Upload,
+  Collection, InfoFilled
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -1746,6 +2369,85 @@ const unchapteredChapters = computed(() => {
 // API配置
 const apiConfigs = ref<ApiConfig[]>([])
 const selectedConfigId = ref<number>()
+
+// 模型配置弹窗
+const modelConfigDialogVisible = ref(false)
+const editingModelId = ref<number | null>(null)
+const editingModelData = ref<any>(null)
+const editingDesc = ref(false)
+
+// 当前选中的模型名称
+const currentModelName = computed(() => {
+  const config = apiConfigs.value.find(c => c.id === selectedConfigId.value)
+  return config?.name || ''
+})
+
+const openModelConfigDialog = () => {
+  editingModelId.value = null
+  editingModelData.value = null
+  editingDesc.value = false
+  modelConfigDialogVisible.value = true
+}
+
+const selectModelForEdit = (config: ApiConfig) => {
+  editingModelId.value = config.id
+  editingDesc.value = false
+  editingModelData.value = {
+    id: config.id,
+    provider_id: config.provider_id,
+    name: config.name,
+    model: config.model,
+    temperature: config.temperature ?? 0.7,
+    max_tokens: config.max_tokens ?? 2000,
+    top_p: config.top_p ?? 0.9,
+    frequency_penalty: config.frequency_penalty ?? 0.0,
+    description: config.description ?? '',
+    is_default: config.is_default
+  }
+}
+
+const saveDescription = async () => {
+  if (!editingModelData.value) return
+  try {
+    const d = editingModelData.value
+    await configAPI.update(d.id, {
+      ...d,
+      is_default: d.is_default ? 1 : 0
+    })
+    editingDesc.value = false
+    ElMessage.success('描述已保存')
+    await fetchConfigs()
+  } catch {
+    // 错误已由拦截器显示
+  }
+}
+
+const saveModelConfig = async () => {
+  if (!editingModelData.value) return
+  try {
+    const res = await configAPI.update(editingModelData.value.id, {
+      ...editingModelData.value,
+      is_default: editingModelData.value.is_default ? 1 : 0
+    })
+    if (res.success) {
+      ElMessage.success('模型配置已保存')
+      if (selectedConfigId.value === editingModelData.value.id) {
+        selectedConfigId.value = editingModelData.value.id
+      }
+      modelConfigDialogVisible.value = false
+      await fetchConfigs()
+    }
+  } catch {
+    // 错误已由拦截器显示
+  }
+}
+
+const useSelectedModel = () => {
+  if (!editingModelData.value) return
+  selectedConfigId.value = editingModelData.value.id
+  modelConfigDialogVisible.value = false
+  ElMessage.success(`已切换到模型: ${editingModelData.value.name}`)
+}
 
 // 提示词
 const prompts = ref<Prompt[]>([])
@@ -1919,7 +2621,7 @@ const loadingHistory = ref(false)
 const selectedHistoryConversation = ref<WriteHistoryRecord | null>(null)
 const expandedConversationId = ref<number | null>(null)
 
-// AI 写作 2 - 创意区专用
+// AI 写作 2 - 抽卡区专用
 const creative2ConfigId = ref<number>()
 const creative2SelectedPrompts = ref<number[]>([])
 const creative2Generating = ref(false)
@@ -1949,7 +2651,7 @@ const creative2SelectedMemoId = ref<number>()
 const creative2SelectedCharacterIds = ref<number[]>([])
 const availableCharacters = ref<Character[]>([])
 
-// 创意区字段配置
+// 抽卡区字段配置
 const creative2FieldValues = ref<Record<string, string>>({})
 
 const creative2AllFields = computed(() => {
@@ -2014,11 +2716,73 @@ const userInput = ref('')
 const sending = ref(false)
 const collapsedUserMessages = ref(new Set<number>())
 const chatAbortController = ref<AbortController | null>(null)
+const showFullPromptDialog = ref(false)
+const worldBookLinked = ref(false) // 世界书与对话是否关联
+
+// 完整提示词预览
+const fullPromptContent = computed(() => {
+  const selectedPromptRecords = prompts.value.filter((p: any) => selectedPrompts.value.some(id => id == p.id))
+  const promptContents = selectedPromptRecords.map((p: any) => p.content).join('\n\n')
+  const relatedContentSummary = relatedContent.value.length > 0
+    ? `关联内容：\n${relatedContent.value
+        .map(item => `${item.type === 'chapter' ? '章节' : '备忘录'}：${item.title}\n${item.content}`)
+        .join('\n\n')}`
+    : ''
+
+  const parts: string[] = []
+  if (promptContents) parts.push(`【提示词】\n${promptContents}`)
+  
+  // 世界书注入预览
+  if (worldBookLinked.value) {
+    const bookEntries = currentBookWorldBook.value?.entries || []
+    if (bookEntries.length > 0) {
+      const matchResults = matchWorldBookEntries(userInput.value || '', bookEntries)
+      if (matchResults.length > 0) {
+        const injection = injectWorldBookContent('', matchResults).trim()
+        if (injection) parts.push(injection)
+      }
+    }
+  }
+  
+  if (relatedContentSummary) parts.push(relatedContentSummary)
+  if (userInput.value.trim()) parts.push(`【用户输入】\n${userInput.value.trim()}`)
+
+  if (parts.length === 0) return '（暂无内容，请选择提示词、关联内容或输入消息）'
+
+  // 显示完整的消息历史
+  const historyLines = chatMessages.value.map((msg, i) => {
+    const role = msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统'
+    return `[${role}] ${msg.content}`
+  }).join('\n\n---\n\n')
+
+  return `=== 历史消息 ===\n${historyLines}\n\n=== 即将发送 ===\n${parts.join('\n\n')}`
+})
+
+const copyFullPrompt = () => {
+  navigator.clipboard.writeText(fullPromptContent.value)
+  ElMessage.success('已复制完整提示词')
+}
+
 const chatMessagesRef = ref<HTMLElement>()
 const editingMessageIndex = ref<number | null>(null)
 const editingContent = ref('')
 const selectedTextLength = ref(0)
-const fontSize = ref(16) // 默认字体大小
+const fontSize = ref(16)
+const fontFamily = ref('Microsoft YaHei')
+
+const fontOptions = [
+  { label: '微软雅黑', value: 'Microsoft YaHei' },
+  { label: '宋体', value: 'SimSun' },
+  { label: '黑体', value: 'SimHei' },
+  { label: '楷体', value: 'KaiTi' },
+  { label: '仿宋', value: 'FangSong' },
+  { label: '华文楷体', value: 'STKaiti' },
+  { label: '华文宋体', value: 'STSong' },
+  { label: '华文黑体', value: 'STHeiti' },
+  { label: '苹方', value: 'PingFang SC' },
+  { label: '思源黑体', value: 'Source Han Sans SC' },
+  { label: '思源宋体', value: 'Source Han Serif SC' }
+]
 
 // 面板宽度调节
 const leftPanelWidth = ref(280)
@@ -2044,10 +2808,423 @@ const cursorPosition = ref(0)
 
 // 关联内容
 const showRelateDialog = ref(false)
+const conversationListVisible = ref(false)
 const relateType = ref('chapters')
 const selectedChapters = ref<number[]>([])
 const selectedMemos = ref<number[]>([])
 const relatedContent = ref<RelatedContent[]>([])
+
+// 关联内容管理弹窗
+const showRelateContentDialog = ref(false)
+const relateContentTab = ref('chapters')
+const selectedRelateChapterIds = ref<number[]>([])
+const selectedRelateMemoIds = ref<number[]>([])
+
+const confirmRelateContent = () => {
+  // 清除旧的章节/备忘录关联，保留其他类型的关联（如世界书）
+  relatedContent.value = relatedContent.value.filter(
+    rc => rc.type !== 'chapter' && rc.type !== 'memo'
+  )
+  
+  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim()
+  
+  // 添加选中的章节
+  selectedRelateChapterIds.value.forEach(id => {
+    const chapter = chaptersList.value.find(c => c.id === id)
+    if (chapter) {
+      relatedContent.value.push({
+        type: 'chapter',
+        id: chapter.id,
+        title: chapter.title || '无标题',
+        content: stripHtml(chapter.content || '')
+      })
+    }
+  })
+  
+  // 添加选中的备忘录
+  selectedRelateMemoIds.value.forEach(id => {
+    const memo = memos.value.find(m => m.id === id)
+    if (memo) {
+      relatedContent.value.push({
+        type: 'memo',
+        id: memo.id,
+        title: memo.title || '无标题',
+        content: stripHtml(memo.content || '')
+      })
+    }
+  })
+  
+  ElMessage.success(`已关联 ${selectedRelateChapterIds.value.length + selectedRelateMemoIds.value.length} 项内容`)
+  showRelateContentDialog.value = false
+}
+
+const openRelateContentDialog = () => {
+  // 预填当前已关联的章节和备忘录
+  selectedRelateChapterIds.value = relatedContent.value
+    .filter(rc => rc.type === 'chapter')
+    .map(rc => Number(rc.id))
+  selectedRelateMemoIds.value = relatedContent.value
+    .filter(rc => rc.type === 'memo')
+    .map(rc => Number(rc.id))
+  showRelateContentDialog.value = true
+}
+
+// 世界书关联
+const worldBookStore = useWorldBookStore()
+const worldbookSearchKeyword = ref('')
+const selectedWorldBookEntries = ref<string[]>([])
+const worldBookEditorVisible = ref(false)
+const editingWorldBookEntry = ref<WorldBookEntry | null>(null)
+const worldBookFileInput = ref<HTMLInputElement>()
+const importAsNewFileInput = ref<HTMLInputElement>()
+
+// 世界书选择器
+const currentWorldBookName = computed({
+  get: () => worldBookStore.getCurrentWorldBookName(String(bookId)),
+  set: (name: string) => {
+    worldBookStore.setCurrentWorldBookName(String(bookId), name)
+  }
+})
+const worldBookList = computed(() => worldBookStore.getBookWorldBookList(String(bookId)))
+const showWorldBookDialog = ref(false)
+const worldBookDialogMode = ref<'create' | 'rename'>('create')
+const worldBookDialogName = ref('')
+
+const openCreateWorldBookDialog = () => {
+  worldBookDialogMode.value = 'create'
+  worldBookDialogName.value = ''
+  showWorldBookDialog.value = true
+}
+
+const openRenameWorldBookDialog = () => {
+  worldBookDialogMode.value = 'rename'
+  worldBookDialogName.value = currentWorldBookName.value
+  showWorldBookDialog.value = true
+}
+
+const confirmWorldBookDialog = () => {
+  const name = worldBookDialogName.value.trim()
+  if (!name) return ElMessage.warning('名称不能为空')
+  if (worldBookDialogMode.value === 'create') {
+    worldBookStore.createWorldBook(String(bookId), name)
+    ElMessage.success('世界书已创建')
+  } else {
+    if (name === currentWorldBookName.value) {
+      showWorldBookDialog.value = false
+      return
+    }
+    if (!worldBookStore.renameWorldBook(String(bookId), currentWorldBookName.value, name)) {
+      return ElMessage.warning('名称已存在或操作失败')
+    }
+    ElMessage.success('已重命名')
+  }
+  showWorldBookDialog.value = false
+}
+
+const handleDeleteWorldBook = async () => {
+  const name = currentWorldBookName.value
+  try {
+    await ElMessageBox.confirm(`确定删除世界书「${name}」及其中所有条目吗？`, '删除确认', { type: 'warning' })
+    worldBookStore.deleteWorldBook(String(bookId), name)
+    ElMessage.success('已删除')
+  } catch {}
+}
+
+const worldBookForm = ref(createDefaultWorldBookEntry())
+
+// 词条状态：normal/constant/disable 三选一
+const worldBookEntryStatus = computed({
+  get: () => worldBookForm.value.disable ? 'disable' : worldBookForm.value.constant ? 'constant' : 'normal',
+  set: (val: string) => {
+    worldBookForm.value.constant = val === 'constant'
+    worldBookForm.value.disable = val === 'disable'
+  }
+})
+
+const currentBookWorldBook = computed(() => {
+  return worldBookStore.getBookWorldBook(String(bookId), currentWorldBookName.value)
+})
+
+const filteredWorldBookEntries = computed(() => {
+  const entries = currentBookWorldBook.value?.entries || []
+  
+  if (!worldbookSearchKeyword.value.trim()) {
+    return entries
+  }
+
+  const keyword = worldbookSearchKeyword.value.toLowerCase()
+  return entries.filter(entry => {
+    return (
+      entry.comment.toLowerCase().includes(keyword) ||
+      entry.key.some(k => k.toLowerCase().includes(keyword)) ||
+      entry.content.toLowerCase().includes(keyword)
+    )
+  })
+})
+
+// 分组
+const collapsedGroups = ref<Set<string>>(new Set())
+
+const worldBookGroups = computed(() => {
+  const entries = filteredWorldBookEntries.value
+  const groupMap = new Map<string, WorldBookEntry[]>()
+  
+  entries.forEach(entry => {
+    const g = entry.group?.trim() || ''
+    if (!groupMap.has(g)) groupMap.set(g, [])
+    groupMap.get(g)!.push(entry)
+  })
+  
+  // 有名称的分组在前 → 默认（空分组名）在最后
+  return Array.from(groupMap.entries()).sort((a, b) => {
+    if (!a[0] && !b[0]) return 0
+    if (!a[0]) return 1
+    if (!b[0]) return -1
+    return a[0].localeCompare(b[0])
+  })
+})
+
+// 编辑器分组下拉可选值
+const availableGroups = computed(() => {
+  const names = new Set<string>()
+  currentBookWorldBook.value?.entries.forEach(e => {
+    const g = e.group?.trim()
+    if (g) names.add(g)
+  })
+  return Array.from(names).sort((a, b) => a.localeCompare(b))
+})
+
+const toggleGroupCollapse = (group: string) => {
+  if (collapsedGroups.value.has(group)) {
+    collapsedGroups.value.delete(group)
+  } else {
+    collapsedGroups.value.add(group)
+  }
+}
+
+// 分组管理
+const showGroupDialog = ref(false)
+const groupDialogMode = ref<'create' | 'rename'>('create')
+const groupDialogName = ref('')
+const groupDialogOldName = ref('')
+
+const openCreateGroupDialog = () => {
+  groupDialogMode.value = 'create'
+  groupDialogName.value = ''
+  groupDialogOldName.value = ''
+  showGroupDialog.value = true
+}
+
+const openRenameGroupDialog = (oldName: string) => {
+  groupDialogMode.value = 'rename'
+  groupDialogName.value = oldName
+  groupDialogOldName.value = oldName
+  showGroupDialog.value = true
+}
+
+const confirmGroupDialog = async () => {
+  const name = groupDialogName.value.trim()
+  if (!name) {
+    ElMessage.warning('请输入分组名称')
+    return
+  }
+  if (groupDialogMode.value === 'rename' && name === groupDialogOldName.value) {
+    showGroupDialog.value = false
+    return
+  }
+  
+  if (groupDialogMode.value === 'create') {
+    showGroupDialog.value = false
+    ElMessage.success(`分组"${name}"已创建，新建条目时可选择该分组`)
+  } else {
+    const oldName = groupDialogOldName.value
+    const entries = currentBookWorldBook.value?.entries.filter(e => (e.group?.trim() || '') === oldName) || []
+    for (const entry of entries) {
+      await worldBookStore.updateEntry(entry.uid, { group: name }, String(bookId), currentWorldBookName.value)
+    }
+    showGroupDialog.value = false
+    ElMessage.success(`分组已重命名为"${name}"`)
+  }
+}
+
+const deleteGroup = async (groupName: string) => {
+  try {
+    const entries = currentBookWorldBook.value?.entries.filter(e => (e.group?.trim() || '') === groupName) || []
+    await ElMessageBox.confirm(
+      `确定删除分组"${groupName}"吗？该分组下的 ${entries.length} 个条目将移至默认分组。`,
+      '删除分组',
+      { type: 'warning' }
+    )
+    for (const entry of entries) {
+      await worldBookStore.updateEntry(entry.uid, { group: '' }, String(bookId))
+    }
+    ElMessage.success('分组已删除')
+  } catch {
+    // 取消
+  }
+}
+
+const worldBookEntryCount = computed(() => {
+  return currentBookWorldBook.value?.entries.length || 0
+})
+
+const enabledWorldBookCount = computed(() => {
+  const entries = currentBookWorldBook.value?.entries || []
+  return entries.filter(e => !e.disable).length
+})
+
+const openWorldBookDialog = () => {
+  selectedWorldBookEntries.value = []
+  worldbookSearchKeyword.value = ''
+  // 所有分组默认折叠
+  collapsedGroups.value = new Set(worldBookGroups.value.map(([name]) => name))
+  showRelateDialog.value = true
+}
+
+const toggleWorldBookEntry = async (entry: WorldBookEntry, enabled: boolean) => {
+  entry.disable = !enabled
+  await worldBookStore.updateEntry(entry.uid, { disable: !enabled }, String(bookId))
+}
+
+const createWorldBookEntry = () => {
+  editingWorldBookEntry.value = null
+  worldBookForm.value = createDefaultWorldBookEntry()
+  worldBookEditorVisible.value = true
+}
+
+const editWorldBookEntry = (entry: WorldBookEntry) => {
+  editingWorldBookEntry.value = entry
+  worldBookForm.value = { ...entry }
+  worldBookEditorVisible.value = true
+}
+
+const saveWorldBookEntry = async () => {
+  if (!worldBookForm.value.comment.trim()) {
+    ElMessage.warning('请输入条目标题')
+    return
+  }
+
+  if (editingWorldBookEntry.value) {
+    await worldBookStore.updateEntry(editingWorldBookEntry.value.uid, worldBookForm.value, String(bookId))
+    ElMessage.success('条目已更新')
+  } else {
+    await worldBookStore.addEntry(worldBookForm.value, String(bookId))
+    ElMessage.success('条目已创建')
+  }
+
+  worldBookEditorVisible.value = false
+}
+
+const deleteWorldBookEntry = async (entry: WorldBookEntry) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除条目"${entry.comment || '未命名条目'}"吗？`,
+      '删除确认',
+      { type: 'warning' }
+    )
+    await worldBookStore.deleteEntry(entry.uid, String(bookId))
+    ElMessage.success('条目已删除')
+  } catch {
+    // 取消
+  }
+}
+
+const handleImportCommand = (command: string) => {
+  if (command === 'current') {
+    worldBookFileInput.value?.click()
+  } else if (command === 'new') {
+    importAsNewFileInput.value?.click()
+  }
+}
+
+const handleWorldBookFileSelect = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    const data = JSON.parse(text)
+    
+    const success = worldBookStore.importWorldBookData(data, String(bookId))
+    if (success) {
+      ElMessage.success('世界书导入成功')
+    } else {
+      ElMessage.error('世界书格式不正确')
+    }
+  } catch (error) {
+    ElMessage.error('导入失败：文件格式错误')
+  }
+
+  if (worldBookFileInput.value) {
+    worldBookFileInput.value.value = ''
+  }
+}
+
+const handleWorldBookImportAsNew = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    const data = JSON.parse(text)
+
+    const fileName = file.name.replace(/\.(json|wb)$/i, '')
+
+    const existingList = worldBookStore.getBookWorldBookList(String(bookId))
+    if (existingList.includes(fileName)) {
+      try {
+        await ElMessageBox.confirm(
+          `世界书「${fileName}」已存在，是否合并导入？`,
+          '名称冲突',
+          { type: 'warning' }
+        )
+      } catch {
+        if (importAsNewFileInput.value) {
+          importAsNewFileInput.value.value = ''
+        }
+        return
+      }
+    }
+
+    data.name = fileName
+
+    const success = worldBookStore.importWorldBookData(data, String(bookId))
+    if (success) {
+      ElMessage.success(`已导入为新世界书「${fileName}」`)
+    } else {
+      ElMessage.error('世界书格式不正确')
+    }
+  } catch (error) {
+    ElMessage.error('导入失败：文件格式错误')
+  }
+
+  if (importAsNewFileInput.value) {
+    importAsNewFileInput.value.value = ''
+  }
+}
+
+const exportWorldBook = (format: 'default' | 'sillytavern' = 'default') => {
+  const data = worldBookStore.exportWorldBookData(String(bookId), format)
+  if (!data || !data.entries || (Array.isArray(data.entries) ? data.entries.length === 0 : Object.keys(data.entries).length === 0)) {
+    ElMessage.warning('没有可导出的条目')
+    return
+  }
+
+  const formatLabel = format === 'sillytavern' ? '酒馆' : '默认'
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `worldbook-${currentBook.value?.title || 'book'}-${formatLabel}-${Date.now()}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  
+  ElMessage.success(`世界书已导出（${formatLabel}格式）`)
+}
+
+const handleExportFormat = (format: string) => {
+  exportWorldBook(format as 'default' | 'sillytavern')
+}
 
 // 重命名
 const showRenameDialog = ref(false)
@@ -2061,6 +3238,11 @@ const volumeForm = ref({
   id: 0,
   title: ''
 })
+
+// 自动分卷相关
+const showAutoSplitDialog = ref(false)
+const autoSplitCount = ref(10)
+const autoSplitting = ref(false)
 
 onMounted(async () => {
   loadGlobalMemoFolders()
@@ -2082,6 +3264,7 @@ onMounted(async () => {
   
   // 加载字体大小设置
   loadFontSize()
+  loadFontFamily()
   
   // 初始化面板宽度
   updateCenterWidth()
@@ -2322,7 +3505,7 @@ const fetchPrompts = async () => {
 const fetchConfigs = async () => {
   const res = await configAPI.getAll()
   if (res.success && res.data) {
-    apiConfigs.value = res.data
+    apiConfigs.value = res.data.filter(m => m.enabled !== 0)
     
     // 如果已经有选中的配置，检查它是否还存在
     if (selectedConfigId.value) {
@@ -2376,10 +3559,37 @@ const selectConversation = async (conv: any) => {
   currentConversation.value = conv
   const res = await conversationAPI.getMessages(conv.id)
   if (res.success && res.data) {
-    chatMessages.value = res.data
+    chatMessages.value = (res.data as ChatMessage[]).map(msg => {
+      if (msg.role === 'user') {
+        msg.displayContent = extractUserDisplayContent(msg.content)
+      }
+      return msg
+    })
     await nextTick()
     scrollToBottom()
   }
+}
+
+// 从存储的完整用户消息中提取用户实际输入（前端显示用）
+const extractUserDisplayContent = (fullContent: string): string => {
+  // 存储格式: 提示词：\n...\n\n世界书：\n...\n\n关联内容：\n...\n\n{用户实际输入}
+  // 循环剥离所有已知标签前缀块，剩余即为用户输入
+  const labelRE = /^(提示词：|世界书：|关联内容：)[\s\S]*?\n\n(?=提示词：|世界书：|关联内容：|\S|$)/
+  let result = fullContent
+  let prev = ''
+  while (result !== prev) {
+    prev = result
+    result = result.replace(labelRE, '')
+  }
+  const extracted = result.trim()
+  // 剥离后为空说明本次只有注入内容无用户输入，用占位符避免暴露后端完整内容
+  return extracted || '[已注入提示词/关联内容]'
+}
+
+// 获取消息的前端显示内容：system消息不显示，user消息只显示用户实际输入
+const getUserDisplayContent = (msg: ChatMessage): string => {
+  if (msg.role === 'user') return msg.displayContent || extractUserDisplayContent(msg.content)
+  return msg.content
 }
 
 const readHistoryStorage = () => {
@@ -2567,7 +3777,14 @@ const copyConversation = async (conv: any) => {
   }
 }
 
-// 处理对话操作命令
+const renameConversation = (conv: any) => {
+  handleConversationCommand('rename', conv)
+}
+
+const deleteConversation = async (conv: any) => {
+  handleConversationCommand('delete', conv)
+}
+
 const handleConversationCommand = async (command: string, conv: any) => {
   if (command === 'rename') {
     const { value } = await ElMessageBox.prompt('请输入新的对话名称', '重命名对话', {
@@ -2582,12 +3799,10 @@ const handleConversationCommand = async (command: string, conv: any) => {
       const res = await conversationAPI.update(conv.id, { title: value })
       if (res.success) {
         ElMessage.success('重命名成功')
-        // 更新本地列表
-        const target = conversationsList.value.find(c => c.id === conv.id)
+        const target = conversations.value.find(c => c.id === conv.id)
         if (target) {
           target.title = value
         }
-        // 如果是当前选中的对话，也更新
         if (currentConversation.value && currentConversation.value.id === conv.id) {
           currentConversation.value.title = value
         }
@@ -2610,20 +3825,17 @@ const handleConversationCommand = async (command: string, conv: any) => {
         }
       }
       
-      // 更新本地列表
-      const target = conversationsList.value.find(c => c.id === conv.id)
+      const target = conversations.value.find(c => c.id === conv.id)
       if (target) {
         target.messages = []
         target.message_count = 0
       }
       
-      // 如果是当前选中的对话，也清空
       if (currentConversation.value && currentConversation.value.id === conv.id) {
         chatMessages.value = []
       }
       
       ElMessage.success('消息已清空')
-      // 刷新历史记录
       await loadAllHistory()
     } catch (error) {
       // 用户取消
@@ -2639,10 +3851,8 @@ const handleConversationCommand = async (command: string, conv: any) => {
       const res = await conversationAPI.delete(conv.id)
       if (res.success) {
         ElMessage.success('删除成功')
-        // 从本地列表移除
-        conversationsList.value = conversationsList.value.filter(c => c.id !== conv.id)
+        conversations.value = conversations.value.filter(c => c.id !== conv.id)
         
-        // 如果是当前选中的对话，重置当前对话
         if (currentConversation.value && currentConversation.value.id === conv.id) {
           currentConversation.value = null
           chatMessages.value = []
@@ -2978,8 +4188,6 @@ const handleCreative2Generate = async () => {
       }
     }
 
-    userMessageContent += '请根据以上信息生成创意内容。'
-
     // 保存到对话记录
     const convRes = await conversationAPI.create({
       book_id: bookId,
@@ -3251,14 +4459,21 @@ const cancelEdit = () => {
 }
 
 const getContentLength = (content: string) => {
-  return content ? content.length : 0
+  if (!content) return 0
+  const plainText = content.replace(/<[^>]*>/g, '')
+  let length = 0
+  for (const char of plainText) {
+    if (/[\u4e00-\u9fa5]/.test(char)) {
+      length += 1
+    }
+  }
+  return length
 }
 
 const handleTextSelect = (event: Event) => {
   const target = event.target as HTMLTextAreaElement
   const selectedText = target.value.substring(target.selectionStart, target.selectionEnd)
-  // 只有选中文本时才显示字数，否则清零
-  selectedTextLength.value = selectedText.length > 0 ? selectedText.length : 0
+  selectedTextLength.value = selectedText.length > 0 ? getContentLength(selectedText) : 0
 }
 
 // 编辑功能
@@ -3368,7 +4583,7 @@ const handleSelectAll = () => {
   if (!textarea) return
   
   textarea.select()
-  selectedTextLength.value = textarea.value.length
+  selectedTextLength.value = getContentLength(textarea.value)
 }
 
 const handleUndo = () => {
@@ -3416,6 +4631,10 @@ const saveFontSize = () => {
   localStorage.setItem('editorFontSize', fontSize.value.toString())
 }
 
+const saveFontFamily = () => {
+  localStorage.setItem('editorFontFamily', fontFamily.value)
+}
+
 const goToBookAnalysis = () => {
   router.push({ 
     name: 'BookAnalysis', 
@@ -3435,6 +4654,13 @@ const loadFontSize = () => {
   const savedSize = localStorage.getItem('editorFontSize')
   if (savedSize) {
     fontSize.value = parseInt(savedSize)
+  }
+}
+
+const loadFontFamily = () => {
+  const savedFont = localStorage.getItem('editorFontFamily')
+  if (savedFont) {
+    fontFamily.value = savedFont
   }
 }
 
@@ -3839,6 +5065,110 @@ const stopContinueWrite = () => {
   continuWriting.value = false
 }
 
+const regenerateMessage = async (index: number) => {
+  if (sending.value) return
+  
+  const message = chatMessages.value[index]
+  if (!message || message.role !== 'assistant') return
+  
+  if (message.id && currentConversation.value) {
+    await conversationAPI.deleteMessage(currentConversation.value.id, message.id)
+  }
+  
+  const assistantMessage: ChatMessage = {
+    role: 'assistant',
+    content: ''
+  }
+  chatMessages.value.splice(index, 1, assistantMessage)
+  const messageIndex = index
+  
+  try {
+    sending.value = true
+    chatAbortController.value = new AbortController()
+    scrollToBottom()
+    
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: chatMessages.value.slice(0, messageIndex),
+        configId: selectedConfigId.value
+      }),
+      signal: chatAbortController.value.signal
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    
+    if (!reader) {
+      throw new Error('无法获取响应流')
+    }
+    
+    let buffer = ''
+    let rawContent = ''
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          
+          if (data === '[DONE]') {
+            break
+          }
+          
+          try {
+            const parsed = JSON.parse(data)
+            const currentMessage = chatMessages.value[messageIndex]
+            if (parsed.content && currentMessage) {
+              rawContent += parsed.content
+              currentMessage.content = rawContent
+              scrollToBottom()
+            }
+            if (parsed.error) {
+              ElMessage.error(parsed.error)
+            }
+          } catch (e) {
+            console.error('解析SSE数据错误:', e)
+          }
+        }
+      }
+    }
+    
+    const savedMessage = chatMessages.value[messageIndex]
+    if (savedMessage?.content && currentConversation.value) {
+      await conversationAPI.saveMessage(currentConversation.value.id, {
+        role: 'assistant',
+        content: savedMessage.content
+      })
+      await fetchConversations()
+    } else {
+      chatMessages.value.splice(messageIndex, 1)
+      ElMessage.error('AI未返回内容')
+    }
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      ElMessage.error('重新生成失败')
+    }
+  } finally {
+    sending.value = false
+    chatAbortController.value = null
+  }
+}
+
 const deleteMessage = async (index: number) => {
   try {
     await ElMessageBox.confirm('确定删除这条消息吗？', '提示', {
@@ -4032,6 +5362,93 @@ const handleVolumeSubmit = async () => {
     showVolumeDialog.value = false
   } catch (error) {
     ElMessage.error(isEditVolume.value ? '更新失败' : '创建失败')
+  }
+}
+
+const openAutoSplitDialog = () => {
+  autoSplitCount.value = 10
+  showAutoSplitDialog.value = true
+}
+
+const formatAutoSplitPreview = () => {
+  if (autoSplitCount.value <= 0 || unchapteredChapters.value.length === 0) return ''
+  const total = unchapteredChapters.value.length
+  const perVolume = autoSplitCount.value
+  const volumeCount = Math.ceil(total / perVolume)
+  const ranges: string[] = []
+  for (let i = 0; i < volumeCount; i++) {
+    const start = i * perVolume
+    const end = Math.min(start + perVolume, total)
+    ranges.push(`第${start + 1}-${end}章`)
+    if (ranges.length >= 5 && i < volumeCount - 1) {
+      ranges.push(`... 共${volumeCount}卷`)
+      break
+    }
+  }
+  return ranges.join('、')
+}
+
+const handleAutoSplit = async () => {
+  if (autoSplitCount.value <= 0 || unchapteredChapters.value.length === 0) {
+    ElMessage.warning('没有可分配的未分卷章节')
+    return
+  }
+
+  autoSplitting.value = true
+  try {
+    const chapters = [...unchapteredChapters.value]
+    const perVolume = autoSplitCount.value
+    const totalVolumes = Math.ceil(chapters.length / perVolume)
+
+    // 阶段一：并行创建所有分卷
+    const volumePromises = []
+    for (let i = 0; i < totalVolumes; i++) {
+      volumePromises.push(
+        volumeAPI.create({
+          book_id: bookId,
+          title: `第${i + 1}卷`,
+          order_num: volumes.value.length + i
+        })
+      )
+    }
+    const volResults = await Promise.all(volumePromises)
+
+    // 收集已创建的分卷
+    const newVolumes: Volume[] = []
+    for (const res of volResults) {
+      if (res.success && res.data) {
+        newVolumes.push(res.data)
+        volumes.value.push(res.data)
+      }
+    }
+
+    // 阶段二：并行批量分配章节到分卷
+    const updatePromises: Promise<any>[] = []
+    for (let i = 0; i < newVolumes.length; i++) {
+      const start = i * perVolume
+      const end = Math.min(start + perVolume, chapters.length)
+      const batch = chapters.slice(start, end)
+      const volume = newVolumes[i]
+      if (!volume) continue
+
+      for (const chapter of batch) {
+        // 先更新本地引用（UI 即时反映），同时异步更新数据库
+        chapter.volume_id = volume.id
+        updatePromises.push(
+          chapterAPI.update(chapter.id, { volume_id: volume.id } as any)
+        )
+      }
+    }
+    await Promise.all(updatePromises)
+
+    ElMessage.success(`成功创建 ${totalVolumes} 个分卷，分配 ${chapters.length} 个章节`)
+    showAutoSplitDialog.value = false
+    expandedVolumeId.value = null
+  } catch (error) {
+    console.error('自动分卷失败:', error)
+    ElMessage.error('自动分卷失败，请重试')
+  } finally {
+    autoSplitting.value = false
   }
 }
 
@@ -4585,37 +6002,6 @@ const getMemoTags = (tagsStr: string) => {
   }
 }
 
-const confirmRelate = () => {
-  relatedContent.value = []
-  
-  selectedChapters.value.forEach(id => {
-    const chapter = chaptersList.value.find(c => c.id === id)
-    if (chapter) {
-      relatedContent.value.push({
-        type: 'chapter',
-        id: chapter.id,
-        title: chapter.title,
-        content: chapter.content
-      })
-    }
-  })
-  
-  selectedMemos.value.forEach(id => {
-    const memo = memos.value.find(m => m.id === id)
-    if (memo) {
-      relatedContent.value.push({
-        type: 'memo',
-        id: memo.id,
-        title: memo.title,
-        content: memo.content
-      })
-    }
-  })
-  
-  showRelateDialog.value = false
-  ElMessage.success(`已关联${relatedContent.value.length}项内容`)
-}
-
 const scrollToBottom = () => {
   nextTick(() => {
     if (chatMessagesRef.value) {
@@ -4641,15 +6027,30 @@ const sendMessage = async () => {
 
   const promptContents = selectedPromptRecords.map((p: any) => p.content).join('\n\n')
 
+  // 世界书注入：根据用户输入匹配词条并注入内容（需开启关联）
+  let worldBookInjection = ''
+  if (worldBookLinked.value) {
+    const bookEntries = currentBookWorldBook.value?.entries || []
+    if (bookEntries.length > 0) {
+      const matchResults = matchWorldBookEntries(userInput.value || '', bookEntries)
+      if (matchResults.length > 0) {
+        worldBookInjection = injectWorldBookContent('', matchResults).trim()
+      }
+    }
+  }
+
   let fullUserContent = ''
   if (promptContents) {
     fullUserContent += `提示词：\n${promptContents}\n\n`
+  }
+  if (worldBookInjection) {
+    fullUserContent += `世界书：\n${worldBookInjection}\n\n`
   }
   if (relatedContentSummary) {
     fullUserContent += `${relatedContentSummary}\n\n`
   }
   if (userInput.value.trim()) {
-    fullUserContent += userInput.value
+    fullUserContent += userInput.value.trim()
   }
 
   if (!fullUserContent.trim()) {
@@ -4657,13 +6058,15 @@ const sendMessage = async () => {
     return
   }
 
+  const userActualInput = userInput.value.trim()
+  
   const userMessage: ChatMessage = {
     role: 'user',
-    content: fullUserContent
+    content: fullUserContent,
+    displayContent: userActualInput || '[已注入提示词/关联内容]'
   }
   chatMessages.value.push(userMessage)
   
-  // 保存用户消息
   await conversationAPI.saveMessage(currentConversation.value.id, {
     role: 'user',
     content: fullUserContent
@@ -4671,7 +6074,6 @@ const sendMessage = async () => {
   
   userInput.value = ''
 
-  // 创建一个空的assistant消息用于流式更新
   const assistantMessage: ChatMessage = {
     role: 'assistant',
     content: ''
@@ -4709,6 +6111,7 @@ const sendMessage = async () => {
     }
 
     let buffer = ''
+    let rawContent = ''
 
     while (true) {
       const { done, value } = await reader.read()
@@ -4731,7 +6134,8 @@ const sendMessage = async () => {
             const parsed = JSON.parse(data)
             const currentMessage = chatMessages.value[messageIndex]
             if (parsed.content && currentMessage) {
-              currentMessage.content += parsed.content
+              rawContent += parsed.content
+              currentMessage.content = rawContent
               scrollToBottom()
             }
             if (parsed.error) {
@@ -4744,7 +6148,7 @@ const sendMessage = async () => {
       }
     }
 
-    // 保存助手消息
+    // 保存助手消息（内容已在上方逐块过正则）
     const savedMessage = chatMessages.value[messageIndex]
     if (savedMessage?.content) {
       await conversationAPI.saveMessage(currentConversation.value.id, {
@@ -4795,6 +6199,9 @@ const sendMessage = async () => {
     if (error.name === 'AbortError') {
       const partialContent = chatMessages.value[messageIndex]?.content || ''
       if (partialContent) {
+        if (chatMessages.value[messageIndex]) {
+          chatMessages.value[messageIndex].content = partialContent
+        }
         await conversationAPI.saveMessage(currentConversation.value.id, {
           role: 'assistant',
           content: partialContent
@@ -4806,8 +6213,8 @@ const sendMessage = async () => {
           sourceLabel: '正文对话',
           promptName: promptNames,
           promptCount: systemPrompts.length,
-          status: 'cancelled',
-          previewContent: partialContent.substring(0, 140),
+        status: 'cancelled',
+        previewContent: partialContent.substring(0, 140),
           messages: buildHistoryMessages({
             systemContents: relatedContentSummary ? [relatedContentSummary] : [],
             promptContents: systemPrompts,
@@ -5221,60 +6628,249 @@ const stopChatGeneration = () => {
   color: #00a896;
 }
 
-.volume-container {
-  margin-bottom: 8px;
+.auto-split-btn[disabled] {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
-.volume-item {
+/* ========== 文件树目录结构 ========== */
+.file-tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-node {
+  position: relative;
+}
+
+.tree-folder {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
-  margin-bottom: 4px;
+  gap: 3px;
+  padding: 4px 4px;
   cursor: pointer;
-  border-radius: 14px;
-  background: rgba(244, 252, 250, 0.9);
-  border: 1px solid rgba(0, 201, 167, 0.12);
-  transition: all 0.2s ease;
+  border-radius: 5px;
+  transition: background 0.12s ease;
+  user-select: none;
+  margin-bottom: 1px;
 }
 
-.volume-item:hover {
-  background: rgba(234, 249, 245, 0.98);
-  border-color: rgba(0, 201, 167, 0.35);
-  transform: translateX(2px);
-  box-shadow: 0 6px 18px rgba(0, 201, 167, 0.12);
+.tree-folder:hover {
+  background: rgba(0, 201, 167, 0.07);
 }
 
-.volume-arrow {
-  font-size: 13px;
-  color: #606266;
-  margin-right: 6px;
-  transition: transform 0.2s ease;
+.tree-arrow {
+  font-size: 10px;
+  color: #909399;
+  transition: transform 0.12s ease;
+  flex-shrink: 0;
 }
 
-.volume-arrow.expanded {
+.tree-arrow.expanded {
   transform: rotate(90deg);
 }
 
-.volume-title {
+.tree-folder-icon {
+  font-size: 14px;
+  color: #00c9a7;
+  flex-shrink: 0;
+}
+
+.tree-folder-name {
   flex: 1;
+  font-size: 12.5px;
   font-weight: 500;
   color: #303133;
-  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
-.volume-actions {
+.tree-folder-count {
+  font-size: 10.5px;
+  color: #b0b8c1;
+  flex-shrink: 0;
+  margin-right: 2px;
+  min-width: 16px;
+  text-align: right;
+}
+
+.tree-folder-actions {
   display: flex;
-  gap: 4px;
+  gap: 1px;
+  flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.12s;
 }
 
-.volume-item:hover .volume-actions {
+.tree-folder:hover .tree-folder-actions {
   opacity: 1;
 }
 
-.chapter-list {
-  padding-left: 10px;
+.tree-folder-act-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #909399;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+}
+
+.tree-folder-act-btn .el-icon {
+  font-size: 12px;
+}
+
+.tree-folder-act-btn:hover {
+  background: rgba(0, 201, 167, 0.12);
+  color: #00a896;
+}
+
+.tree-folder-act-danger:hover {
+  background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
+}
+
+.tree-children {
+  padding-left: 16px;
+}
+
+.tree-node-file {
+  display: flex;
+  align-items: stretch;
+  padding: 1px 0;
+}
+
+.tree-node-file-body {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.12s ease;
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-node-file-body:hover {
+  background: rgba(0, 201, 167, 0.06);
+}
+
+.tree-node-file.active .tree-node-file-body {
+  background: rgba(0, 201, 167, 0.12);
+  border: 1px solid rgba(0, 201, 167, 0.25);
+}
+
+.tree-file-icon {
+  font-size: 13px;
+  color: #b0b8c1;
+  flex-shrink: 0;
+}
+
+.tree-node-file.active .tree-file-icon {
+  color: #00a896;
+}
+
+.tree-file-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tree-file-top-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tree-file-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: #303133;
+  min-width: 0;
+}
+
+.tree-file-badge {
+  font-size: 9.5px;
+  color: #b0b8c1;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(0, 201, 167, 0.07);
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.tree-file-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 18px;
+}
+
+.tree-file-meta {
+  font-size: 9.5px;
+  color: #c0c7d0;
+}
+
+.tree-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0;
+  padding: 4px 2px;
+  transition: opacity 0.12s;
+}
+
+.tree-node-file:hover .tree-file-actions,
+.tree-node-file.active .tree-file-actions {
+  opacity: 1;
+}
+
+.tree-file-act-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #909399;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+}
+
+.tree-file-act-btn .el-icon {
+  font-size: 12px;
+}
+
+.tree-file-act-btn:hover {
+  background: rgba(0, 201, 167, 0.1);
+  color: #00a896;
+}
+
+.tree-summary-btn.filled {
+  color: #00a896;
+}
+
+.tree-delete-btn:hover {
+  background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
 }
 
 .empty-catalog {
@@ -5284,7 +6880,7 @@ const stopChatGeneration = () => {
   font-size: 13px;
 }
 
-/* 左侧面板 - 暗色主题 */
+/* ========== 左侧面板 - 暗色主题 ========== */
 :root[data-theme='dark'] .left-panel {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
 }
@@ -5309,37 +6905,88 @@ const stopChatGeneration = () => {
   color: #5eead4;
 }
 
-:root[data-theme='dark'] .volume-item {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(71, 85, 105, 0.3);
+:root[data-theme='dark'] .tree-folder:hover {
+  background: rgba(94, 234, 212, 0.08);
 }
 
-:root[data-theme='dark'] .volume-item:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(94, 234, 212, 0.3);
-  box-shadow: 0 6px 18px rgba(94, 234, 212, 0.1);
-}
-
-:root[data-theme='dark'] .volume-arrow {
+:root[data-theme='dark'] .tree-arrow {
   color: #9ca3af;
 }
 
-:root[data-theme='dark'] .volume-title {
+:root[data-theme='dark'] .tree-folder-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .tree-folder-name {
   color: #e5e7eb;
 }
 
-:root[data-theme='dark'] .volume-actions .el-button {
+:root[data-theme='dark'] .tree-folder-count {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .tree-folder-act-btn {
   color: #9ca3af;
 }
 
-:root[data-theme='dark'] .volume-actions .el-button:hover {
+:root[data-theme='dark'] .tree-folder-act-btn:hover {
+  background: rgba(94, 234, 212, 0.12);
   color: #5eead4;
+}
+
+:root[data-theme='dark'] .tree-folder-act-danger:hover {
+  background: rgba(245, 108, 108, 0.15);
+  color: #f56c6c;
+}
+
+:root[data-theme='dark'] .tree-node-file-body:hover {
+  background: rgba(94, 234, 212, 0.06);
+}
+
+:root[data-theme='dark'] .tree-node-file.active .tree-node-file-body {
+  background: rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .tree-file-icon {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .tree-node-file.active .tree-file-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .tree-file-title {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .tree-file-badge {
+  color: #9ca3af;
+  background: rgba(94, 234, 212, 0.08);
+}
+
+:root[data-theme='dark'] .tree-file-meta {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .tree-file-act-btn {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .tree-file-act-btn:hover {
+  background: rgba(94, 234, 212, 0.1);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .tree-delete-btn:hover {
+  background: rgba(245, 108, 108, 0.15);
 }
 
 :root[data-theme='dark'] .empty-catalog {
   color: #6b7280 !important;
 }
 
+/* ========== 目录列表滚动条 ========== */
 .catalog-list {
   flex: 1;
   min-height: 0;
@@ -5373,210 +7020,14 @@ const stopChatGeneration = () => {
   background: #4a5568 !important;
 }
 
-.catalog-item {
-  padding: 10px 12px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 201, 167, 0.12);
-  box-sizing: border-box;
-}
-
-:root[data-theme='dark'] .catalog-item {
-  background: rgba(30, 41, 59, 0.8) !important;
-  border-color: rgba(71, 85, 105, 0.4) !important;
-}
-
-.catalog-item:hover {
-  background: rgba(239, 252, 249, 0.98);
-  border-color: rgba(0, 201, 167, 0.28);
-  transform: translateX(3px);
-  box-shadow: 0 8px 18px rgba(0, 201, 167, 0.12);
-}
-
-:root[data-theme='dark'] .catalog-item:hover {
-  background: rgba(51, 65, 85, 0.9) !important;
-  border-color: rgba(94, 234, 212, 0.3) !important;
-  box-shadow: 0 8px 18px rgba(94, 234, 212, 0.15) !important;
-}
-
-.catalog-item.active {
-  background: linear-gradient(135deg, #00c9a7 0%, #00a896 100%);
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(0, 168, 150, 0.24);
-  border-color: rgba(0, 168, 150, 0.9);
-  width: 100%;
-  margin-left: 0;
-  padding: 12px 14px;
-  border-radius: 16px;
-}
-
-:root[data-theme='dark'] .catalog-item.active {
-  background: linear-gradient(135deg, #0f766e 0%, #115e59 100%) !important;
-  border-color: rgba(94, 234, 212, 0.4) !important;
-  box-shadow: 0 12px 24px rgba(15, 118, 110, 0.3) !important;
-}
-
-.catalog-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.catalog-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.catalog-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.catalog-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-  font-size: 14px;
-  transition: font-weight 0.2s ease;
-  color: #1f2937;
-}
-
-:root[data-theme='dark'] .catalog-title {
-  color: #f4f7ff !important;
-}
-
-.catalog-word-count,
-.catalog-meta {
-  flex-shrink: 0;
-  font-size: 11px;
-  line-height: 1;
-  padding: 5px 8px;
-  border-radius: 999px;
-  background: rgba(0, 201, 167, 0.08);
-  color: #5a8d85;
-}
-
-:root[data-theme='dark'] .catalog-word-count,
-:root[data-theme='dark'] .catalog-meta {
-  background: rgba(94, 234, 212, 0.12) !important;
-  color: #5eead4 !important;
-}
-
-.catalog-item.active .catalog-title {
-  font-weight: 600;
-}
-
-.catalog-item.active .catalog-word-count,
-.catalog-item.active .catalog-meta {
-  background: rgba(255, 255, 255, 0.16);
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.catalog-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  opacity: 0;
-  max-width: 90px;
-  overflow: hidden;
-  transform: translateX(6px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  pointer-events: none;
-}
-
-.catalog-item:hover .catalog-actions,
-.catalog-item.active .catalog-actions {
-  opacity: 1;
-  transform: translateX(0);
-  pointer-events: auto;
-}
-
-.catalog-action-btn {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 168, 150, 0.08);
-  color: #5b7773;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-:root[data-theme='dark'] .catalog-action-btn {
-  background: rgba(94, 234, 212, 0.12) !important;
-  color: #5eead4 !important;
-}
-
-.catalog-action-btn .el-icon {
-  font-size: 14px;
-}
-
-.catalog-action-btn:hover {
-  transform: translateY(-1px);
-}
-
-:root[data-theme='dark'] .catalog-action-btn:hover {
-  background: rgba(94, 234, 212, 0.2) !important;
-}
-
-.summary-action-btn.filled {
-  background: rgba(0, 201, 167, 0.16);
-  color: #00a896;
-}
-
-.summary-action-btn:hover {
-  background: rgba(0, 201, 167, 0.18);
-  color: #00a896;
-}
-
-.delete-action-btn:hover {
-  background: rgba(245, 108, 108, 0.12);
-  color: #f56c6c;
-}
-
-.catalog-item.active .catalog-action-btn {
-  background: rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.96);
-}
-
-.catalog-item.active .summary-action-btn.filled {
-  background: rgba(255, 255, 255, 0.28);
-}
-
-.catalog-item.active .summary-action-btn:hover,
-.catalog-item.active .delete-action-btn:hover {
-  background: rgba(255, 255, 255, 0.28);
-  color: #fff;
-}
-
-/* ========== 中间编辑器面板 - 极简科技风 ========== */
+/* ========== 中间编辑器面板 - 青绿科技风 ========== */
 .center-panel {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(237, 252, 248, 0.76) 0%, rgba(226, 248, 242, 0.94) 100%);
-  backdrop-filter: blur(14px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  background: linear-gradient(180deg, #f0fdf9 0%, #e8faf5 100%);
+  box-shadow: inset 0 1px 0 rgba(0, 201, 167, 0.08);
 }
 
 .editor-container {
@@ -5584,7 +7035,7 @@ const stopChatGeneration = () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 8px 6px 8px;
+  padding: 12px 10px 10px;
   animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -5593,13 +7044,21 @@ const stopChatGeneration = () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 255, 252, 0.98) 100%);
-  border: 1px solid rgba(0, 201, 167, 0.16);
-  border-radius: 28px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 201, 167, 0.15);
+  border-radius: 16px;
   box-shadow:
-    0 24px 48px rgba(0, 136, 110, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    0 1px 3px rgba(0, 201, 167, 0.04),
+    0 8px 24px rgba(0, 201, 167, 0.06);
   overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.editor-sheet:focus-within {
+  border-color: rgba(0, 201, 167, 0.45);
+  box-shadow:
+    0 1px 3px rgba(0, 201, 167, 0.06),
+    0 12px 32px rgba(0, 201, 167, 0.12);
 }
 
 @keyframes slideIn {
@@ -5619,7 +7078,7 @@ const stopChatGeneration = () => {
   gap: 16px;
   justify-content: space-between;
   flex-shrink: 0;
-  padding: 18px 22px 10px;
+  padding: 20px 28px 14px;
 }
 
 .chapter-title {
@@ -5629,38 +7088,65 @@ const stopChatGeneration = () => {
 
 .word-count-inline {
   flex-shrink: 0;
-  font-size: 13px;
-  color: #7aa79f;
+  font-size: 12px;
+  color: #5a8d85;
   white-space: nowrap;
   font-family: 'Georgia', 'Times New Roman', serif;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
+  font-style: italic;
+}
+
+.font-family-select {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.font-family-select :deep(.el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 201, 167, 0.15);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.font-family-select :deep(.el-input__wrapper):hover {
+  border-color: rgba(0, 201, 167, 0.35);
+}
+
+.font-family-select :deep(.el-input__wrapper.is-focus) {
+  border-color: #00c9a7;
+  box-shadow: 0 0 0 2px rgba(0, 201, 167, 0.2);
+}
+
+.font-family-select :deep(.el-input__inner) {
+  font-size: 13px;
+  color: #1f2937;
 }
 
 .chapter-title :deep(.el-input__wrapper) {
-  font-size: 18px;
-  font-weight: 500;
+  font-size: 20px;
+  font-weight: 600;
   border: none;
   box-shadow: none;
   padding: 4px 0;
   background: transparent;
-  border-bottom: 1px solid transparent;
-  transition: all 0.25s ease;
+  border-bottom: 1.5px solid transparent;
+  transition: all 0.3s ease;
 }
 
 .chapter-title :deep(.el-input__wrapper):hover {
   box-shadow: none;
-  border-bottom-color: rgba(0, 168, 150, 0.24);
+  border-bottom-color: rgba(0, 201, 167, 0.3);
 }
 
 .chapter-title :deep(.el-input__wrapper):focus-within {
-  border-bottom-color: rgba(0, 168, 150, 0.86);
+  border-bottom-color: #00c9a7;
 }
 
 .chapter-title :deep(.el-input__inner) {
-  color: #2f514b;
-  font-weight: 500;
+  color: #1a1c1e;
+  font-weight: 600;
   font-family: 'Georgia', 'Times New Roman', serif;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
 
 .editor-stats {
@@ -5669,17 +7155,17 @@ const stopChatGeneration = () => {
   align-items: center;
   padding: 8px 0;
   gap: 12px;
-  border-top: 1px solid rgba(0, 201, 167, 0.12);
+  border-top: 1px solid rgba(0, 201, 167, 0.1);
   min-height: 32px;
 }
 
 .word-count {
   display: flex;
   gap: 16px;
-  font-size: 13px;
-  color: #6b9b97;
+  font-size: 12px;
+  color: #6c7278;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .word-count .selected-count {
@@ -5709,17 +7195,16 @@ const stopChatGeneration = () => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(0, 201, 167, 0.08);
-  border: 1px solid rgba(0, 201, 167, 0.15);
+  background: rgba(0, 201, 167, 0.06);
+  border: 1px solid rgba(0, 201, 167, 0.12);
   color: #00a896;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
 .editor-controls .el-button:hover {
-  background: rgba(0, 201, 167, 0.15);
-  border-color: rgba(0, 201, 167, 0.3);
-  color: #00c9a7;
-  transform: scale(1.05);
+  background: rgba(0, 201, 167, 0.12);
+  border-color: rgba(0, 201, 167, 0.25);
+  color: #00877a;
 }
 
 .editor-controls .el-button .el-icon {
@@ -5734,10 +7219,10 @@ const stopChatGeneration = () => {
 }
 
 .font-size-control .control-label {
-  font-size: 13px;
-  color: #6b9b97;
+  font-size: 12px;
+  color: #6c7278;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .chapter-content {
@@ -5762,20 +7247,112 @@ const stopChatGeneration = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(247, 255, 252, 0.96) 0%, rgba(234, 250, 245, 0.92) 100%);
-  border: 1px solid rgba(0, 201, 167, 0.18);
-  border-radius: 28px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 201, 167, 0.15);
+  border-radius: 16px;
 }
 
-/* ========== 右侧 AI 对话面板 - 悬浮卡片风 ========== */
+/* 暗色主题适配 - 正文板块 */
+:root[data-theme='dark'] .center-panel {
+  background: linear-gradient(180deg, #0f172a 0%, #0f1d2e 100%);
+  box-shadow: inset 0 1px 0 rgba(94, 234, 212, 0.04);
+}
+
+:root[data-theme='dark'] .editor-sheet {
+  background: #1e293b;
+  border-color: rgba(71, 85, 105, 0.35);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .editor-sheet:focus-within {
+  border-color: rgba(94, 234, 212, 0.35);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    0 12px 32px rgba(94, 234, 212, 0.08);
+}
+
+:root[data-theme='dark'] .word-count-inline {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .font-family-select :deep(.el-input__wrapper) {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .font-family-select :deep(.el-input__wrapper):hover {
+  border-color: rgba(94, 234, 212, 0.3);
+}
+
+:root[data-theme='dark'] .font-family-select :deep(.el-input__wrapper.is-focus) {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .font-family-select :deep(.el-input__inner) {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .chapter-title :deep(.el-input__wrapper) {
+  border-bottom-color: transparent;
+}
+
+:root[data-theme='dark'] .chapter-title :deep(.el-input__wrapper):hover {
+  border-bottom-color: rgba(94, 234, 212, 0.25);
+}
+
+:root[data-theme='dark'] .chapter-title :deep(.el-input__wrapper):focus-within {
+  border-bottom-color: #5eead4;
+}
+
+:root[data-theme='dark'] .chapter-title :deep(.el-input__inner) {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .editor-stats {
+  border-top-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .word-count {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .word-count .selected-count {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .editor-controls .el-button {
+  background: rgba(94, 234, 212, 0.08);
+  border-color: rgba(94, 234, 212, 0.12);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .editor-controls .el-button:hover {
+  background: rgba(94, 234, 212, 0.15);
+  border-color: rgba(94, 234, 212, 0.25);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .font-size-control .control-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .empty-state {
+  background: #1e293b;
+  border-color: rgba(71, 85, 105, 0.35);
+}
+
+/* ========== 右侧 AI 对话面板 - 青绿科技风 ========== */
 .right-panel {
   flex-shrink: 0;
-  border-left: 1px solid rgba(0, 201, 167, 0.15);
+  border-left: 1px solid rgba(16, 185, 129, 0.2);
   display: flex;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 253, 249, 0.92) 100%);
+  background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 50%, #f0fdfa 100%);
   backdrop-filter: blur(20px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: -4px 0 24px rgba(0, 201, 167, 0.1);
+  box-shadow: -4px 0 32px rgba(16, 185, 129, 0.1);
   overflow: hidden;
 }
 
@@ -5843,7 +7420,7 @@ const stopChatGeneration = () => {
   font-size: 18px;
 }
 
-/* ========== AI 创意区样式 ========== */
+/* ========== AI 抽卡区样式 ========== */
 .creative-panel {
   flex: 1;
   display: flex;
@@ -6508,22 +8085,62 @@ const stopChatGeneration = () => {
   display: flex;
   flex-direction: column;
   background: transparent;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(0, 201, 167, 0.12);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.15);
   display: flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, rgba(0, 201, 167, 0.04) 0%, rgba(0, 168, 150, 0.02) 100%);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.06) 0%, rgba(6, 78, 59, 0.02) 100%);
+}
+
+.chat-header .el-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  color: #059669 !important;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+
+.chat-header .el-button:hover {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.2);
+  transform: translateY(-1px);
+}
+
+.chat-header .el-button--primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  box-shadow: 0 3px 12px rgba(16, 185, 129, 0.35);
+}
+
+.chat-header .el-button--primary:hover {
+  box-shadow: 0 5px 20px rgba(16, 185, 129, 0.45);
+}
+
+.chat-header .header-badge .el-badge__content {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  font-size: 10px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 4px;
 }
 
 .chat-title {
   flex: 1;
   font-weight: 700;
   font-size: 15px;
-  color: #1a4a45;
+  color: #065f46;
 }
 
 .chat-content {
@@ -6531,20 +8148,47 @@ const stopChatGeneration = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
-  background: linear-gradient(180deg, rgba(240, 253, 249, 0.5) 0%, rgba(255, 255, 255, 0.3) 100%);
+  padding: 16px;
+  background: transparent;
+  min-height: 0;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: rgba(16, 185, 129, 0.05);
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+  border-radius: 3px;
 }
 
 .message {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   display: flex;
-  gap: 8px;
+  gap: 12px;
   animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.message.user {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+.message.assistant {
+  flex-direction: row;
+  justify-content: flex-start;
 }
 
 @keyframes fadeIn {
@@ -6559,113 +8203,164 @@ const stopChatGeneration = () => {
 }
 
 .message-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   font-size: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
 .message.user .message-avatar {
-  background: linear-gradient(135deg, #00c9a7 0%, #00a896 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(0, 201, 167, 0.35);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
 }
 
 .message.assistant .message-avatar {
-  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(45, 212, 191, 0.3);
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
 }
 
 .message-wrapper {
-  flex: 1;
-  max-width: 75%;
+  flex: 0 1 auto;
+  max-width: 85%;
+  min-width: 80px;
   position: relative;
 }
 
-.message-wrapper:hover .message-actions {
-  opacity: 1;
+.message.user .message-wrapper {
+  align-items: flex-end;
+}
+
+.message.assistant .message-wrapper {
+  align-items: flex-start;
 }
 
 .message-content {
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 14px 18px;
+  border-radius: 8px;
   word-wrap: break-word;
-  line-height: 1.6;
+  line-height: 1.7;
   font-size: 14px;
+  position: relative;
+  transition: all 0.3s ease;
 }
 
 .message.user .message-content {
-  background: linear-gradient(135deg, #00c9a7 0%, #00a896 100%);
-  color: #fff;
-  border-bottom-right-radius: 4px;
-  box-shadow: 0 6px 20px rgba(0, 201, 167, 0.35);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 78, 59, 0.05) 100%);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.1);
+}
+
+.message.user .message-content:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.15);
 }
 
 .message.user .message-content :deep(.markdown-body) {
-  color: #fff;
+  color: #065f46;
 }
 
 .message.user .message-content :deep(.markdown-body code) {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #047857;
   border-radius: 4px;
   padding: 2px 6px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.message.user .message-content :deep(.markdown-body pre) {
+  background: rgba(6, 78, 59, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 6px;
 }
 
 .message.assistant .message-content {
-  background: rgba(255, 255, 255, 0.95);
-  color: #1a4a45;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0, 201, 167, 0.1);
-  border: 1px solid rgba(0, 201, 167, 0.12);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 253, 249, 0.9) 100%);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.08);
+}
+
+.message.assistant .message-content:hover {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.12);
 }
 
 .message-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   margin-top: 8px;
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.2s ease;
+  padding-left: 4px;
+}
+
+.message:hover .message-actions {
+  opacity: 1;
 }
 
 .message-actions .el-button {
-  padding: 4px 10px;
-  font-size: 13px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #6b7280 !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
-.edit-wrapper {
-  width: 100%;
+.message-actions .el-button:hover {
+  color: #059669 !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
 }
 
-.edit-wrapper .el-textarea {
-  width: 100%;
+.message-actions .el-button--danger:hover {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
 }
 
-.edit-wrapper :deep(.el-textarea__inner) {
-  font-size: 15px;
-  line-height: 1.8;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 201, 167, 0.2);
+.message-actions .el-icon {
+  font-size: 14px;
 }
 
-.edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+.message.assistant .message-content :deep(.markdown-body) {
+  color: #065f46;
+}
+
+.message.assistant .message-content :deep(.markdown-body code) {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border-radius: 4px;
+  padding: 2px 6px;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.message.assistant .message-content :deep(.markdown-body pre) {
+  background: rgba(6, 78, 59, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.12);
+  border-radius: 6px;
+}
+
+.message.assistant .message-content :deep(.markdown-body pre code) {
+  background: transparent;
+  border: none;
 }
 
 .message-content.typing::after {
   content: '▊';
   animation: blink 1s infinite;
   margin-left: 2px;
-  color: #00c9a7;
+  color: #10b981;
 }
 
 @keyframes blink {
@@ -6678,47 +8373,321 @@ const stopChatGeneration = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(240, 253, 249, 0.5);
-  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(6, 78, 59, 0.02) 100%);
+  border-radius: 12px;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px dashed rgba(16, 185, 129, 0.2);
+}
+
+.empty-chat :deep(.el-empty__description) {
+  color: rgba(6, 95, 70, 0.6);
 }
 
 .chat-input-area {
-  border-top: 1px solid rgba(0, 201, 167, 0.12);
-  padding: 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 253, 249, 0.8) 100%);
+  border-top: 1px solid rgba(16, 185, 129, 0.12);
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 253, 249, 0.9) 100%);
   backdrop-filter: blur(10px);
 }
 
-.user-message-collapsible {
-  width: 100%;
+.config-row {
+  margin-bottom: 10px;
 }
 
-.user-message-toggle {
-  display: inline-flex;
+.conversation-list-dialog :deep(.el-dialog__body) {
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.conversation-list {
+  padding: 8px;
+}
+
+.conversation-item {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  cursor: pointer;
-  color: #8fa3b5;
-  font-size: 12px;
-  user-select: none;
+  justify-content: space-between;
+  padding: 12px 16px;
   border-radius: 8px;
-  background: rgba(0, 201, 167, 0.04);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+
+.conversation-item:hover {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.15);
+}
+
+.conversation-item.active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 78, 59, 0.06) 100%);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.conversation-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversation-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #065f46;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-time {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.conversation-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.conversation-item:hover .conversation-actions {
+  opacity: 1;
+}
+
+.conversation-actions .el-button {
+  padding: 4px;
+  color: #059669 !important;
+}
+
+.conversation-actions .el-button:hover {
+  background: rgba(16, 185, 129, 0.1) !important;
+}
+
+.conversation-actions .el-button--danger {
+  color: #ef4444 !important;
+}
+
+.empty-conversations {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* 模型配置弹窗 */
+.model-config-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+
+.model-config-layout {
+  display: flex;
+  height: 460px;
+}
+
+.model-list-panel {
+  width: 25%;
+  border-right: 1px solid rgba(16, 185, 129, 0.15);
+  overflow-y: auto;
+  background: rgba(16, 185, 129, 0.03);
+}
+
+.model-list-title {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #065f46;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.12);
+}
+
+.model-list-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.06);
   transition: all 0.2s;
 }
 
-.user-message-toggle:hover {
-  color: #2dd4bf;
-  background: rgba(0, 201, 167, 0.1);
+.model-list-item:hover {
+  background: rgba(16, 185, 129, 0.08);
 }
 
-.user-message-preview {
-  font-size: 12px;
+.model-list-item.active {
+  background: rgba(16, 185, 129, 0.15);
+  border-left: 3px solid #10b981;
+}
+
+.model-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 2px;
+}
+
+.model-item-provider {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.model-config-panel {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.model-config-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 模型描述预览/编辑 */
+.model-desc-form-item :deep(.el-form-item__content) {
+  flex-wrap: nowrap;
+}
+
+.model-desc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.model-desc-preview {
+  flex: 1;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 4px;
+  padding: 6px 10px;
+  min-height: 32px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: rgba(16, 185, 129, 0.02);
+  min-width: 0;
+}
+
+.model-desc-content {
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.model-desc-content :deep(.markdown-body) {
+  font-size: 13px;
+}
+
+.model-desc-content :deep(.markdown-body p) {
+  margin: 0;
+}
+
+.model-desc-content :deep(.markdown-body img),
+.model-desc-content :deep(.markdown-body table),
+.model-desc-content :deep(.markdown-body pre) {
+  max-width: 100%;
+}
+
+.model-desc-empty {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-height: 20px;
+  color: #9ca3af;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.model-desc-edit-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+}
+
+.model-desc-edit-btn .el-icon {
+  font-size: 13px;
+}
+
+.model-desc-editing {
+  width: 100%;
+}
+
+.model-desc-edit-box {
+  flex: 1;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 4px;
+  padding: 4px;
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.model-desc-edit-box :deep(.el-textarea__inner) {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  resize: none;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 4px 6px;
+}
+
+.model-desc-editing-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 4px 6px 2px;
+}
+
+.slider-with-value {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.slider-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #065f46;
+  min-width: 36px;
+  text-align: right;
+}
+
+.chat-header .model-config-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #065f46;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+  transition: all 0.25s ease;
+}
+
+.chat-header .model-config-btn .el-icon {
+  font-size: 15px;
+  color: #10b981;
+}
+
+.chat-header .model-config-btn:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.14) 100%);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #047857;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.16);
+  transform: translateY(-1px);
+}
+
+.chat-header .model-config-btn:active {
+  transform: translateY(0);
 }
 
 .input-wrapper {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-end;
 }
 
@@ -6728,18 +8697,23 @@ const stopChatGeneration = () => {
 
 .input-wrapper :deep(.el-textarea__inner) {
   resize: none;
-  border-radius: 12px;
-  padding: 10px 14px;
+  border-radius: 8px;
+  padding: 12px 16px;
   font-size: 14px;
   line-height: 1.5;
-  border: 1px solid rgba(0, 201, 167, 0.12);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  background: rgba(255, 255, 255, 0.95);
+  color: #065f46;
   transition: all 0.25s;
 }
 
+.input-wrapper :deep(.el-textarea__inner::placeholder) {
+  color: rgba(6, 95, 70, 0.45);
+}
+
 .input-wrapper :deep(.el-textarea__inner):focus {
-  border-color: #00c9a7;
-  box-shadow: 0 0 0 2px rgba(0, 201, 167, 0.08);
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
   background: #fff;
 }
 
@@ -6751,33 +8725,33 @@ const stopChatGeneration = () => {
 }
 
 .input-wrapper :deep(.el-button--primary) {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: none;
-  background: linear-gradient(135deg, #00c9a7 0%, #2dd4bf 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 201, 167, 0.3);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
 }
 
 .input-wrapper :deep(.el-button--primary:hover) {
-  box-shadow: 0 4px 12px rgba(0, 201, 167, 0.4);
-  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.45);
+  transform: scale(1.05);
 }
 
 .input-wrapper :deep(.el-button--danger) {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: none;
-  background: linear-gradient(135deg, #f56c6c 0%, #e74c3c 100%);
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(245, 108, 108, 0.3);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
 }
 
 .input-wrapper :deep(.el-button--danger:hover) {
-  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
-  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.45);
+  transform: scale(1.05);
 }
 
 /* ========== AI 写作生成结果弹窗样式 ========== */
@@ -8896,6 +10870,420 @@ const stopChatGeneration = () => {
   margin: 5px 0;
 }
 
+.relate-option-item.worldbook-item {
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.relate-option-item.worldbook-item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.relate-content-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.relate-empty {
+  padding: 24px 0;
+}
+
+.relate-item {
+  padding: 6px 0;
+}
+
+.full-prompt-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.full-prompt-content pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-primary);
+}
+
+.worldbook-entry-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.worldbook-entry-title {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.worldbook-entry-keys {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.worldbook-relate-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.worldbook-search {
+  margin-bottom: 8px;
+}
+
+.worldbook-stats {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.worldbook-empty {
+  padding: 40px 0;
+  text-align: center;
+}
+
+.worldbook-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+
+.worldbook-manager {
+  display: flex;
+  flex-direction: column;
+  height: 520px;
+  max-height: 70vh;
+}
+
+.worldbook-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
+}
+
+.worldbook-list-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.worldbook-grouped-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1px 8px 0;
+  min-height: 0;
+}
+
+.worldbook-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.worldbook-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
+}
+
+.worldbook-empty-state {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+/* 分组网格布局 */
+.worldbook-list-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.worldbook-grouped-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1px 8px 0;
+  min-height: 0;
+}
+
+.wb-group-section {
+  margin-bottom: 1px;
+}
+
+.wb-group-header {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: var(--el-fill-color-light);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 1px;
+}
+
+.wb-group-header:hover {
+  background: var(--el-fill-color);
+}
+
+.group-collapse-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.wb-group-name {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--el-text-color-primary);
+}
+
+.preset-tag {
+  flex-shrink: 0;
+}
+
+.wb-group-count {
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.wb-group-actions {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.wb-entry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wb-entry-card {
+  padding: 3px 5px;
+  background: var(--el-fill-color-light);
+  border-radius: 3px;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wb-entry-card:hover {
+  background: var(--el-fill-color);
+}
+
+.wb-entry-card.disabled {
+  opacity: 0.5;
+}
+
+.wb-entry-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+
+.wb-entry-tags {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.wb-entry-title {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 2px;
+}
+
+.wb-entry-actions {
+  display: flex;
+  gap: 1px;
+  justify-content: flex-end;
+}
+
+.wb-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
+}
+
+.worldbook-entry-card {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.worldbook-entry-card:hover {
+  background: var(--el-fill-color);
+}
+
+.worldbook-entry-card.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.worldbook-entry-card.disabled {
+  opacity: 0.5;
+}
+
+.entry-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.entry-card-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-card-keys {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.entry-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.worldbook-detail-panel {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.worldbook-detail-panel.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.detail-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--el-text-color-primary);
+}
+
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-section.half {
+  flex: 1;
+}
+
+.detail-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+
+.detail-value {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.detail-content-text {
+  padding: 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 13px;
+  line-height: 1.6;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.detail-row {
+  display: flex;
+  gap: 24px;
+}
+
+.detail-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.detail-options span {
+  padding: 4px 12px;
+  background: var(--el-fill-color);
+  border-radius: 4px;
+  color: var(--el-text-color-regular);
+}
+
+.empty-text {
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+}
+
+.worldbook-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .relate-dialog :deep(.el-dialog) {
   position: fixed;
   margin: 0 !important;
@@ -9272,5 +11660,131 @@ const stopChatGeneration = () => {
 :root[data-theme='dark'] .memo-scope-badge.book {
   color: #60a5fa;
   background: rgba(96, 165, 250, 0.15);
+}
+
+/* ========== 自动分卷对话框 ========== */
+.auto-split-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auto-split-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(0, 201, 167, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 201, 167, 0.12);
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.auto-split-info .el-icon {
+  color: #00a896;
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.auto-split-info strong {
+  color: #00a896;
+  font-weight: 600;
+}
+
+.auto-split-presets {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-split-label {
+  font-size: 13px;
+  color: #606266;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-buttons .el-button {
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+.auto-split-custom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-split-suffix {
+  font-size: 13px;
+  color: #909399;
+}
+
+.auto-split-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(0, 201, 167, 0.04);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #606266;
+  flex-wrap: wrap;
+}
+
+.auto-split-preview strong {
+  color: #00a896;
+  font-weight: 600;
+}
+
+.preview-divider {
+  color: #d0d5dd;
+}
+
+/* 暗色主题 - 自动分卷 */
+:root[data-theme='dark'] .auto-split-info {
+  background: rgba(94, 234, 212, 0.08);
+  border-color: rgba(94, 234, 212, 0.15);
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .auto-split-info .el-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .auto-split-info strong {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .auto-split-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .auto-split-suffix {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .auto-split-preview {
+  background: rgba(94, 234, 212, 0.06);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .auto-split-preview strong {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .preview-divider {
+  color: #4b5563;
 }
 </style>

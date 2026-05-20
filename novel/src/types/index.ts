@@ -88,6 +88,7 @@ export interface ExperienceShare {
   create_type: 'manual' | 'pdf_import'
   author_id?: number | null
   author_name?: string | null
+  version?: string | null
   created_at: string
   updated_at: string
   status?: string | null
@@ -116,7 +117,12 @@ export interface ApiModel {
   model: string
   temperature: number
   max_tokens: number
+  top_p: number
+  frequency_penalty: number
+  description: string
   is_default: number
+  enabled: number
+  sort_order: number
   created_at: string
   updated_at: string
   // 关联的服务商信息
@@ -136,14 +142,15 @@ export interface ChatMessage {
   id?: number
   role: 'system' | 'user' | 'assistant'
   content: string
+  displayContent?: string
   created_at?: string
   timestamp?: number
 }
 
 // 关联内容类型
 export interface RelatedContent {
-  type: 'book' | 'chapter' | 'memo' | 'character'
-  id: number
+  type: 'book' | 'chapter' | 'memo' | 'character' | 'worldbook'
+  id: number | string
   title: string
   content: string
 }
@@ -297,4 +304,50 @@ export interface GraphVersion {
   entity_count: number
   relation_count: number
   created_at: string
+}
+
+export type EntryCategoryType = 'character' | 'world_setting' | 'location' | 'item' | 'faction' | 'event' | 'skill' | 'clue' | 'other'
+
+export interface EntryCategory {
+  id: number
+  name: string
+  type: EntryCategoryType
+  icon: string
+  color: string
+  sort_order: number
+  entry_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Entry {
+  id: number
+  book_id: number
+  category_id: number
+  category_type: EntryCategoryType
+  category_name?: string
+  name: string
+  avatar?: string
+  tags: string[]
+  appearance: string
+  background: string
+  personality?: string
+  relationships?: string
+  custom_fields?: Record<string, string>
+  description: string
+  is_public: boolean
+  creator_name?: string
+  creator_avatar?: string
+  use_count: number
+  like_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EntryListResponse {
+  entries: Entry[]
+  categories: EntryCategory[]
+  total: number
+  page: number
+  page_size: number
 }

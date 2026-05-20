@@ -1,25 +1,25 @@
-/* 暗色主题全局样式 */
+/* 暗色主题全局样式 - 超现实科幻青绿风 */
 
 /* 通用背景色变量 */
 :root[data-theme='dark'] {
-  /* 主背景色 */
-  --bg-primary: #0d1424;
-  --bg-secondary: #111a2e;
-  --bg-tertiary: #1a2332;
+  /* 主背景色 - 深空科幻 */
+  --bg-primary: #060b14;
+  --bg-secondary: #0a1628;
+  --bg-tertiary: #0f1d33;
   
   /* 卡片/容器背景 */
-  --card-bg: #1a2332;
-  --card-hover-bg: #232d3f;
+  --card-bg: #0f1d33;
+  --card-hover-bg: #152340;
   
   /* 文字颜色 */
   --text-primary: #f4f7ff;
   --text-secondary: #c8d0e0;
-  --text-tertiary: #8d99af;
+  --text-tertiary: #94a3b8;
   --text-muted: #6b7280;
   
-  /* 边框颜色 */
-  --border-primary: rgba(255, 255, 255, 0.08);
-  --border-secondary: rgba(255, 255, 255, 0.12);
+  /* 边框颜色 - 青绿霓虹 */
+  --border-primary: rgba(45, 212, 191, 0.10);
+  --border-secondary: rgba(45, 212, 191, 0.16);
   
   /* 阴影 */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -27,55 +27,55 @@
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   
   /* 主框架颜色 */
-  --app-background: #0d1424;
+  --app-background: #060b14;
   --app-color: #f4f7ff;
-  --topbar-background: rgba(10, 17, 31, 0.92);
-  --topbar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-background: rgba(9, 14, 26, 0.94);
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --content-background: rgba(17, 26, 46, 0.96);
-  --content-border: rgba(255, 255, 255, 0.08);
-  --menu-text: #8d99af;
-  --menu-hover: rgba(255, 255, 255, 0.06);
-  --menu-hover-color: #eff4ff;
+  --topbar-background: rgba(10, 22, 40, 0.72);
+  --topbar-border: rgba(45, 212, 191, 0.18);
+  --sidebar-background: rgba(8, 18, 36, 0.65);
+  --sidebar-border: rgba(45, 212, 191, 0.12);
+  --content-background: rgba(15, 29, 51, 0.55);
+  --content-border: rgba(45, 212, 191, 0.08);
+  --menu-text: #94a3b8;
+  --menu-hover: rgba(45, 212, 191, 0.08);
+  --menu-hover-color: #2dd4bf;
   
   /* 页面特定背景 */
-  --prompts-container-bg: #1a2332;
-  --config-container-bg: #1a2332;
-  --experience-page-bg: #1a2332;
+  --prompts-container-bg: #0f1d33;
+  --config-container-bg: #0f1d33;
+  --experience-page-bg: #0f1d33;
   
   /* 表格背景 */
-  --table-bg: #1a2332;
-  --table-header-bg: #232d3f;
-  --table-row-hover-bg: #2a3548;
-  --table-stripe-bg: #1f2a3d;
+  --table-bg: #0f1d33;
+  --table-header-bg: #152340;
+  --table-row-hover-bg: #1a2945;
+  --table-stripe-bg: #13223a;
   
   /* 输入框/表单 */
-  --input-bg: #232d3f;
-  --input-border: rgba(255, 255, 255, 0.12);
+  --input-bg: #152340;
+  --input-border: rgba(45, 212, 191, 0.14);
   --input-text: #f4f7ff;
   --input-placeholder: #6b7280;
   
   /* 对话框/弹窗 */
-  --dialog-bg: #1a2332;
-  --dialog-header-bg: #1a2332;
-  --dialog-footer-bg: #1a2332;
+  --dialog-bg: #0f1d33;
+  --dialog-header-bg: #0f1d33;
+  --dialog-footer-bg: #0f1d33;
   
   /* 下拉菜单 */
-  --dropdown-bg: #1a2332;
-  --dropdown-item-hover-bg: #232d3f;
+  --dropdown-bg: #0f1d33;
+  --dropdown-item-hover-bg: #152340;
   
   /* 标签页 */
-  --tabs-header-bg: #1a2332;
-  --tabs-content-bg: #1a2332;
+  --tabs-header-bg: #0f1d33;
+  --tabs-content-bg: #0f1d33;
   
   /* 空状态 */
   --empty-bg: transparent;
   
   /* 按钮背景 */
-  --button-default-bg: #232d3f;
+  --button-default-bg: #152340;
   --button-default-text: #f4f7ff;
-  --button-default-border: rgba(255, 255, 255, 0.12);
+  --button-default-border: rgba(45, 212, 191, 0.14);
 }
 
 /* 暗色主题下的页面样式覆盖 */
@@ -162,6 +162,29 @@
 :root[data-theme='dark'] .el-dialog__footer {
   background-color: var(--dialog-footer-bg) !important;
   border-top-color: var(--border-primary) !important;
+}
+
+/* 抽屉暗色主题 */
+:root[data-theme='dark'] .el-drawer {
+  background-color: var(--dialog-bg) !important;
+}
+
+:root[data-theme='dark'] .el-drawer__header {
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--border-primary) !important;
+  margin-bottom: 0;
+}
+
+:root[data-theme='dark'] .el-drawer__body {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .el-drawer__close-btn {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .el-drawer__close-btn:hover {
+  color: var(--text-primary) !important;
 }
 
 /* 下拉菜单暗色主题 */
@@ -641,7 +664,7 @@
   border-left-color: var(--border-primary) !important;
 }
 
-/* AI创意区暗色主题 */
+/* AI抽卡区暗色主题 */
 :root[data-theme='dark'] .creative-panel {
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(51, 65, 85, 0.92) 100%) !important;
 }
@@ -1314,4 +1337,18 @@
 
 :root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
   background: #4a5568;
+}
+
+:root[data-theme='dark'] .test-section {
+  background: var(--input-bg) !important;
+}
+
+:root[data-theme='dark'] .test-output {
+  background: var(--bg-primary) !important;
+  border-color: var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .test-col .field-label {
+  color: var(--text-secondary) !important;
 }

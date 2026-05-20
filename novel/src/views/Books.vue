@@ -85,6 +85,7 @@
       :title="isEdit ? '编辑作品' : '创建新作品'"
       width="420px"
       class="simple-book-dialog"
+      append-to-body
     >
       <div class="simple-form">
         <div class="form-group">
@@ -118,6 +119,7 @@
       title="导入作品"
       width="500px"
       :close-on-click-modal="false"
+      append-to-body
     >
       <div
         class="import-drop-zone"
@@ -178,6 +180,7 @@
       title="设置封面"
       width="500px"
       :close-on-click-modal="false"
+      append-to-body
     >
       <div class="cover-dialog-content">
         <div

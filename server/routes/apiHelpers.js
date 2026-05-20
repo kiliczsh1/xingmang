@@ -135,18 +135,19 @@ function getModelConfig(configId) {
       p.name AS provider_name
     FROM api_models m
     LEFT JOIN api_providers p ON m.provider_id = p.id
+    WHERE m.enabled = 1
   `;
 
   if (configId) {
     return db.prepare(`
       ${baseQuery}
-      WHERE m.id = ?
+      AND m.id = ?
     `).get(configId);
   }
 
   return db.prepare(`
     ${baseQuery}
-    WHERE m.is_default = 1
+    AND m.is_default = 1
     LIMIT 1
   `).get();
 }

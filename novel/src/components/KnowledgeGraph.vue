@@ -73,7 +73,7 @@
               size="small"
               :loading="analyzing"
               @click="handleAnalyze"
-              :disabled="!analyzeConfigId || !currentVersionId"
+              :disabled="!analyzeConfigId"
             >
               <el-icon><MagicStick /></el-icon>
               分析
@@ -204,6 +204,103 @@
         </div>
       </div>
     </div>
+
+    <!-- 实体编辑弹窗 -->
+    <el-dialog
+      v-model="entityEditVisible"
+      title="编辑实体"
+      width="520px"
+      align-center
+      append-to-body
+      destroy-on-close
+    >
+      <div class="entity-edit-form">
+        <div class="edit-field">
+          <label class="edit-label">名称</label>
+          <el-input v-model="entityEditForm.name" placeholder="实体名称" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label">类型</label>
+          <el-select v-model="entityEditForm.type" style="width: 100%;">
+            <el-option
+              v-for="t in entityTypes"
+              :key="t.value"
+              :label="t.label"
+              :value="t.value"
+            />
+          </el-select>
+        </div>
+        <div class="edit-field">
+          <div class="edit-label-row">
+            <label class="edit-label">描述</label>
+            <el-button size="small" text @click="entityEditMDPreview = !entityEditMDPreview">
+              {{ entityEditMDPreview ? '编辑' : '预览' }}
+            </el-button>
+          </div>
+          <el-input
+            v-if="!entityEditMDPreview"
+            v-model="entityEditForm.description"
+            type="textarea"
+            :rows="5"
+            placeholder="支持 Markdown 格式"
+          />
+          <div v-else class="md-preview-box">
+            <MarkdownRenderer :content="entityEditForm.description || '（空）'" />
+          </div>
+        </div>
+        <div v-if="entityEditForm.relations.length > 0" class="edit-field">
+          <label class="edit-label">关联关系</label>
+          <div class="edit-relations-list">
+            <div
+              v-for="(rel, rIdx) in entityEditForm.relations"
+              :key="rel.id"
+              class="edit-relation-item"
+            >
+              <span class="rel-direction">{{ rel.direction }}</span>
+              <span class="rel-target-name">{{ rel.targetName }}</span>
+              <el-input
+                v-model="rel.relation_type"
+                size="small"
+                placeholder="关系类型"
+                style="width: 120px;"
+              />
+              <el-input
+                v-model="rel.description"
+                size="small"
+                placeholder="关系描述"
+                style="flex: 1;"
+              />
+            </div>
+          </div>
+        </div>
+        <div v-else class="edit-no-relations">
+          该实体暂无关联系关
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="entityEditVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveEntityEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenuVisible"
+        class="kg-context-menu"
+        :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+        @click.stop
+      >
+        <div class="context-menu-item" @click="editContextMenuEntity">
+          <el-icon><Edit /></el-icon>
+          <span>编辑</span>
+        </div>
+        <div class="context-menu-item" @click="addEntityToWorldBook">
+          <el-icon><Plus /></el-icon>
+          <span>添加到世界书</span>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -224,11 +321,14 @@ echarts.use([
   CanvasRenderer
 ])
 import { knowledgeGraphAPI } from '@/api'
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import type { GraphEntity, GraphRelation, KnowledgeGraphData, GraphEntityType, ApiConfig, Chapter, GraphVersion } from '@/types'
 import {
-  MagicStick, Delete, Link, User, Close, Connection, Loading, Refresh, Document, Plus
+  MagicStick, Delete, Link, User, Close, Connection, Loading, Refresh, Document, Plus, Edit
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useWorldBookStore } from '@/stores/worldbook'
+import { createDefaultWorldBookEntry } from '@/types/worldbook'
 
 const props = defineProps<{
   bookId: number
@@ -253,6 +353,34 @@ const filterType = ref<string>('')
 const selectedEntity = ref<GraphEntity | null>(null)
 const versions = ref<GraphVersion[]>([])
 const currentVersionId = ref<number>()
+
+// 右键菜单
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuEntity = ref<GraphEntity | null>(null)
+
+// 实体编辑弹窗
+const entityEditVisible = ref(false)
+const entityEditMDPreview = ref(false)
+interface EditableRelation {
+  id: number
+  direction: '→' | '←'
+  targetName: string
+  relation_type: string
+  description: string
+}
+const entityEditForm = ref<{
+  name: string
+  type: GraphEntityType
+  description: string
+  relations: EditableRelation[]
+}>({
+  name: '',
+  type: 'character',
+  description: '',
+  relations: []
+})
 
 const scopeOptions: { value: 'chapters' | 'first5' | 'first10' | 'first15', label: string }[] = [
   { value: 'chapters', label: '指定章节' },
@@ -326,28 +454,165 @@ function getRelationTargetName(rel: GraphRelation): string {
   return source ? `← ${source.name}` : ''
 }
 
+function closeContextMenu() {
+  contextMenuVisible.value = false
+  contextMenuEntity.value = null
+}
+
+const worldBookStore = useWorldBookStore()
+
+function addEntityToWorldBook() {
+  const entity = contextMenuEntity.value
+  if (!entity) return
+  
+  const entry = createDefaultWorldBookEntry()
+  entry.comment = entity.name
+  
+  // 组装内容：描述 + 关联关系
+  let content = entity.description || ''
+  
+  // 查找该实体的所有关联关系
+  const relations = graphData.value.relations.filter(
+    r => r.source_id === entity.id || r.target_id === entity.id
+  )
+  if (relations.length > 0) {
+    if (content) content += '\n\n'
+    content += '【关联关系】\n'
+    relations.forEach(r => {
+      const isSource = r.source_id === entity.id
+      const otherId = isSource ? r.target_id : r.source_id
+      const otherEntity = graphData.value.entities.find(e => e.id === otherId)
+      const otherName = otherEntity?.name || '未知'
+      const arrow = isSource ? '→' : '←'
+      const relationDesc = r.description ? `（${r.description}）` : ''
+      content += `${arrow} ${otherName}：${r.relation_type}${relationDesc}\n`
+    })
+  }
+  
+  entry.content = content
+  entry.constant = true
+  
+  // 将实体类型映射为关键词
+  const typeLabel = getEntityTypeLabel(entity.type)
+  if (typeLabel) {
+    entry.key = [entity.name, typeLabel]
+  } else {
+    entry.key = [entity.name]
+  }
+  
+  worldBookStore.addEntry(entry, String(props.bookId))
+  ElMessage.success(`已将"${entity.name}"添加到世界书`)
+  closeContextMenu()
+}
+
+function editContextMenuEntity() {
+  const entity = contextMenuEntity.value
+  if (!entity) return
+  
+  // 获取该实体的所有关联关系
+  const rels = graphData.value.relations.filter(
+    r => r.source_id === entity.id || r.target_id === entity.id
+  )
+  const editableRelations: EditableRelation[] = rels.map(r => {
+    const isSource = r.source_id === entity.id
+    const otherId = isSource ? r.target_id : r.source_id
+    const otherEntity = graphData.value.entities.find(e => e.id === otherId)
+    return {
+      id: r.id,
+      direction: isSource ? '→' as const : '←' as const,
+      targetName: otherEntity?.name || '未知',
+      relation_type: r.relation_type,
+      description: r.description || ''
+    }
+  })
+  
+  entityEditForm.value = {
+    name: entity.name,
+    type: entity.type,
+    description: entity.description || '',
+    relations: editableRelations
+  }
+  entityEditMDPreview.value = false
+  entityEditVisible.value = true
+  closeContextMenu()
+}
+
+async function saveEntityEdit() {
+  const entity = contextMenuEntity.value
+  if (!entity) return
+  if (!entityEditForm.value.name.trim()) {
+    ElMessage.warning('请输入实体名称')
+    return
+  }
+  try {
+    // 更新实体
+    await knowledgeGraphAPI.updateEntity(entity.id, {
+      name: entityEditForm.value.name.trim(),
+      type: entityEditForm.value.type,
+      description: entityEditForm.value.description.trim()
+    })
+    // 更新本地实体数据
+    const idx = graphData.value.entities.findIndex(e => e.id === entity.id)
+    if (idx >= 0) {
+      graphData.value.entities[idx] = {
+        ...graphData.value.entities[idx],
+        name: entityEditForm.value.name.trim(),
+        type: entityEditForm.value.type,
+        description: entityEditForm.value.description.trim()
+      }
+    }
+    if (selectedEntity.value?.id === entity.id) {
+      selectedEntity.value = {
+        ...selectedEntity.value,
+        name: entityEditForm.value.name.trim(),
+        type: entityEditForm.value.type,
+        description: entityEditForm.value.description.trim()
+      }
+    }
+    
+    // 更新关联关系
+    for (const rel of entityEditForm.value.relations) {
+      await knowledgeGraphAPI.updateRelation(rel.id, {
+        relation_type: rel.relation_type,
+        description: rel.description
+      })
+      // 同步本地关系数据
+      const ridx = graphData.value.relations.findIndex(r => r.id === rel.id)
+      if (ridx >= 0) {
+        graphData.value.relations[ridx] = {
+          ...graphData.value.relations[ridx],
+          relation_type: rel.relation_type,
+          description: rel.description
+        }
+      }
+    }
+    
+    entityEditVisible.value = false
+    ElMessage.success('实体已更新')
+    await nextTick()
+    renderChart()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '更新失败')
+  }
+}
+
 function buildChartOption(data: KnowledgeGraphData) {
   const categories = entityTypes.map((t, i) => ({
     name: t.label,
     itemStyle: { color: typeColorMap[t.value] }
   }))
 
-  const entityMap = new Map(data.entities.map(e => [e.id, e]))
-
   const nodes = data.entities.map(entity => ({
     id: String(entity.id),
     name: entity.name,
     category: entityTypes.findIndex(t => t.value === entity.type),
-    symbolSize: Math.max(
-      30,
-      Math.min(60, 30 + data.relations.filter(r => r.source_id === entity.id || r.target_id === entity.id).length * 5)
-    ),
+    symbolSize: 40,
     itemStyle: {
       color: typeColorMap[entity.type] || '#999'
     },
     label: {
       show: true,
-      fontSize: 11,
+      fontSize: 9,
       color: '#333'
     },
     value: entity.description || ''
@@ -366,8 +631,8 @@ function buildChartOption(data: KnowledgeGraphData) {
     label: {
       show: true,
       formatter: rel.relation_type,
-      fontSize: 9,
-      color: '#888'
+      fontSize: 14,
+      color: '#666'
     }
   }))
 
@@ -413,7 +678,7 @@ function buildChartOption(data: KnowledgeGraphData) {
     legend: {
       data: categories.map(c => c.name),
       bottom: 0,
-      textStyle: { fontSize: 10 }
+      textStyle: { fontSize: 8 }
     },
     series: [{
       type: 'graph',
@@ -424,9 +689,9 @@ function buildChartOption(data: KnowledgeGraphData) {
       roam: true,
       draggable: true,
       force: {
-        repulsion: 300,
-        gravity: 0.1,
-        edgeLength: [80, 200],
+        repulsion: 800,
+        gravity: 0.08,
+        edgeLength: [150, 300],
         layoutAnimation: true
       },
       emphasis: {
@@ -438,7 +703,7 @@ function buildChartOption(data: KnowledgeGraphData) {
       label: {
         show: true,
         position: 'bottom',
-        fontSize: 11
+        fontSize: 9
       }
     }]
   }
@@ -481,6 +746,25 @@ function ensureChart() {
           }
         }
       })
+      // 右键菜单 — 使用 query 过滤确保节点事件可靠触发
+      chartInstance.on('contextmenu', { dataType: 'node' }, (params: any) => {
+        const evt = params.event?.event ?? params.event
+        if (evt && evt.preventDefault) evt.preventDefault()
+        const entityId = Number(params.data?.id ?? params.id)
+        const entity = graphData.value.entities.find(e => e.id === entityId)
+        if (entity) {
+          contextMenuEntity.value = entity
+          contextMenuX.value = (evt.clientX ?? 0)
+          contextMenuY.value = (evt.clientY ?? 0)
+          contextMenuVisible.value = true
+        }
+      })
+      // 非节点区域右键/点击关闭菜单
+      chartInstance.getZr().on('contextmenu', (params: any) => {
+        if (params.event?.preventDefault) params.event.preventDefault()
+        closeContextMenu()
+      })
+      document.addEventListener('click', closeContextMenu)
     } catch (e) {
       console.error('Init chart error:', e)
       return false
@@ -580,7 +864,24 @@ function handleScopeSelect(value: 'chapters' | 'first5' | 'first10' | 'first15')
 }
 
 async function handleAnalyze() {
-  if (!analyzeConfigId.value || !currentVersionId.value) return
+  if (!analyzeConfigId.value) return
+  
+  // 自动创建版本（如果不存在）
+  if (!currentVersionId.value) {
+    try {
+      const createRes = await knowledgeGraphAPI.createVersion(props.bookId)
+      if (createRes.success && createRes.data) {
+        versions.value.unshift(createRes.data)
+        currentVersionId.value = createRes.data.id
+      } else {
+        ElMessage.error('创建图谱文件失败')
+        return
+      }
+    } catch (e: any) {
+      ElMessage.error('创建图谱文件失败: ' + (e?.message || '未知错误'))
+      return
+    }
+  }
   
   let chapterIds: number[] | undefined
   let scope: 'all' | 'chapters' = 'chapters'
@@ -689,6 +990,9 @@ async function handleCreateVersion() {
 
 async function handleSelectVersion(version: GraphVersion) {
   if (currentVersionId.value === version.id) return
+  
+  selectedEntity.value = null
+  renderRetryCount = 0
   
   try {
     const res: any = await knowledgeGraphAPI.getVersionData(version.id)
@@ -808,6 +1112,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('click', closeContextMenu)
   window.removeEventListener('resize', handleResize)
   disposeChart()
 })
@@ -1186,6 +1491,74 @@ defineExpose({
   color: var(--el-text-color-secondary);
 }
 
+.entity-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edit-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.edit-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.md-preview-box {
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: var(--el-fill-color-lighter);
+  overflow-y: auto;
+  max-height: 260px;
+}
+
+.edit-relations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.edit-relation-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.rel-direction {
+  font-weight: bold;
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.rel-target-name {
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.edit-no-relations {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  padding: 12px 0;
+}
+
 /* 暗色主题适配 */
 :root[data-theme='dark'] .kg-versions {
   background: rgba(30, 41, 59, 0.8);
@@ -1346,5 +1719,47 @@ defineExpose({
 
 :root[data-theme='dark'] .rel-desc {
   color: #9ca3af;
+}
+</style>
+
+<style>
+.kg-context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+  min-width: 160px;
+}
+
+.kg-context-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #333;
+  transition: background-color 0.15s;
+}
+
+.kg-context-menu .context-menu-item:hover {
+  background-color: #f0f2f5;
+}
+
+:root[data-theme='dark'] .kg-context-menu {
+  background: #1f2937;
+  border-color: #374151;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .kg-context-menu .context-menu-item {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .kg-context-menu .context-menu-item:hover {
+  background-color: #374151;
 }
 </style>

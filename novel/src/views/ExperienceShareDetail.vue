@@ -2,129 +2,170 @@
   <div ref="pageRef" class="experience-detail-page" v-loading="loading" @scroll="handlePageScroll">
     <div class="detail-background"></div>
 
-    <div v-if="experienceShare" class="detail-shell">
-      <header class="detail-topbar">
-        <el-button class="ghost-btn" @click="goBack">
+    <header v-if="experienceShare" class="page-header">
+      <div class="header-left">
+        <el-button class="back-btn" @click="goBack">
           <el-icon><ArrowLeft /></el-icon>
-          返回经验分享
+          返回
         </el-button>
+      </div>
 
-        <div class="topbar-actions">
-          <el-radio-group
-            v-if="experienceShare.create_type === 'manual'"
-            v-model="activeRenderMode"
-            size="small"
-            class="render-mode-switch"
-          >
-            <el-radio-button label="markdown">MD 查看</el-radio-button>
-            <el-radio-button label="html">HTML 查看</el-radio-button>
-          </el-radio-group>
-          <el-button class="ghost-btn" @click="goToEdit">
-            <el-icon><Edit /></el-icon>
-            编辑
-          </el-button>
-          <el-button
-            v-if="experienceShare.pdf_file_url"
-            type="primary"
-            @click="openPdfPreview(experienceShare.pdf_file_url, experienceShare.pdf_file_name || 'PDF附件')"
-          >
-            <el-icon><Document /></el-icon>
-            查看 PDF
-          </el-button>
-        </div>
-      </header>
+      <div class="header-title">
+        <h1>{{ experienceShare.title }}</h1>
+        <p v-if="experienceShare.summary" class="header-summary">{{ experienceShare.summary }}</p>
+      </div>
 
-      <section v-if="experienceShare.cover_url" class="cover-stage">
-        <div class="cover-image-wrap">
-          <img :src="experienceShare.cover_url" :alt="experienceShare.title" class="cover-image" />
-        </div>
-      </section>
+      <div class="header-actions">
+        <el-radio-group
+          v-if="experienceShare.create_type === 'manual'"
+          v-model="activeRenderMode"
+          size="small"
+          class="render-mode-switch"
+        >
+          <el-radio-button label="markdown">MD</el-radio-button>
+          <el-radio-button label="html">HTML</el-radio-button>
+        </el-radio-group>
+        <el-button type="primary" @click="goToEdit">
+          <el-icon><Edit /></el-icon>
+          编辑
+        </el-button>
+        <el-button
+          v-if="experienceShare.pdf_file_url"
+          @click="openPdfPreview(experienceShare.pdf_file_url, experienceShare.pdf_file_name || 'PDF附件')"
+        >
+          <el-icon><Document /></el-icon>
+          查看 PDF
+        </el-button>
+      </div>
+    </header>
 
-      <section class="info-card">
-        <div class="info-title-wrap">
-          <h1>{{ experienceShare.title }}</h1>
-          <p v-if="experienceShare.summary" class="info-summary">{{ experienceShare.summary }}</p>
-        </div>
-
-        <div class="meta-line">
-          <span class="meta-pill">{{ experienceShare.author_name || '星芒用户' }}</span>
-          <span class="meta-pill">{{ formatDateTime(experienceShare.created_at) }}</span>
-          <span class="meta-pill">{{ experienceShare.create_type === 'pdf_import' ? 'PDF导入' : '手动创建' }}</span>
-          <span class="meta-pill">{{ experienceShare.status || 'published' }}</span>
-          <span
-            v-if="experienceShare.updated_at && experienceShare.updated_at !== experienceShare.created_at"
-            class="meta-pill"
-          >
-            更新：{{ formatDateTime(experienceShare.updated_at) }}
-          </span>
-          <el-tag effect="dark" :type="experienceShare.create_type === 'pdf_import' ? 'warning' : 'success'">
-            {{ experienceShare.create_type === 'pdf_import' ? 'PDF 导入创建' : '手动创建' }}
-          </el-tag>
-          <el-tag
-            v-if="experienceShare.create_type === 'manual'"
-            effect="plain"
-            type="success"
-          >
-            {{ activeRenderMode === 'html' ? 'HTML 查看中' : 'MD 查看中' }}
-          </el-tag>
-          <el-tag v-if="experienceShare.pdf_file_url" effect="plain" type="info">附带 PDF</el-tag>
-        </div>
-
-        <div v-if="experienceShare.pdf_file_url" class="attachment-card">
-          <div class="attachment-main">
-            <div class="attachment-icon">
-              <el-icon><Document /></el-icon>
+    <div v-if="experienceShare" class="page-layout">
+      <aside class="page-sidebar">
+        <div class="sidebar-card">
+          <label class="field-label">基本信息</label>
+          <div class="info-list">
+            <div class="info-item">
+              <span class="info-label">作者</span>
+              <span class="info-value">{{ experienceShare.author_name || '星芒用户' }}</span>
             </div>
-            <div class="attachment-info">
-              <div class="attachment-name">{{ experienceShare.pdf_file_name || 'PDF附件' }}</div>
-              <div class="attachment-desc">{{ formatFileSize(experienceShare.pdf_file_size) }}</div>
+            <div v-if="experienceShare.version" class="info-item">
+              <span class="info-label">版本号</span>
+              <span class="info-value">{{ experienceShare.version }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">创建时间</span>
+              <span class="info-value">{{ formatDateTime(experienceShare.created_at) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">创建方式</span>
+              <span class="info-value">
+                <el-tag :type="experienceShare.create_type === 'pdf_import' ? 'warning' : 'success'" size="small">
+                  {{ experienceShare.create_type === 'pdf_import' ? 'PDF 导入' : '手动创建' }}
+                </el-tag>
+              </span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">状态</span>
+              <span class="info-value">{{ experienceShare.status || 'published' }}</span>
+            </div>
+            <div
+              v-if="experienceShare.updated_at && experienceShare.updated_at !== experienceShare.created_at"
+              class="info-item"
+            >
+              <span class="info-label">更新时间</span>
+              <span class="info-value">{{ formatDateTime(experienceShare.updated_at) }}</span>
             </div>
           </div>
-          <div class="attachment-actions">
-            <el-button
-              type="primary"
-              @click="openPdfPreview(experienceShare.pdf_file_url, experienceShare.pdf_file_name || 'PDF附件')"
-            >
-              在线预览
-            </el-button>
-            <el-button
-              @click="downloadPdf(experienceShare.pdf_file_url, experienceShare.pdf_file_name || 'experience-share.pdf')"
-            >
-              下载附件
-            </el-button>
+        </div>
+
+        <div v-if="experienceShare.pdf_file_url" class="sidebar-card attachment-card-wrap">
+          <label class="field-label">附件信息</label>
+          <div class="attachment-card">
+            <div class="attachment-main">
+              <div class="attachment-icon">
+                <el-icon><Document /></el-icon>
+              </div>
+              <div class="attachment-info">
+                <div class="attachment-name">{{ experienceShare.pdf_file_name || 'PDF附件' }}</div>
+                <div class="attachment-desc">{{ formatFileSize(experienceShare.pdf_file_size) }}</div>
+              </div>
+            </div>
+            <div class="attachment-actions">
+              <el-button
+                type="primary"
+                size="small"
+                @click="openPdfPreview(experienceShare.pdf_file_url, experienceShare.pdf_file_name || 'PDF附件')"
+              >
+                预览
+              </el-button>
+              <el-button
+                size="small"
+                @click="downloadPdf(experienceShare.pdf_file_url, experienceShare.pdf_file_name || 'experience-share.pdf')"
+              >
+                下载
+              </el-button>
+            </div>
           </div>
         </div>
-      </section>
+      </aside>
 
-      <section class="content-card">
-        <div class="section-title">{{ shouldShowPdfBody ? 'PDF 页面' : '正文内容' }}</div>
+      <main class="page-main">
+        <div class="detail-shell">
+          <div class="main-content">
+            <section v-if="experienceShare.cover_url" class="form-section cover-section">
+              <div class="cover-image-wrap">
+                <img :src="experienceShare.cover_url" :alt="experienceShare.title" class="cover-image" />
+              </div>
+            </section>
 
-        <div v-if="shouldShowPdfBody" class="inline-pdf-viewer">
-          <div class="inline-pdf-viewer__note">
-            <strong>页面图片展示</strong>
-            <span></span>
+            <section class="form-section content-section">
+              <label class="field-label">{{ shouldShowPdfBody ? 'PDF 页面预览' : '正文内容' }}</label>
+
+              <div v-if="shouldShowPdfBody" class="content-body">
+                <PdfPageGallery v-if="experienceShare.pdf_file_url" :src="experienceShare.pdf_file_url" :scale="1.25" />
+              </div>
+
+              <MarkdownRenderer
+                v-else-if="hasContent"
+                class="content-body"
+                :content="experienceShare.content"
+                :render-mode="activeRenderMode"
+              />
+
+              <div v-else class="empty-content">当前卡片暂无正文内容。</div>
+            </section>
+
+            <section v-if="shouldShowPdfBody && hasContent" class="form-section content-section">
+              <label class="field-label">补充说明</label>
+              <MarkdownRenderer
+                class="content-body"
+                :content="experienceShare.content"
+                :render-mode="activeRenderMode"
+              />
+            </section>
           </div>
-          <PdfPageGallery v-if="experienceShare.pdf_file_url" :src="experienceShare.pdf_file_url" :scale="1.25" />
         </div>
+      </main>
 
-        <MarkdownRenderer
-          v-else-if="hasContent"
-          :content="experienceShare.content"
-          :render-mode="activeRenderMode"
-        />
-
-        <div v-else class="empty-content">
-          当前卡片暂无正文内容。
+      <aside class="page-rightbar">
+        <div v-if="recommendedShares.length > 0" class="sidebar-card recommended-card">
+          <label class="field-label">推荐阅读</label>
+          <div class="recommended-list">
+            <article
+              v-for="item in recommendedShares"
+              :key="item.id"
+              class="recommended-item"
+              @click="goToRecommended(item.id)"
+            >
+              <h4 class="recommended-title">{{ item.title }}</h4>
+              <div class="recommended-cover">
+                <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" />
+                <div v-else class="cover-placeholder"></div>
+              </div>
+            </article>
+          </div>
         </div>
-      </section>
-
-      <section v-if="shouldShowPdfBody && hasContent" class="content-card secondary-content-card">
-        <div class="section-title">补充说明</div>
-        <MarkdownRenderer
-          :content="experienceShare.content"
-          :render-mode="activeRenderMode"
-        />
-      </section>
+      </aside>
     </div>
 
     <el-empty v-else-if="!loading" description="未找到这张经验卡片">
@@ -183,6 +224,7 @@ const router = useRouter()
 
 const loading = ref(false)
 const experienceShare = ref<ExperienceShare | null>(null)
+const recommendedShares = ref<ExperienceShare[]>([])
 const pdfPreviewVisible = ref(false)
 const pdfPreviewUrl = ref('')
 const pdfPreviewFileName = ref('')
@@ -230,6 +272,15 @@ const loadDetail = async () => {
     const res = await experienceShareAPI.getOne(id)
     experienceShare.value = res.success && res.data ? res.data : null
     activeRenderMode.value = experienceShare.value?.content_render_mode === 'html' ? 'html' : 'markdown'
+
+    try {
+      const listRes = await experienceShareAPI.getAll()
+      if (listRes.success && listRes.data) {
+        recommendedShares.value = listRes.data.filter((item: ExperienceShare) => item.id !== id).slice(0, 6)
+      }
+    } catch {
+      recommendedShares.value = []
+    }
   } finally {
     loading.value = false
   }
@@ -242,6 +293,10 @@ const goBack = () => {
 const goToEdit = () => {
   if (!experienceShare.value) return
   router.push(`/experience-shares/${experienceShare.value.id}/edit`)
+}
+
+const goToRecommended = (id: number) => {
+  router.push(`/experience-shares/${id}`)
 }
 
 const openPdfPreview = (url: string, fileName: string) => {
@@ -290,9 +345,8 @@ onMounted(loadDetail)
 .experience-detail-page {
   position: relative;
   height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 18px 20px 42px;
+  overflow: hidden;
+  padding: 8px 12px 8px;
   background:
     radial-gradient(circle at top left, rgba(8, 198, 190, 0.1), transparent 28%),
     radial-gradient(circle at bottom right, rgba(234, 179, 8, 0.08), transparent 24%),
@@ -315,185 +369,360 @@ onMounted(loadDetail)
     );
 }
 
-.detail-shell {
+.page-layout {
   position: relative;
   z-index: 1;
-  max-width: 1080px;
-  margin: 0 auto;
+  display: flex;
+  gap: 12px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 8px;
+  height: calc(100vh - 52px);
 }
 
-.detail-topbar,
-.topbar-actions,
-.attachment-main,
-.attachment-actions,
-.pdf-preview-file,
-.pdf-preview-actions {
+.page-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  position: relative;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+
+.page-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+}
+
+.page-main {
+  flex: 1;
+  min-width: 0;
+  max-width: 980px;
+  display: flex;
+  justify-content: center;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+.page-main::-webkit-scrollbar {
+  width: 6px;
+}
+
+.page-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page-main::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.page-main::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.page-rightbar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+.page-rightbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.page-rightbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page-rightbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.page-rightbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.recommended-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.recommended-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.recommended-item {
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.6);
+  border: none;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.recommended-item:hover {
+  background-color: rgba(255, 255, 255, 0.85);
+}
+
+.recommended-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+  line-height: 1.4;
+  padding: 8px 10px 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+.recommended-cover {
+  width: 100%;
+  height: 140px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f5f5f5 0%, #ebebeb 100%);
+  flex-shrink: 0;
+}
+
+.recommended-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.detail-topbar {
-  justify-content: space-between;
-  margin-bottom: 12px;
+.sidebar-card {
+  background: transparent;
+  border-radius: 4px;
+  padding: 12px;
+  box-shadow: none;
+  border: none;
 }
 
-.render-mode-switch {
-  --el-fill-color-blank: rgba(255, 251, 244, 0.96);
+.attachment-card-wrap {
+  margin-top: 0;
 }
 
-.ghost-btn {
-  border-color: rgba(255, 248, 235, 0.3);
-  background: rgba(248, 255, 252, 0.1);
-  color: #224847;
+.detail-shell {
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.cover-stage {
-  margin-bottom: 14px;
+.header-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.back-btn {
+  flex-shrink: 0;
+}
+
+.header-title {
+  text-align: center;
+}
+
+.header-title h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1.3;
+}
+
+.header-summary {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.4;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.main-content {
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  letter-spacing: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.cover-section {
+  margin-bottom: 0;
 }
 
 .cover-image-wrap {
   overflow: hidden;
-  border-radius: 28px;
-  background: #dfe8e3;
-  box-shadow: 0 18px 60px rgba(50, 43, 31, 0.16);
+  border-radius: 4px;
+  background: #f5f5f5;
+  box-shadow: none;
+  max-width: 100%;
 }
 
 .cover-image {
   display: block;
   width: 100%;
-  height: 360px;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
 }
 
-.info-card,
-.content-card {
-  border-radius: 26px;
-  background: rgba(255, 251, 244, 0.96);
-  box-shadow: 0 18px 46px rgba(84, 73, 50, 0.1);
-}
-
-.info-card {
-  padding: 18px 24px 16px;
-  margin-bottom: 16px;
-  border: 1px solid rgba(120, 94, 52, 0.08);
-}
-
-.info-title-wrap h1 {
-  margin: 0;
-  color: #173b39;
-  font-size: clamp(28px, 3vw, 40px);
-  line-height: 1.24;
-  font-family: 'STSong', 'Songti SC', 'Noto Serif SC', Georgia, serif;
-}
-
-.info-summary {
-  margin: 8px 0 0;
-  color: #4b5b58;
-  line-height: 1.75;
-  font-size: 15px;
-}
-
-.meta-line {
+.info-list {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-  color: #5f6f6b;
-  font-size: 13px;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 10px;
 }
 
-.meta-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: rgba(245, 248, 245, 0.96);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  color: #415451;
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.info-value {
+  font-size: 13px;
+  color: #1a1a1a;
+  font-weight: 400;
 }
 
 .attachment-card {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 248, 238, 0.98), rgba(255, 252, 246, 0.96));
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  gap: 12px;
+  padding: 10px;
+  border-radius: 4px;
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+}
+
+.attachment-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .attachment-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(220, 38, 38, 0.12);
+  background: rgba(220, 38, 38, 0.1);
   color: #dc2626;
-  font-size: 20px;
+  font-size: 16px;
   flex-shrink: 0;
 }
 
-.attachment-name {
-  color: #1f2937;
-  font-weight: 700;
-  word-break: break-all;
+.attachment-info {
+  min-width: 0;
 }
 
-.attachment-desc {
-  margin-top: 4px;
-  color: #64748b;
+.attachment-name {
+  color: #1a1a1a;
+  font-weight: 500;
+  word-break: break-all;
   font-size: 13px;
 }
 
-.content-card {
-  position: relative;
-  padding: 28px 32px 32px;
-  border: 1px solid rgba(120, 94, 52, 0.08);
+.attachment-desc {
+  margin-top: 2px;
+  color: #888;
+  font-size: 11px;
 }
 
-.secondary-content-card {
-  margin-top: 16px;
-}
-
-.section-title {
-  margin-bottom: 16px;
-  color: #16413f;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.inline-pdf-viewer {
+.attachment-actions {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.inline-pdf-viewer__note {
-  display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 6px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  color: #4b5b58;
-  background: linear-gradient(180deg, rgba(255, 251, 244, 0.96), rgba(247, 249, 247, 0.98));
-  border: 1px solid rgba(120, 94, 52, 0.08);
+  flex-shrink: 0;
+}
+
+.content-section .content-body {
+  padding: 14px;
+  border-radius: 4px;
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  min-height: 160px;
 }
 
 .empty-content {
-  padding: 18px;
-  border-radius: 16px;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px dashed rgba(148, 163, 184, 0.4);
+  padding: 14px;
+  border-radius: 4px;
+  color: #999;
+  background: #fafafa;
+  border: 1px dashed #ddd;
+  text-align: center;
+  font-size: 13px;
 }
 
 .pdf-preview-shell {
@@ -581,99 +810,136 @@ onMounted(loadDetail)
   opacity: 1;
 }
 
-:deep(.el-tag) {
-  border-radius: 999px;
-  padding-inline: 10px;
-}
-
-:deep(.content-card .markdown-body) {
+:deep(.content-body .markdown-body) {
   color: #332d23;
-  font-size: 16px;
-  line-height: 1.95;
-  font-family: 'STSong', 'Songti SC', 'Noto Serif SC', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-:deep(.content-card .markdown-body h1),
-:deep(.content-card .markdown-body h2),
-:deep(.content-card .markdown-body h3),
-:deep(.content-card .markdown-body h4) {
-  color: #173b39;
-  font-family: 'STSong', 'Songti SC', 'Noto Serif SC', Georgia, serif;
+:deep(.content-body .markdown-body h1),
+:deep(.content-body .markdown-body h2),
+:deep(.content-body .markdown-body h3),
+:deep(.content-body .markdown-body h4) {
+  color: #111827;
   font-weight: 700;
-  letter-spacing: 0.03em;
 }
 
-:deep(.content-card .markdown-body p) {
-  margin-bottom: 18px;
+:deep(.content-body .markdown-body p) {
+  margin-bottom: 14px;
 }
 
-:deep(.content-card .markdown-body blockquote) {
-  margin: 0 0 20px;
-  padding: 12px 18px;
-  border-left: 4px solid rgba(5, 150, 145, 0.42);
-  background: rgba(20, 96, 90, 0.06);
-  color: #3f4d4b;
+:deep(.content-body .markdown-body blockquote) {
+  margin: 0 0 16px;
+  padding: 10px 16px;
+  border-left: 3px solid #08c6be;
+  background: #f9fafb;
+  color: #4b5563;
 }
 
-:deep(.content-card .markdown-body pre) {
-  background: #f3ede1;
-  border: 1px solid rgba(120, 94, 52, 0.08);
-  border-radius: 14px;
+:deep(.content-body .markdown-body pre) {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
-:deep(.content-card .markdown-body code) {
-  background: rgba(22, 65, 63, 0.08);
-  color: #16413f;
+:deep(.content-body .markdown-body code) {
+  background: #f3f4f6;
+  color: #374151;
 }
 
-:deep(.content-card .markdown-body table th) {
-  background: #f0eadc;
+:deep(.content-body .markdown-body table th) {
+  background: #f9fafb;
+}
+
+@media (max-width: 1200px) {
+  .page-rightbar {
+    display: none;
+  }
 }
 
 @media (max-width: 900px) {
-  .detail-topbar,
-  .topbar-actions,
-  .attachment-card,
-  .attachment-actions,
-  .pdf-preview-toolbar {
+  .page-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .header-left {
+    justify-content: flex-start;
+  }
+
+  .header-title h1 {
+    white-space: normal;
+    font-size: 18px;
+  }
+
+  .header-actions {
+    justify-content: flex-end;
+  }
+
+  .page-layout {
+    flex-direction: column;
+    padding: 8px;
+    height: auto;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  .page-sidebar {
+    width: 100%;
+    position: static;
+    max-height: none;
+  }
+
+  .page-main {
+    width: 100%;
+    max-width: 100%;
+    overflow-y: visible;
+  }
+
+  .page-rightbar {
+    width: 100%;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .detail-shell {
+    max-width: 100%;
+  }
+
+  .attachment-card {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .cover-image {
-    height: 280px;
-  }
-
-  .backtop-float {
-    left: 10px;
-    top: auto;
-    bottom: 24px;
-    transform: translateX(-4px);
-  }
-
-  .backtop-float:hover {
-    transform: translateX(0);
+  .attachment-actions {
+    justify-content: flex-end;
   }
 }
 
 @media (max-width: 768px) {
   .experience-detail-page {
-    padding: 14px 14px 28px;
+    padding: 6px 8px 6px;
   }
 
-  .cover-image-wrap,
-  .info-card,
-  .content-card {
-    border-radius: 20px;
+  .detail-shell {
+    border-radius: 0;
   }
 
-  .info-card,
-  .content-card {
-    padding: 18px;
+  .page-header {
+    padding: 10px 12px;
   }
 
-  .info-title-wrap h1 {
-    font-size: 24px;
+  .header-title h1 {
+    font-size: 16px;
+  }
+
+  .page-layout {
+    padding: 0 8px;
+    max-height: calc(100vh - 80px);
   }
 }
 
@@ -698,59 +964,64 @@ onMounted(loadDetail)
     );
 }
 
-:root[data-theme='dark'] .ghost-btn {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
+:root[data-theme='dark'] .detail-shell {
+  background: #1f2937;
+}
+
+:root[data-theme='dark'] .page-header {
+  background: rgba(17, 24, 39, 0.85);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .header-title h1 {
+  color: #f9fafb;
+}
+
+:root[data-theme='dark'] .header-summary {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .field-label {
   color: #e5e7eb;
-}
-
-:root[data-theme='dark'] .ghost-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-:root[data-theme='dark'] .render-mode-switch {
-  --el-fill-color-blank: rgba(40, 40, 40, 0.96);
+  border-color: #374151;
 }
 
 :root[data-theme='dark'] .cover-image-wrap {
-  background: #2a2a2a;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.4);
+  background: #374151;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-:root[data-theme='dark'] .info-card,
-:root[data-theme='dark'] .content-card {
-  background: rgba(30, 30, 30, 0.96);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+:root[data-theme='dark'] .info-item,
+:root[data-theme='dark'] .attachment-card,
+:root[data-theme='dark'] .content-body,
+:root[data-theme='dark'] .sidebar-card {
+  background: transparent;
+  border-color: transparent;
 }
 
-:root[data-theme='dark'] .info-title-wrap h1 {
+:root[data-theme='dark'] .recommended-item {
+  background: rgba(50, 55, 63, 0.6);
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .recommended-item:hover {
+  background-color: rgba(50, 55, 63, 0.85);
+}
+
+:root[data-theme='dark'] .recommended-title {
+  color: #e8eaed;
+}
+
+:root[data-theme='dark'] .recommended-cover {
+  background: linear-gradient(135deg, #2a2e35 0%, #252930 100%);
+}
+
+:root[data-theme='dark'] .info-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .info-value {
   color: #f3f4f6;
-}
-
-:root[data-theme='dark'] .info-summary {
-  color: #9ca3af;
-}
-
-:root[data-theme='dark'] .meta-line {
-  color: #9ca3af;
-}
-
-:root[data-theme='dark'] .meta-pill {
-  background: rgba(50, 50, 50, 0.96);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #d1d5db;
-}
-
-:root[data-theme='dark'] .attachment-card {
-  background: linear-gradient(180deg, rgba(40, 40, 40, 0.98), rgba(35, 35, 35, 0.96));
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-:root[data-theme='dark'] .attachment-icon {
-  background: rgba(220, 38, 38, 0.2);
-  color: #f87171;
 }
 
 :root[data-theme='dark'] .attachment-name {
@@ -761,18 +1032,8 @@ onMounted(loadDetail)
   color: #9ca3af;
 }
 
-:root[data-theme='dark'] .section-title {
-  color: #5eead4;
-}
-
-:root[data-theme='dark'] .inline-pdf-viewer__note {
-  background: linear-gradient(180deg, rgba(40, 40, 40, 0.96), rgba(35, 38, 37, 0.98));
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #9ca3af;
-}
-
 :root[data-theme='dark'] .empty-content {
-  background: #2a2a2a;
+  background: #374151;
   border-color: rgba(255, 255, 255, 0.15);
   color: #9ca3af;
 }

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import type { ApiResponse, Book, Chapter, Prompt, Memo, ApiProvider, ApiModel, ChatMessage, RelatedContent, Generator, Character, UsageOverview, DailyUsage, ModelStats, MonthlyStats, Volume, ExperienceShare, GraphEntity, GraphRelation, KnowledgeGraphData, GraphVersion } from '@/types'
+import type { ApiResponse, Book, Chapter, Prompt, Memo, ApiProvider, ApiModel, ChatMessage, RelatedContent, Generator, Character, UsageOverview, DailyUsage, ModelStats, MonthlyStats, Volume, ExperienceShare, GraphEntity, GraphRelation, KnowledgeGraphData, GraphVersion, Entry, EntryCategory, EntryListResponse } from '@/types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -86,7 +86,8 @@ export const providerAPI = {
   getOne: (id: number) => api.get<any, ApiResponse<ApiProvider>>(`/providers/${id}`),
   create: (data: Partial<ApiProvider>) => api.post<any, ApiResponse<ApiProvider>>('/providers', data),
   update: (id: number, data: Partial<ApiProvider>) => api.put<any, ApiResponse<ApiProvider>>(`/providers/${id}`, data),
-  delete: (id: number) => api.delete<any, ApiResponse>(`/providers/${id}`)
+  delete: (id: number) => api.delete<any, ApiResponse>(`/providers/${id}`),
+  discoverModels: (id: number) => api.get<any, ApiResponse<Array<{ id: string; name: string; max_tokens?: number | null }>>>(`/providers/${id}/models`)
 }
 
 // API模型配置相关API
@@ -97,6 +98,8 @@ export const configAPI = {
   create: (data: Partial<ApiModel>) => api.post<any, ApiResponse<ApiModel>>('/config', data),
   update: (id: number, data: Partial<ApiModel>) => api.put<any, ApiResponse<ApiModel>>(`/config/${id}`, data),
   delete: (id: number) => api.delete<any, ApiResponse>(`/config/${id}`),
+  toggleModel: (id: number) => api.put<any, ApiResponse<{ id: number; enabled: number }>>(`/config/${id}/toggle`),
+  reorderModels: (ids: number[]) => api.put<any, ApiResponse>('/config/reorder/all', { ids }),
   testModel: (id: number) => api.post<any, ApiResponse<{
     modelId: number
     modelName: string
@@ -197,6 +200,18 @@ export const knowledgeGraphAPI = {
   getVersionData: (versionId: number) => api.get<any, ApiResponse<KnowledgeGraphData>>(`/knowledge-graph/version/${versionId}`),
   renameVersion: (versionId: number, name: string) => api.put<any, ApiResponse<GraphVersion>>(`/knowledge-graph/versions/${versionId}`, { name }),
   deleteVersion: (bookId: number, versionId: number) => api.delete<any, ApiResponse>(`/knowledge-graph/versions/${bookId}/${versionId}`)
+}
+
+export const entryAPI = {
+  getList: (params?: { book_id: number; category_type?: string; keyword?: string; page?: number; page_size?: number }) =>
+    api.get<any, ApiResponse<EntryListResponse>>('/entries', { params }),
+  getOne: (id: number) => api.get<any, ApiResponse<Entry>>(`/entries/${id}`),
+  create: (data: Partial<Entry>) => api.post<any, ApiResponse<Entry>>('/entries', data),
+  update: (id: number, data: Partial<Entry>) => api.put<any, ApiResponse<Entry>>(`/entries/${id}`, data),
+  delete: (id: number) => api.delete<any, ApiResponse>(`/entries/${id}`),
+  addToBook: (entryId: number, bookId: number) => api.post<any, ApiResponse<Entry>>(`/entries/${entryId}/add-to-book`, { bookId }),
+  getCategories: (bookId?: number) => api.get<any, ApiResponse<EntryCategory[]>>('/entries/categories', { params: { book_id: bookId } }),
+  aiAutoComplete: (entryId: number, configId: number) => api.post<any, ApiResponse<Entry>>(`/entries/${entryId}/ai-auto-complete`, { configId }, { timeout: 120000 })
 }
 
 export default api

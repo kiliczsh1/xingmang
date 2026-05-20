@@ -609,7 +609,7 @@ const fetchModels = async () => {
   try {
     const res = await configAPI.getAll()
     if (res.success && res.data) {
-      models.value = res.data
+      models.value = res.data.filter(m => m.enabled !== 0)
 
       const defaultModel = models.value.find(model => model.is_default === 1 || model.is_default === true)
       const currentSelectedModel = models.value.find(model => model.id === selectedModelId.value)
@@ -632,7 +632,14 @@ const handleSelectAllChange = (val: boolean) => {
 
 const getWordCount = (content: string) => {
   if (!content) return 0
-  return content.replace(/\s/g, '').length
+  const plainText = content.replace(/<[^>]*>/g, '')
+  let length = 0
+  for (const char of plainText) {
+    if (/[\u4e00-\u9fa5]/.test(char)) {
+      length += 1
+    }
+  }
+  return length
 }
 
 const goBack = () => {
@@ -969,7 +976,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
   display: flex;
   flex-direction: column;
-  z-index: 2000;
+  z-index: 10000;
 }
 
 .page-header {

@@ -49,6 +49,22 @@
             />
           </el-form-item>
 
+          <el-form-item label="作者">
+            <el-input
+              v-model="formData.author_name"
+              maxlength="50"
+              placeholder="请输入作者名称"
+            />
+          </el-form-item>
+
+          <el-form-item label="版本号">
+            <el-input
+              v-model="formData.version"
+              maxlength="30"
+              placeholder="请输入版本号，如 v1.0.0"
+            />
+          </el-form-item>
+
           <el-form-item v-if="!isPdfImportMode" label="封面图">
             <div class="cover-field">
               <el-input
@@ -217,6 +233,7 @@ type FormState = {
   content_render_mode: ContentRenderMode
   create_type: 'manual' | 'pdf_import'
   author_name: string
+  version: string
   status: string
   pdf_parse_status: string
   pdf_parse_result: string
@@ -253,6 +270,7 @@ const createEmptyForm = (): FormState => ({
   content_render_mode: 'markdown',
   create_type: 'manual',
   author_name: '星芒用户',
+  version: '',
   status: 'published',
   pdf_parse_status: '',
   pdf_parse_result: '',
@@ -322,6 +340,7 @@ const fillForm = (item: ExperienceShare) => {
     content_render_mode: item.content_render_mode === 'html' ? 'html' : 'markdown',
     create_type: item.create_type || 'manual',
     author_name: item.author_name || '星芒用户',
+    version: item.version || '',
     status: item.status || 'published',
     pdf_parse_status: item.pdf_parse_status || '',
     pdf_parse_result: item.pdf_parse_result || '',
@@ -531,7 +550,8 @@ const handleSubmit = async () => {
       content: isPdfImportMode.value ? '' : formData.value.content,
       content_render_mode: formData.value.content_render_mode,
       create_type: formData.value.create_type,
-      author_name: formData.value.author_name,
+      author_name: formData.value.author_name.trim(),
+      version: formData.value.version.trim(),
       status: formData.value.status,
       pdf_parse_status: formData.value.pdf_parse_status || null,
       pdf_parse_result: formData.value.pdf_parse_result || null,
