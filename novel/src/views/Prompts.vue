@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="prompts-container" :style="promptSkinCssVars">
     <div class="header">
       <div class="header-main">
@@ -879,6 +879,12 @@
                 />
               </el-select>
             </el-form-item>
+            <el-form-item label="作者名">
+              <el-input v-model="formData.creator_name" placeholder="请输入作者名，非必填" />
+            </el-form-item>
+            <el-form-item label="版本号">
+              <el-input v-model="formData.version" placeholder="如 v1.0、v2.1.0，非必填" />
+            </el-form-item>
             <el-form-item label="卡片类型">
               <div class="card-type-selector">
                 <el-radio-group v-model="formData.card_type" @change="handleCardTypeChange">
@@ -1591,7 +1597,9 @@ const formData = ref({
   category: '默认',
   order_num: 0,
   card_type: 'normal' as 'normal' | 'encrypted',
-  password: null as string | null
+  password: null as string | null,
+  creator_name: '',
+  version: ''
 })
 
 const EXPORT_MAGIC = 'XNP1'
@@ -2034,7 +2042,9 @@ const handleCreateInCategory = (categoryName: string) => {
     category: categoryName,
     order_num: 0,
     card_type: 'normal',
-    password: null
+    password: null,
+    creator_name: '',
+    version: ''
   }
   fieldsConfig.value = []
   // 重置小分类
@@ -2130,7 +2140,9 @@ const handleCreate = () => {
     category: categoryOptions.value[0] || '默认',
     order_num: 0,
     card_type: 'normal',
-    password: null
+    password: null,
+    creator_name: '',
+    version: ''
   }
   // 重置字段配置
   fieldsConfig.value = []
@@ -2163,7 +2175,9 @@ const openEditDialog = (prompt: Prompt) => {
     category: prompt.category,
     order_num: prompt.order_num,
     card_type: prompt.card_type || 'normal',
-    password: prompt.password || null
+    password: prompt.password || null,
+    creator_name: prompt.creator_name || '',
+    version: prompt.version || ''
   }
   // 重置字段配置
   fieldsConfig.value = []
@@ -5231,5 +5245,313 @@ const executeImportConvert = async () => {
 
 .password-dialog-input {
   margin-bottom: 12px;
+}
+
+/* 暗色主题适配 - 卡包 */
+:root[data-theme='dark'] .card-pack-vertical {
+  --pack-shell-top: rgba(30, 41, 59, 0.95);
+  --pack-shell-mid: rgba(30, 41, 59, 0.9);
+  --pack-shell-bottom: rgba(15, 23, 42, 0.95);
+  --pack-shell-border: rgba(71, 85, 105, 0.4);
+  --pack-shell-hover-border: rgba(94, 234, 212, 0.4);
+  --pack-header-top: rgba(45, 212, 191, 0.2);
+  --pack-header-mid: rgba(45, 212, 191, 0.15);
+  --pack-header-bottom: rgba(20, 184, 166, 0.1);
+  --pack-header-border: rgba(94, 234, 212, 0.2);
+  --pack-header-text: #5eead4;
+  --pack-muted-text: #9ca3af;
+  --pack-badge-bg: rgba(30, 41, 59, 0.9);
+  --pack-badge-border: rgba(94, 234, 212, 0.3);
+  --pack-badge-text: #5eead4;
+  --prompt-pack-shell-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+  --prompt-pack-shell-hover-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  --prompt-pack-shell-overlay: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 34%);
+  --prompt-pack-header-overlay: radial-gradient(circle at top, rgba(255, 255, 255, 0.05), transparent 42%), linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 64%), linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.03) 48%, transparent 72%);
+  --prompt-pack-scroll-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.82) 0%, rgba(15, 23, 42, 0.96) 100%);
+  --prompt-pack-action-bg: rgba(30, 41, 59, 0.6);
+  --prompt-pack-action-border: rgba(71, 85, 105, 0.4);
+  --prompt-pack-action-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+  --prompt-pack-action-hover-bg: rgba(51, 65, 85, 0.8);
+  --prompt-pack-action-hover-border: rgba(94, 234, 212, 0.3);
+  --prompt-pack-action-primary: #5eead4;
+  --prompt-pack-action-primary-hover: #fff;
+  --prompt-pack-action-danger: #f87171;
+  --prompt-pack-action-danger-hover: #fca5a5;
+  --prompt-pack-footer-border: rgba(94, 234, 212, 0.2);
+  --prompt-pack-footer-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 1) 100%);
+  --prompt-pack-footer-button-bg: rgba(30, 41, 59, 0.6);
+  --prompt-pack-footer-button-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+  --prompt-pack-footer-primary-color: #5eead4;
+  --prompt-pack-footer-primary-border: rgba(94, 234, 212, 0.3);
+  --prompt-pack-footer-primary-hover-color: #fff;
+  --prompt-pack-footer-primary-hover-bg: rgba(94, 234, 212, 0.15);
+  --prompt-pack-footer-primary-hover-border: rgba(94, 234, 212, 0.5);
+  --prompt-pack-footer-danger-color: #f87171;
+  --prompt-pack-footer-danger-border: rgba(248, 113, 113, 0.3);
+  --prompt-pack-footer-danger-hover-color: #fca5a5;
+  --prompt-pack-footer-danger-hover-bg: rgba(248, 113, 113, 0.15);
+  --prompt-pack-footer-danger-hover-border: rgba(248, 113, 113, 0.5);
+}
+
+:root[data-theme='dark'] .pack-card {
+  --prompt-pack-card-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.95) 100%);
+  --prompt-pack-card-border: 1px solid rgba(71, 85, 105, 0.4);
+  --prompt-pack-card-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+  --prompt-pack-card-hover-border: rgba(94, 234, 212, 0.4);
+  --prompt-pack-card-hover-shadow: 0 14px 26px rgba(0, 0, 0, 0.3);
+  --prompt-pack-card-header-bg: linear-gradient(135deg, rgba(94, 234, 212, 0.15) 0%, rgba(30, 41, 59, 0.9) 100%);
+  --prompt-pack-card-header-border: rgba(94, 234, 212, 0.2);
+  --prompt-pack-card-handle-color: #5eead4;
+  --prompt-pack-card-name-color: #f3f4f6;
+  --prompt-pack-card-preview-color: #9ca3af;
+  --prompt-pack-card-footer-border: rgba(71, 85, 105, 0.3);
+  --prompt-pack-card-footer-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  --prompt-pack-card-time-color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-pack-hint {
+  --prompt-pack-empty-text: #5eead4;
+  --prompt-pack-empty-border: 1px dashed rgba(94, 234, 212, 0.4);
+  --prompt-pack-empty-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+}
+
+:root[data-theme='dark'] .standalone-cards-area {
+  background: linear-gradient(180deg, rgba(124, 45, 18, 0.2) 0%, #1e293b 100%);
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+:root[data-theme='dark'] .standalone-cards-area.drag-over {
+  border-color: rgba(249, 115, 22, 0.6);
+  background: linear-gradient(180deg, rgba(124, 45, 18, 0.3) 0%, #1e293b 100%);
+}
+
+:root[data-theme='dark'] .standalone-card {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(71, 85, 105, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .standalone-card:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .standalone-card-header {
+  background: linear-gradient(135deg, rgba(124, 45, 18, 0.2) 0%, rgba(30, 41, 59, 0.9) 100%);
+  border-bottom-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .card-drag-handle {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .standalone-card-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .standalone-card-preview {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .standalone-card-footer {
+  border-top-color: rgba(71, 85, 105, 0.3);
+  background: rgba(30, 41, 59, 0.8);
+}
+
+:root[data-theme='dark'] .standalone-card-time {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button),
+:root[data-theme='dark'] .pack-card-actions :deep(.el-button) {
+  background: rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary),
+:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--primary) {
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary:hover),
+:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--primary:hover) {
+  color: #fff;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger),
+:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--danger) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger:hover),
+:root[data-theme='dark'] .pack-card-actions :deep(.el-button.el-button--danger:hover) {
+  color: #fff;
+  background: linear-gradient(135deg, #e11d48 0%, #fb7185 100%);
+}
+
+:root[data-theme='dark'] .prompts-container {
+  --prompts-container-bg: #1e293b;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .header {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .header h2 {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+:root[data-theme='dark'] .skin-toolbar-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .section-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .section-title .el-icon {
+  color: #34d399;
+}
+
+:root[data-theme='dark'] .section-count {
+  background: #10b981;
+}
+
+:root[data-theme='dark'] :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+:root[data-theme='dark'] :deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+:root[data-theme='dark'] :deep(.el-button--success) {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+:root[data-theme='dark'] :deep(.el-button--success:hover) {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+}
+
+:root[data-theme='dark'] .dialog-header span {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .left-panel {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .panel-header {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .export-select-all {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .export-card-item {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .export-card-item:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+:root[data-theme='dark'] .export-card-item.selected {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+:root[data-theme='dark'] .export-card-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .export-card-preview {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .form-label {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .empty-fields {
+  background-color: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .empty-hint {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .field-item {
+  background-color: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .required-tag.el-tag--danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .required-tag.el-tag--info {
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(107, 114, 128, 0.1) 100%);
+  border-color: rgba(107, 114, 128, 0.4);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .field-name {
+  color: #f3f4f6;
+  background-color: rgba(124, 45, 18, 0.3);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+:root[data-theme='dark'] .password-dialog-icon {
+  background: rgba(251, 191, 36, 0.15);
+}
+
+:root[data-theme='dark'] .password-dialog-hint {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .pack-card.encrypted {
+  border-color: rgba(251, 191, 36, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+:root[data-theme='dark'] .pack-card.encrypted:hover {
+  border-color: rgba(251, 191, 36, 0.6) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+:root[data-theme='dark'] .pack-card.encrypted .pack-card-header {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(30, 41, 59, 0.9) 100%) !important;
+}
+
+:root[data-theme='dark'] .pack-card-lock {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .standalone-card.encrypted {
+  border-color: rgba(251, 191, 36, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+:root[data-theme='dark'] .standalone-card.encrypted:hover {
+  border-color: rgba(251, 191, 36, 0.6) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+:root[data-theme='dark'] .standalone-card.encrypted .standalone-card-header {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(30, 41, 59, 0.9) 100%) !important;
+}
+
+:root[data-theme='dark'] .standalone-card-lock {
+  color: #fbbf24;
 }
 </style>

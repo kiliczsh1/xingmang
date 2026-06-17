@@ -1970,4 +1970,111 @@ onMounted(async () => {
     width: 100%;
   }
 }
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .character-library {
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+}
+
+:root[data-theme='dark'] .header-bar {
+  background: rgba(30, 41, 59, 0.8);
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .page-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .back-home-btn {
+  border-color: rgba(71, 85, 105, 0.4);
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.96) 0%, rgba(51, 65, 85, 0.92) 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .back-home-btn:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+  box-shadow: 0 14px 28px rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .back-arrow {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .back-divider {
+  background: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .folder-filter {
+  background: rgba(30, 41, 59, 0.6);
+  border-bottom-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .folder-item {
+  color: #d1d5db;
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .folder-item:hover {
+  background: rgba(71, 85, 105, 0.6);
+}
+
+:root[data-theme='dark'] .folder-item.active {
+  background: #00c9a7;
+  color: #fff;
+}
+
+:root[data-theme='dark'] .search-expand {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .left-panel {
+  background: rgba(30, 41, 59, 0.8);
+  border-right-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .character-card {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .character-card:hover {
+  background: rgba(71, 85, 105, 0.6);
+}
+
+:root[data-theme='dark'] .character-card.active {
+  background: rgba(0, 201, 167, 0.2);
+  border-color: rgba(94, 234, 212, 0.4);
+  box-shadow: 0 2px 8px rgba(94, 234, 212, 0.15);
+}
+
+:root[data-theme='dark'] .character-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .character-actions .el-icon {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .character-actions .el-icon:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .right-panel {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+:root[data-theme='dark'] .form-item label {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .form-item :deep(.el-input__wrapper),
+:root[data-theme='dark'] .form-item :deep(.el-textarea__inner) {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.4);
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .form-item :deep(.el-input__inner),
+:root[data-theme='dark'] .form-item :deep(.el-textarea__inner) {
+  color: #f3f4f6;
+}
 </style>

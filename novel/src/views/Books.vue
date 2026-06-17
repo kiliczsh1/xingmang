@@ -1421,4 +1421,105 @@ const handleSaveCover = async () => {
   justify-content: flex-end;
   gap: 12px;
 }
+
+/* ========== 暗色主题适配 ========== */
+:root[data-theme='dark'] .book-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:root[data-theme='dark'] .book-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .book-title {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .book-description p {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .card-bottom-section {
+  border-top-color: #334155;
+}
+
+:root[data-theme='dark'] .date {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .time {
+  color: #4b5563;
+}
+
+:root[data-theme='dark'] .cover-placeholder {
+  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+}
+
+:root[data-theme='dark'] .cover-tag {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+:root[data-theme='dark'] .form-section {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .section-title {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .form-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .dialog-content {
+  background: transparent;
+}
+
+:root[data-theme='dark'] .cover-drop-zone {
+  border-color: #475569;
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .cover-drop-zone:hover {
+  border-color: #3b82f6;
+  background: #1e3a5f;
+}
+
+:root[data-theme='dark'] .cover-drop-zone.is-dragover {
+  border-color: #3b82f6;
+  background: #1e3a5f;
+}
+
+:root[data-theme='dark'] .cover-drop-zone.has-image {
+  border-color: #475569;
+}
+
+:root[data-theme='dark'] .cover-drop-placeholder {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .cover-drop-icon {
+  color: #4b5563;
+}
+
+:root[data-theme='dark'] .cover-drop-text {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .cover-drop-hint {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .simple-book-dialog .el-dialog__header {
+  border-bottom-color: #334155;
+}
+
+:root[data-theme='dark'] .simple-book-dialog .el-dialog__footer {
+  border-top-color: #334155;
+}
+
+:root[data-theme='dark'] .simple-form .form-label {
+  color: #9ca3af;
+}
 </style>

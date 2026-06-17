@@ -513,4 +513,96 @@ onMounted(() => {
   color: #909399;
   margin-left: 2px;
 }
+
+/* ========== 暗色主题适配 ========== */
+:root[data-theme='dark'] .page-title {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .stat-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:root[data-theme='dark'] .stat-value {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .stat-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .chart-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:root[data-theme='dark'] .ranking-item {
+  border-bottom-color: #334155;
+}
+
+:root[data-theme='dark'] .ranking-item:hover {
+  background-color: #334155;
+}
+
+:root[data-theme='dark'] .ranking-index {
+  background: #475569;
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .ranking-name {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .ranking-provider {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .ranking-count .unit {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] :deep(.el-card__header) {
+  border-bottom-color: #334155;
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] :deep(.el-card__body) {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] :deep(.el-table) {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] :deep(.el-table th) {
+  background: #334155;
+  color: #e5e7eb;
+  border-color: #475569;
+}
+
+:root[data-theme='dark'] :deep(.el-table td) {
+  border-color: #475569;
+}
+
+:root[data-theme='dark'] :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
+  background: #253347;
+}
+
+:root[data-theme='dark'] :deep(.el-table__body tr:hover > td) {
+  background: #334155;
+}
+
+:root[data-theme='dark'] :deep(.el-empty) {
+  background: transparent;
+}
+
+:root[data-theme='dark'] :deep(.el-date-picker) {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] :deep(.el-progress__text) {
+  color: #e5e7eb;
+}
 </style>

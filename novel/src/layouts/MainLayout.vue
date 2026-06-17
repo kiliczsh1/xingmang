@@ -73,7 +73,16 @@
           <span>最新下载</span>
         </a>
         <button
-          v-for="item in globalNavItems"
+          class="topbar-action theme-toggle-btn"
+          type="button"
+          @click="toggleTheme"
+          :title="currentThemeType === 'dark' ? '切换为亮色主题' : '切换为暗色主题'"
+        >
+          <el-icon><component :is="currentThemeType === 'dark' ? 'Sunny' : 'Moon'" /></el-icon>
+          <span>{{ currentThemeType === 'dark' ? '亮色' : '暗色' }}</span>
+        </button>
+        <button
+          v-for="item in globalNavItems.filter(i => i.label !== '外观')"
           :key="item.label"
           class="topbar-action"
           type="button"
@@ -200,8 +209,16 @@ const route = useRoute()
 
 type ThemeType = 'light' | 'dark'
 
+const getInitialTheme = (): ThemeType => {
+  const saved = localStorage.getItem('main-theme')
+  if (saved === 'light' || saved === 'dark') {
+    return saved
+  }
+  return 'light'
+}
+
 const themeDialogVisible = ref(false)
-const currentThemeType = ref<ThemeType>('light')
+const currentThemeType = ref<ThemeType>(getInitialTheme())
 const historyDialogVisible = ref(false)
 const userPopupVisible = ref(false)
 const userName = ref('星芒创作者')
@@ -362,14 +379,6 @@ const activeMenu = computed(() => {
 
 const currentPageLabel = computed(() => routeLabelMap[activeMenu.value] || '创作空间')
 
-const getInitialTheme = (): ThemeType => {
-  const saved = localStorage.getItem('main-theme')
-  if (saved === 'light' || saved === 'dark') {
-    return saved
-  }
-  return 'light'
-}
-
 const currentTheme = ref<ThemeType>(getInitialTheme())
 
 const themeColors = {
@@ -425,6 +434,11 @@ const handleGlobalNavClick = (label: string) => {
   } else {
     ElMessage.info(`"${label}"功能开发中`)
   }
+}
+
+const toggleTheme = () => {
+  const newTheme = currentThemeType.value === 'dark' ? 'light' : 'dark'
+  selectTheme(newTheme)
 }
 
 const selectTheme = (theme: ThemeType) => {
@@ -574,6 +588,18 @@ watch(
   color: #2dd4bf;
   background: rgba(45, 212, 191, 0.08);
   border-color: rgba(45, 212, 191, 0.2);
+}
+
+.theme-toggle-btn {
+  color: #5a6c7d;
+  border-color: rgba(45, 212, 191, 0.15);
+  background: rgba(45, 212, 191, 0.05);
+}
+
+.theme-toggle-btn:hover {
+  color: #2dd4bf;
+  background: rgba(45, 212, 191, 0.12);
+  border-color: rgba(45, 212, 191, 0.3);
 }
 
 .user-badge-wrapper {
@@ -946,9 +972,13 @@ watch(
   overflow-y: auto;
   border-radius: 0;
   padding: 20px;
-  background: var(--content-background, #ffffff);
-  border: 1px solid var(--content-border, #e0e6ed);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  background: var(--content-background, transparent);
+  border: none;
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .content-frame {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 :deep(.el-menu) {

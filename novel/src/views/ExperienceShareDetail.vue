@@ -676,4 +676,164 @@ onMounted(loadDetail)
     font-size: 24px;
   }
 }
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .experience-detail-page {
+  background:
+    radial-gradient(circle at top left, rgba(8, 198, 190, 0.08), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(234, 179, 8, 0.06), transparent 24%),
+    linear-gradient(180deg, #1a1a1a 0%, #1e1e1e 44%, #1a1f1e 100%);
+}
+
+:root[data-theme='dark'] .detail-background {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.04), transparent 28%),
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.06), transparent 18%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 24px
+    );
+}
+
+:root[data-theme='dark'] .ghost-btn {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .ghost-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+:root[data-theme='dark'] .render-mode-switch {
+  --el-fill-color-blank: rgba(40, 40, 40, 0.96);
+}
+
+:root[data-theme='dark'] .cover-image-wrap {
+  background: #2a2a2a;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .info-card,
+:root[data-theme='dark'] .content-card {
+  background: rgba(30, 30, 30, 0.96);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .info-title-wrap h1 {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .info-summary {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .meta-line {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .meta-pill {
+  background: rgba(50, 50, 50, 0.96);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #d1d5db;
+}
+
+:root[data-theme='dark'] .attachment-card {
+  background: linear-gradient(180deg, rgba(40, 40, 40, 0.98), rgba(35, 35, 35, 0.96));
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .attachment-icon {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .attachment-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .attachment-desc {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .section-title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .inline-pdf-viewer__note {
+  background: linear-gradient(180deg, rgba(40, 40, 40, 0.96), rgba(35, 38, 37, 0.98));
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .empty-content {
+  background: #2a2a2a;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .pdf-preview-toolbar {
+  background: #2a2a2a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='dark'] .pdf-preview-file {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .backtop-float {
+  background: rgba(8, 198, 190, 0.85);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .backtop-float:hover {
+  background: rgba(8, 198, 190, 0.95);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .backtop-icon {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+:root[data-theme='dark'] :deep(.content-card .markdown-body) {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] :deep(.content-card .markdown-body h1),
+:root[data-theme='dark'] :deep(.content-card .markdown-body h2),
+:root[data-theme='dark'] :deep(.content-card .markdown-body h3),
+:root[data-theme='dark'] :deep(.content-card .markdown-body h4) {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] :deep(.content-card .markdown-body blockquote) {
+  background: rgba(8, 198, 190, 0.1);
+  border-left-color: rgba(8, 198, 190, 0.5);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] :deep(.content-card .markdown-body pre) {
+  background: #2a2a2a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='dark'] :deep(.content-card .markdown-body code) {
+  background: rgba(8, 198, 190, 0.15);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] :deep(.content-card .markdown-body table th) {
+  background: #2a2a2a;
+}
+
+:root[data-theme='dark'] :deep(.content-card .markdown-body table td),
+:root[data-theme='dark'] :deep(.content-card .markdown-body table th) {
+  border-color: rgba(255, 255, 255, 0.1);
+}
 </style>

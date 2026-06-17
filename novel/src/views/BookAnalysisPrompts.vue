@@ -1817,4 +1817,125 @@ const formatFieldType = (type: PromptField['type']) => {
     grid-template-columns: 1fr;
   }
 }
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .book-analysis-prompts-page {
+  background: #0f172a;
+}
+
+:root[data-theme='dark'] .page-header,
+:root[data-theme='dark'] .summary-card {
+  background: #1e293b;
+  border-color: rgba(71, 85, 105, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .header-main h1 {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .header-main p {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .summary-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .summary-card strong {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .preview-content {
+  color: #d1d5db;
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .prompt-meta {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .card-pack-vertical {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.3) 0%, #1e293b 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .pack-card {
+  border-color: rgba(71, 85, 105, 0.4);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  transform: none !important;
+}
+
+:root[data-theme='dark'] .pack-card:nth-child(odd),
+:root[data-theme='dark'] .pack-card:nth-child(even) {
+  transform: none !important;
+}
+
+:root[data-theme='dark'] .pack-card::before,
+:root[data-theme='dark'] .pack-card::after {
+  display: none;
+}
+
+:root[data-theme='dark'] .pack-card:hover {
+  border-color: rgba(59, 130, 246, 0.6);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 1) 0%, rgba(30, 58, 138, 0.3) 100%);
+  transform: translateY(-4px) !important;
+}
+
+:root[data-theme='dark'] .pack-card-name,
+:root[data-theme='dark'] .standalone-card-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .pack-card-preview,
+:root[data-theme='dark'] .standalone-card-preview {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .pack-card-time,
+:root[data-theme='dark'] .standalone-card-time {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .pack-footer-vertical {
+  border-top-color: rgba(71, 85, 105, 0.4);
+  background: rgba(30, 41, 59, 0.8);
+}
+
+:root[data-theme='dark'] .standalone-cards-area {
+  border-color: rgba(249, 115, 22, 0.4);
+  background: linear-gradient(180deg, rgba(124, 45, 18, 0.2) 0%, #1e293b 100%);
+}
+
+:root[data-theme='dark'] .standalone-card {
+  border-color: rgba(71, 85, 105, 0.4);
+  background: linear-gradient(180deg, #1e293b 0%, rgba(30, 41, 59, 0.95) 100%);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .standalone-card::before {
+  display: none;
+}
+
+:root[data-theme='dark'] .standalone-card:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+:root[data-theme='dark'] .empty-pack-hint,
+:root[data-theme='dark'] .empty-standalone-hint {
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+:root[data-theme='dark'] .dialog-header span {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .pack-card-hover-info,
+:root[data-theme='dark'] .standalone-card-hover-info {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95));
+}
 </style>

@@ -228,6 +228,28 @@ router.get('/', (req, res) => {
   }
 });
 
+router.get('/export', (req, res) => {
+  try {
+    const rows = db
+      .prepare('SELECT * FROM experience_shares ORDER BY datetime(created_at) DESC, id DESC')
+      .all()
+      .map(normalizeShare);
+
+    const exportData = rows.map(item => ({
+      title: item.title,
+      summary: item.summary,
+      content: item.content,
+      content_render_mode: item.content_render_mode,
+      author_name: item.author_name,
+      create_type: item.create_type
+    }));
+
+    res.json({ success: true, data: exportData });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM experience_shares WHERE id = ?').get(req.params.id);
@@ -248,6 +270,70 @@ router.post('/import-pdf', async (req, res) => {
     res.json({ success: true, data: draft });
   } catch (error) {
     res.status(400).json({ success: false, message: `导入失败，请重试或改用手动创建。${error.message ? ` ${error.message}` : ''}`.trim() });
+  }
+});
+
+router.post('/import', (req, res) => {
+  try {
+    const { cards } = req.body || {};
+
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return res.status(400).json({ success: false, message: '导入数据格式错误或为空' });
+    }
+
+    const insertStmt = db.prepare(`
+      INSERT INTO experience_shares (
+        title,
+        summary,
+        content,
+        content_render_mode,
+        cover_url,
+        pdf_file_url,
+        pdf_file_name,
+        pdf_file_size,
+        create_type,
+        author_id,
+        author_name,
+        status,
+        pdf_parse_status,
+        pdf_parse_result,
+        source_file_name
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let importedCount = 0;
+
+    for (const card of cards) {
+      const title = String(card.title || '').trim();
+      if (!title) continue;
+
+      const nextCreateType = card.create_type === 'pdf_import' ? 'pdf_import' : 'manual';
+      const nextRenderMode = card.content_render_mode === 'html' ? 'html' : 'markdown';
+
+      insertStmt.run(
+        title,
+        String(card.summary || '').trim() || null,
+        String(card.content || '').trim(),
+        nextRenderMode,
+        null,
+        null,
+        null,
+        0,
+        nextCreateType,
+        null,
+        String(card.author_name || '').trim() || '星芒用户',
+        'published',
+        null,
+        null,
+        null
+      );
+
+      importedCount += 1;
+    }
+
+    res.json({ success: true, message: `成功导入 ${importedCount} 张经验卡片` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

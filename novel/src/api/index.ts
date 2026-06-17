@@ -75,7 +75,9 @@ export const experienceShareAPI = {
       size: number
       data_base64: string
     }
-  }) => api.post<any, ApiResponse<Partial<ExperienceShare>>>('/experience-shares/import-pdf', data)
+  }) => api.post<any, ApiResponse<Partial<ExperienceShare>>>('/experience-shares/import-pdf', data),
+  exportAll: () => api.get<any, ApiResponse<ExperienceShare[]>>('/experience-shares/export'),
+  importAll: (data: { cards: any[] }) => api.post<any, ApiResponse>('/experience-shares/import', data)
 }
 
 // API服务商相关API

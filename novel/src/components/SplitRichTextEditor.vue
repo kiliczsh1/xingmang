@@ -188,6 +188,14 @@ const wrapSelectionWithHtml = async (html: string) => {
   emitContent()
 }
 
+const insertPlainText = async (text: string) => {
+  if (props.disabled) return
+  await focusEditor()
+  document.execCommand('insertText', false, text)
+  saveSelection()
+  emitContent()
+}
+
 const getSelectedText = () => {
   const selection = window.getSelection()
   return selection ? selection.toString() : ''
@@ -376,6 +384,14 @@ const handleAction = async (action: ToolbarAction) => {
       break
   }
 }
+
+defineExpose({
+  wrapSelectionWithHtml,
+  focusEditor,
+  getSelectedText,
+  insertContent: wrapSelectionWithHtml,
+  insertPlainText
+})
 
 const handleInput = () => {
   saveSelection()

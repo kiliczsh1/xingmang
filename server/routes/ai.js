@@ -202,11 +202,13 @@ router.post('/chat', async (req, res) => {
       }))
     );
 
+    const maxTokens = Math.min(Math.max(Number(config.max_tokens) || 2000, 1), 8192);
+
     const requestBody = {
       model: config.model,
       messages: chatMessages,
       temperature: config.temperature,
-      max_tokens: config.max_tokens,
+      max_tokens: maxTokens,
       stream: true
     };
 
@@ -214,7 +216,8 @@ router.post('/chat', async (req, res) => {
     console.log('URL:', config.api_url);
     console.log('Model:', config.model);
     console.log('Temperature:', config.temperature);
-    console.log('Max Tokens:', config.max_tokens);
+    console.log('Max Tokens (original):', config.max_tokens);
+    console.log('Max Tokens (clamped):', maxTokens);
     console.log('Messages Count:', chatMessages.length);
     console.log('Messages:', JSON.stringify(chatMessages, null, 2));
     console.log('===================================================');
@@ -299,7 +302,7 @@ router.post('/generate-description', async (req, res) => {
           { role: 'user', content: `书名：${title}` }
         ],
         temperature: config.temperature,
-        max_tokens: config.max_tokens
+        max_tokens: Math.min(Math.max(Number(config.max_tokens) || 2000, 1), 8192)
       },
       buildAuthHeaders(config.api_key)
     );
@@ -375,7 +378,7 @@ router.post('/recognize-characters', async (req, res) => {
           { role: 'user', content: text }
         ],
         temperature: 0.7,
-        max_tokens: config.max_tokens
+        max_tokens: Math.min(Math.max(Number(config.max_tokens) || 2000, 1), 8192)
       },
       buildAuthHeaders(config.api_key)
     );
