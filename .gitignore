@@ -51,3 +51,29 @@ build/
 
 # 安装脚本生成的临时目录
 install-package/
+
+# 私人小说数据
+data/
+
+# 临时文件
+*.tmp
+temp_*.txt
+temp_*.html
+
+# 私密文档
+说明文档.txt
+星芒v-*.txt
+参考*.json
+server/pua_map_check.txt
+
+# 无关项目
+GraphRAG-Example-master/
+GraphRAG-Example-master.zip
+andrej-karpathy-skills-main/
+封面生成代码/
+
+# Python 缓存
+__pycache__/
+
+# 图片资产
+6530f5067a0f5ac79d569a4bf23b03e7.png
