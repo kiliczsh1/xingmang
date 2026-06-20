@@ -24,16 +24,17 @@
         class="generator-card"
         @click="openGenerator(generator)"
       >
-        <div class="card-texture"></div>
-        <div class="card-content-left">
+        <div class="card-watermark" aria-hidden="true">
+          <el-icon :size="44"><component :is="getIconComponent(generator.icon)" /></el-icon>
+        </div>
+        <div class="card-content-bottom">
           <div class="card-header">
             <div class="card-title">{{ generator.name }}</div>
             <el-tag v-if="generator.isNew" size="small" type="danger" class="new-tag">NEW</el-tag>
           </div>
-          <div class="card-desc">{{ generator.description || '暂无描述' }}</div>
-        </div>
-        <div class="card-icon-wrapper">
-          <div class="card-circle-decoration" :class="`deco-${generator.icon}`"></div>
+          <div class="card-arrow-box" aria-hidden="true">
+            <el-icon :size="14"><ArrowRight /></el-icon>
+          </div>
         </div>
       </div>
     </div>
@@ -41,21 +42,39 @@
     <!-- 生成器弹窗 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="currentGenerator?.name"
-      width="88vw"
+      width="1200px"
       align-center
       destroy-on-close
       class="generator-dialog"
       modal-class="generator-dialog-modal"
-      :show-close="true"
+      :show-close="false"
       append-to-body
     >
+      <!-- 自定义标题栏 -->
+      <template #header>
+        <div class="gen-dialog-header">
+          <div class="gen-dialog-title">
+            <el-icon class="gen-title-icon"><MagicStick /></el-icon>
+            <span>{{ currentGenerator?.name || '创意生成' }}</span>
+          </div>
+          <div class="gen-dialog-header-right">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              class="gen-close-btn"
+              @click="dialogVisible = false"
+            >
+              <el-icon :size="18"><Close /></el-icon>
+            </el-button>
+          </div>
+        </div>
+      </template>
+
       <div class="dialog-content">
-        <!-- 左侧：固定提示词展示区 -->
-        <div class="pinned-prompts-area">
-          <div class="pinned-header">
-            <el-icon><Document /></el-icon>
-            <span>固定提示词</span>
+        <!-- 左侧：提示词模板展示区 -->
+        <div class="prompt-template-area">
+          <div class="template-header">
             <el-select
               v-model="selectedGeneratorCardPacks"
               multiple
@@ -72,94 +91,63 @@
                 :value="pack"
               />
             </el-select>
-            <el-button
-              type="primary"
-              size="small"
-              @click="promptSelectDialogVisible = true"
-            >
-              <el-icon><Plus /></el-icon>
-              选择提示词
-            </el-button>
           </div>
-          <div class="pinned-list">
+          <div class="template-list">
             <div
               v-for="prompt in pinnedPrompts"
               :key="prompt.id"
-              class="pinned-item"
-              :class="{ disabled: !prompt.enabled }"
+              class="template-item"
+              :class="{ active: prompt.enabled }"
             >
-              <div class="pinned-item-header">
-                <el-switch
-                  v-model="prompt.enabled"
-                  size="small"
-                  @click.stop
-                />
-                <span class="pinned-item-name">{{ prompt.name }}</span>
-                <el-tag size="small" type="info">{{ prompt.category }}</el-tag>
-                <el-icon class="remove-icon" @click="removePinnedPrompt(prompt.id)"><Close /></el-icon>
-              </div>
-              <div class="pinned-item-desc"></div>
+              <el-switch
+                v-model="prompt.enabled"
+                size="small"
+                class="template-item-switch"
+                @click.stop
+              />
+              <span class="template-item-name" @click="togglePinnedPrompt(prompt.id)">{{ prompt.name }}</span>
+              <el-icon class="template-item-remove" @click.stop="removePinnedPrompt(prompt.id)"><Close /></el-icon>
             </div>
-            <div v-if="pinnedPrompts.length === 0" class="empty-pinned">
-              <el-icon :size="32"><Document /></el-icon>
-              <p>点击右上角按钮选择提示词</p>
+            <div v-if="pinnedPrompts.length === 0" class="empty-template">
+              <el-icon :size="32"><DocumentRemove /></el-icon>
+              <p>点击"详情"按钮选择提示词模板</p>
             </div>
+          </div>
+          <div class="template-footer">
+            <el-button
+              type="success"
+              size="large"
+              class="more-prompt-btn"
+              @click="promptSelectDialogVisible = true"
+            >
+              更多提示词
+            </el-button>
           </div>
         </div>
 
-        <!-- 右侧：功能区 -->
-        <div class="function-area">
-          <!-- 固定提示词编辑 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Setting /></el-icon>
-              <span>发送给AI的提示词</span>
-              <div class="fixed-prompt-actions">
-                <el-button
-                  type="primary"
-                  link
-                  size="small"
-                  @click="saveFixedPrompt"
-                  :disabled="!hasFixedPromptChanged"
-                >
-                  <el-icon><Check /></el-icon>
-                  保存修改
-                </el-button>
-                <el-button
-                  type="primary"
-                  link
-                  size="small"
-                  @click="showFixedPrompt"
-                >
-                  <el-icon><View /></el-icon>
-                  查看完整提示词
-                </el-button>
-              </div>
-            </div>
-            <div v-if="false" class="fixed-prompt-preview">
-              <el-input
-                v-model="editableFixedPrompt"
-                type="textarea"
-                :rows="4"
-                placeholder="选择提示词后将显示完整提示词，您可以直接在此编辑..."
-              />
-            </div>
-            <div v-if="hasFixedPromptChanged" class="fixed-prompt-hint">
-              <el-tag size="small" type="warning">已修改</el-tag>
-              <span>提示词已修改，记得点击保存</span>
-            </div>
-          </div>
-
-          <!-- 选择模型 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Cpu /></el-icon>
-              <span>选择模型</span>
+        <!-- 右侧：表单区 -->
+        <div class="form-area">
+          <!-- AI模型 -->
+          <div class="form-block">
+            <div class="form-block-label">
+              <span>AI模型</span>
+              <el-button
+                type="primary"
+                link
+                size="small"
+                class="form-block-action"
+                @click="showFixedPrompt"
+              >
+                <el-icon><View /></el-icon>
+                <span>查看完整提示词</span>
+              </el-button>
             </div>
             <el-select
               v-model="selectedModel"
-              placeholder="请选择AI模型"
+              placeholder="思考者"
+              size="large"
               class="full-width"
+              popper-class="form-area-select-popper"
             >
               <el-option
                 v-for="model in models"
@@ -175,96 +163,146 @@
             </el-select>
           </div>
 
-          <!-- 任务参数 -->
-          <div v-if="hasAnyFields" class="selection-section">
-            <div class="section-header">
-              <el-icon><EditPen /></el-icon>
-              <span>任务参数</span>
-            </div>
-            
-            <!-- 如果有字段配置，显示动态生成的输入框 -->
-            <div class="fields-input-container">
-              <div
-                v-for="field in allFields"
-                :key="field.name"
-                class="field-input-item"
+          <!-- 提示词模板选择 -->
+          <div class="form-block">
+            <div class="form-block-label">提示词</div>
+            <div class="prompt-tab-group">
+              <el-button
+                :type="promptTabMode === 'custom' ? 'success' : 'default'"
+                round
+                size="default"
+                @click="promptTabMode = promptTabMode === 'custom' ? 'template' : 'custom'"
               >
-                <label class="field-label">
-                  {{ field.label }}
-                  <el-tag 
-                    :type="field.required !== false ? 'danger' : 'info'" 
-                    size="small"
-                    class="required-tag"
-                  >
-                    {{ field.required !== false ? '必选' : '选填' }}
-                  </el-tag>
-                </label>
-                <div v-if="field.description" class="field-description">{{ field.description }}</div>
-                
-                <!-- 单行文本 -->
+                自定义
+              </el-button>
+            </div>
+            <!-- 模板选择模式 -->
+            <el-select
+              v-if="promptTabMode !== 'custom'"
+              v-model="selectedTemplateId"
+              clearable
+              placeholder="请选择提示词模板"
+              size="large"
+              class="full-width prompt-template-select"
+            >
+              <el-option
+                v-for="prompt in pinnedPrompts"
+                :key="prompt.id"
+                :label="prompt.name"
+                :value="prompt.id"
+              />
+            </el-select>
+            <!-- 自定义模式 -->
+            <div v-else class="custom-prompt-container">
+              <el-input
+                v-model="customPromptContent"
+                type="textarea"
+                :autosize="{ minRows: 4, maxRows: 10 }"
+                placeholder="请输入自定义提示词内容..."
+                maxlength="2000"
+                show-word-limit
+                resize="none"
+              />
+            </div>
+            <div v-if="currentTemplateDescription && promptTabMode !== 'custom'" class="form-tip">
+              <span class="form-tip-text">使用方法：</span>
+              <span class="form-tip-content">{{ currentTemplateDescription }}</span>
+              <a class="form-tip-link form-tip-link-strong" @click="showFixedPrompt">查看介绍</a>
+            </div>
+          </div>
+
+          <!-- 任务参数：动态字段 -->
+          <template v-if="hasAnyFields">
+            <div
+              v-for="field in allFields"
+              :key="field.name"
+              class="form-block"
+            >
+              <div class="form-block-label">
+                {{ field.label }}
+                <span
+                  v-if="field.required !== false"
+                  class="required-mark"
+                  title="必填"
+                >*</span>
+              </div>
+              <div v-if="field.description" class="field-description">{{ field.description }}</div>
+
+              <div v-if="field.type === 'text' || field.type === 'textarea'" class="input-container">
                 <el-input
                   v-if="field.type === 'text'"
                   v-model="fieldValues[field.name]"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 6 }"
                   :placeholder="`请输入${field.label}`"
+                  maxlength="500"
+                  show-word-limit
+                  resize="none"
                 />
-                
-                <!-- 多行文本 -->
+
                 <el-input
                   v-else-if="field.type === 'textarea'"
                   v-model="fieldValues[field.name]"
                   type="textarea"
-                  :rows="4"
+                  :autosize="{ minRows: 2, maxRows: 8 }"
                   :placeholder="`请输入${field.label}`"
+                  maxlength="500"
+                  show-word-limit
+                  resize="none"
                 />
-                
-                <!-- 下拉选择 -->
-                <el-select
-                  v-else-if="field.type === 'select'"
-                  v-model="fieldValues[field.name]"
-                  :placeholder="`请选择${field.label}`"
-                  class="full-width"
+
+                <el-button
+                  class="fullscreen-btn"
+                  circle
+                  size="small"
+                  @click="openFieldFullscreenEditor(field.name, field.label)"
+                  title="全屏编辑"
                 >
-                  <el-option
-                    v-for="option in field.options"
-                    :key="option"
-                    :label="option"
-                    :value="option"
-                  />
-                </el-select>
+                  <el-icon><FullScreen /></el-icon>
+                </el-button>
               </div>
+
+              <el-select
+                v-else-if="field.type === 'select'"
+                v-model="fieldValues[field.name]"
+                :placeholder="`请选择${field.label}`"
+                class="full-width"
+                size="large"
+              >
+                <el-option
+                  v-for="(option, optionIndex) in field.options"
+                  :key="option"
+                  :label="field.optionLabels?.[optionIndex] || option"
+                  :value="option"
+                />
+              </el-select>
             </div>
-          </div>
+          </template>
 
           <!-- 补充信息 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><EditPen /></el-icon>
-              <span>补充信息</span>
-              <span class="section-meta">{{ additionalInfoLength }}</span>
-            </div>
+          <div class="form-block">
+            <div class="form-block-label">补充信息</div>
             <el-input
               v-model="additionalInfo"
               type="textarea"
-              :rows="4"
+              :rows="3"
               maxlength="500"
               show-word-limit
-              placeholder="输入本次生成的额外要求、风格偏好或限制条件..."
+              placeholder=""
               resize="none"
             />
           </div>
 
           <!-- 关联作品 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Document /></el-icon>
-              <span>关联作品（可选）</span>
-            </div>
+          <div class="form-block">
+            <div class="form-block-label">关联作品(可选)</div>
             <el-select
               v-model="selectedBookId"
               clearable
               filterable
-              placeholder="直接读取作品名称"
+              placeholder="选择一个作品以关联该作品的章节或备忘录"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="book in books"
@@ -276,22 +314,16 @@
           </div>
 
           <!-- 关联章节 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Document /></el-icon>
-              <span>关联章节（可选，可多选）</span>
-            </div>
+          <div v-if="selectedBookId" class="form-block">
+            <div class="form-block-label">关联章节</div>
             <el-select
               v-model="selectedChapterIds"
               multiple
               collapse-tags
               collapse-tags-tooltip
-              clearable
-              filterable
-              :loading="loadingBookContext"
-              :disabled="!selectedBookId"
-              placeholder="先选择作品，再选择作品内章节"
+              placeholder="选择要关联的章节"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="chapter in availableChapters"
@@ -300,53 +332,39 @@
                 :value="chapter.id"
               />
             </el-select>
-            <div class="context-tip">
-              可以选择关联章节以提供上下文参考，不选择也可以直接生成内容。
-            </div>
           </div>
 
           <!-- 关联备忘录 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Document /></el-icon>
-              <span>关联备忘录（可选）</span>
-            </div>
+          <div v-if="selectedBookId" class="form-block">
+            <div class="form-block-label">关联备忘录</div>
             <el-select
               v-model="selectedMemoId"
               clearable
               filterable
-              placeholder="选择备忘录内容作为参考"
+              placeholder="选择一个备忘录"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="memo in memos"
                 :key="memo.id"
-                :label="memo.title"
+                :label="memo.title || memo.content?.slice(0, 30) + '...'"
                 :value="memo.id"
               />
             </el-select>
-            <div class="context-tip">
-              可以选择关联备忘录中的内容以提供上下文参考，不选择也可以直接生成内容。
-            </div>
           </div>
 
           <!-- 关联角色卡 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><User /></el-icon>
-              <span>关联角色卡（可选）</span>
-            </div>
+          <div v-if="selectedBookId" class="form-block">
+            <div class="form-block-label">关联角色卡</div>
             <el-select
               v-model="selectedCharacterIds"
               multiple
               collapse-tags
               collapse-tags-tooltip
-              clearable
-              filterable
-              :loading="loadingBookContext"
-              :disabled="!selectedBookId"
-              placeholder="先选择作品，再选择角色卡"
+              placeholder="选择要关联的角色卡"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="character in availableCharacters"
@@ -355,16 +373,11 @@
                 :value="character.id"
               />
             </el-select>
-            <div class="context-tip">
-              可以选择关联角色卡以提供上下文参考，不选择也可以直接生成内容。
-            </div>
           </div>
 
-          <div v-if="hasRelatedContext" class="selection-section">
-            <div class="section-header">
-              <el-icon><View /></el-icon>
-              <span>已关联内容</span>
-            </div>
+          <!-- 关联内容（已关联列表） -->
+          <div v-if="hasRelatedContext" class="form-block">
+            <div class="form-block-label">已关联内容</div>
             <div class="context-preview-list">
               <div
                 v-for="item in relatedContextItems"
@@ -378,43 +391,100 @@
           </div>
         </div>
       </div>
-      
+
+      <!-- 自定义底部 -->
       <template #footer>
-        <div class="dialog-footer">
-          <el-button
-            v-if="!generating"
-            type="primary"
-            size="large"
-            :disabled="!canGenerate"
-            @click="generateContent"
-          >
-            <el-icon><Lightning /></el-icon>
-            <span>开始生成</span>
-          </el-button>
-          <el-button
-            v-else
-            type="danger"
-            size="large"
-            @click="stopGenerate"
-          >
-            <el-icon><Close /></el-icon>
-            <span>停止生成</span>
-          </el-button>
+        <div class="gen-dialog-footer">
+          <div class="gen-footer-disclaimer">以上内容均由AI生成,仅供参考和借鉴</div>
+          <div class="gen-footer-actions">
+            <el-button
+              v-if="!generating"
+              type="success"
+              size="large"
+              round
+              :disabled="!canGenerate"
+              class="gen-generate-btn"
+              @click="generateContent"
+            >
+              <el-icon><Promotion /></el-icon>
+              <span>生成</span>
+            </el-button>
+            <el-button
+              v-else
+              type="danger"
+              size="large"
+              round
+              class="gen-generate-btn"
+              @click="stopGenerate"
+            >
+              <el-icon><Close /></el-icon>
+              <span>停止生成</span>
+            </el-button>
+          </div>
         </div>
+      </template>
+    </el-dialog>
+
+    <!-- 动态字段全屏编辑弹窗 -->
+    <el-dialog
+      v-model="fieldFullscreenDialogVisible"
+      :title="`全屏编辑 - ${fieldFullscreenFieldLabel}`"
+      width="80%"
+      top="5vh"
+      align-center
+      append-to-body
+      destroy-on-close
+      class="field-fullscreen-dialog"
+    >
+      <div class="fullscreen-editor-container">
+        <el-input
+          v-model="fieldFullscreenContent"
+          type="textarea"
+          :rows="20"
+          :placeholder="`请输入${fieldFullscreenFieldLabel}`"
+          resize="vertical"
+          maxlength="10000"
+          show-word-limit
+        />
+        <div class="fullscreen-editor-footer">
+          <span class="char-count">{{ fieldFullscreenContent.length }} / 10000</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="cancelFieldFullscreenEditor">取消</el-button>
+        <el-button type="primary" @click="saveFieldFullscreenEditor">确认</el-button>
       </template>
     </el-dialog>
 
     <!-- 提示词选择弹窗 -->
     <el-dialog
       v-model="promptSelectDialogVisible"
-      :title="promptSelectDialogTitle"
-      width="650px"
+      width="800px"
       destroy-on-close
       class="prompt-select-dialog"
       modal-class="prompt-select-dialog-modal"
       top="5vh"
       append-to-body
+      :show-close="false"
     >
+      <!-- 自定义标题栏 -->
+      <template #header>
+        <div class="ps-dialog-header">
+          <div class="ps-dialog-title">
+            <el-icon class="ps-title-icon"><CollectionTag /></el-icon>
+            <span>{{ promptSelectDialogTitle }}</span>
+          </div>
+          <el-button
+            type="primary"
+            link
+            size="small"
+            class="ps-close-btn"
+            @click="promptSelectDialogVisible = false"
+          >
+            <el-icon :size="18"><Close /></el-icon>
+          </el-button>
+        </div>
+      </template>
       <div class="prompt-select-content">
         <!-- 第一步：顶部标签导航 -->
         <div class="tab-navigation">
@@ -527,20 +597,27 @@
                   <div class="card-info">
                     <div class="card-title-row">
                       <span class="card-title">{{ prompt.name }}</span>
-                      <div class="card-tags">
-                        <el-tag size="small" type="info" class="card-category-tag">{{ prompt.category }}</el-tag>
-                        <el-tag size="small" class="card-version-tag">{{ prompt.version || 'v1.0' }}</el-tag>
-                      </div>
                     </div>
                     <div class="card-meta-row">
                       <span class="author-name">{{ prompt.author || '匿名用户' }}</span>
+                      <el-tag
+                        v-if="prompt.is_featured"
+                        size="small"
+                        class="card-featured-tag"
+                      >
+                        精选
+                      </el-tag>
                       <span class="author-stats">
                         <span class="stat-item">
-                          <svg class="stat-icon fire-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23c-4.97 0-9-3.58-9-8 0-2.52 1.18-4.78 3-6.26V6c0-.55.45-1 1-1s1 .45 1 1v1.24c1.06-.5 2.25-.79 3.5-.79h.5c.28 0 .5.22.5.5v2c0 .28-.22.5-.5.5H12c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5c0-1.13-.38-2.17-1.01-3.02C15.62 11.55 14 10.45 14 9c0-.55.45-1 1-1s1 .45 1 1c0 .83.67 1.5 1.5 1.5S19 9.83 19 9c0-2.76-2.24-5-5-5-.34 0-.67.03-1 .09V3c0-.55.45-1 1-1s1 .45 1 1v1.74c1.82 1.48 3 3.74 3 6.26 0 4.42-4.03 8-9 8z"/></svg>
-                          {{ prompt.usage_count ?? 0 }}
+                          <el-icon class="fire-icon"><Sunny /></el-icon>
+                          {{ formatUsageCount(prompt.usage_count) }}
                         </span>
                       </span>
                       <span class="card-date">{{ formatPromptTime(prompt.created_at) }}</span>
+                    </div>
+                    <div class="card-tags">
+                      <el-tag size="small" class="card-category-tag">{{ prompt.category }}</el-tag>
+                      <el-tag size="small" class="card-version-tag">{{ prompt.version || 'v1.0' }}</el-tag>
                     </div>
                   </div>
                 </div>
@@ -594,17 +671,27 @@
                   <div class="card-info">
                     <div class="card-title-row">
                       <span class="card-title">{{ prompt.name }}</span>
-                      <el-tag size="small" class="card-version-tag">{{ prompt.version || 'v1.0' }}</el-tag>
                     </div>
                     <div class="card-meta-row">
                       <span class="author-name">{{ prompt.author || '匿名用户' }}</span>
+                      <el-tag
+                        v-if="prompt.is_featured"
+                        size="small"
+                        class="card-featured-tag"
+                      >
+                        精选
+                      </el-tag>
                       <span class="author-stats">
                         <span class="stat-item">
-                          <svg class="stat-icon fire-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23c-4.97 0-9-3.58-9-8 0-2.52 1.18-4.78 3-6.26V6c0-.55.45-1 1-1s1 .45 1 1v1.24c1.06-.5 2.25-.79 3.5-.79h.5c.28 0 .5.22.5.5v2c0 .28-.22.5-.5.5H12c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5c0-1.13-.38-2.17-1.01-3.02C15.62 11.55 14 10.45 14 9c0-.55.45-1 1-1s1 .45 1 1c0 .83.67 1.5 1.5 1.5S19 9.83 19 9c0-2.76-2.24-5-5-5-.34 0-.67.03-1 .09V3c0-.55.45-1 1-1s1 .45 1 1v1.74c1.82 1.48 3 3.74 3 6.26 0 4.42-4.03 8-9 8z"/></svg>
-                          {{ prompt.usage_count ?? 0 }}
+                          <el-icon class="fire-icon"><Sunny /></el-icon>
+                          {{ formatUsageCount(prompt.usage_count) }}
                         </span>
                       </span>
                       <span class="card-date">{{ formatPromptTime(prompt.created_at) }}</span>
+                    </div>
+                    <div class="card-tags">
+                      <el-tag size="small" class="card-category-tag">{{ prompt.category }}</el-tag>
+                      <el-tag size="small" class="card-version-tag">{{ prompt.version || 'v1.0' }}</el-tag>
                     </div>
                   </div>
                 </div>
@@ -1437,6 +1524,7 @@ import {
   MagicStick,
   Reading,
   Tickets,
+  FullScreen,
   CollectionTag,
   OfficeBuilding,
   Star,
@@ -1457,7 +1545,9 @@ import {
   Key,
   Coin,
   Histogram,
-  PieChart
+  PieChart,
+  DocumentRemove,
+  InfoFilled
 } from '@element-plus/icons-vue'
 import { promptAPI, configAPI, generatorAPI, bookAPI, chapterAPI, memoAPI, characterAPI } from '@/api'
 import type { Generator, Book, Chapter, Memo, Character, RelatedContent } from '@/types'
@@ -1612,8 +1702,9 @@ const availableCharacters = ref<Character[]>([])
 const loadingBookContext = ref(false)
 
 const getDefaultModelId = () => {
+  if (models.value.length === 0) return ''
   const defaultModel = models.value.find(model => model.is_default === 1 || model.is_default === true)
-  return defaultModel?.id ?? models.value[0]?.id ?? ''
+  return defaultModel?.id ?? ''
 }
 
 // 加载模型列表
@@ -1643,6 +1734,9 @@ const selectedPrompt = ref<number>()
 const selectedModel = ref<number | string>('')
 const inputParams = ref('')
 const additionalInfo = ref('')
+const promptTabMode = ref<'template' | 'custom'>('template')
+const customPromptContent = ref('')
+const selectedTemplateId = ref<number | null>(null)
 const selectedBookId = ref<number | null>(null)
 const selectedChapterIds = ref<number[]>([])
 const selectedMemoId = ref<number | null>(null)
@@ -1660,7 +1754,7 @@ type PromptItem = {
   description?: string
   author?: string
   version?: string
-  fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }>
+  fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }>
   usage_count?: number
   created_at?: string
   is_featured?: boolean
@@ -1694,7 +1788,7 @@ const newPromptForm = ref({
   author: '',
   version: '',
   content: '',
-  fields: [] as Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }>
+  fields: [] as Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }>
 })
 
 const canSaveNewPrompt = computed(() => {
@@ -1759,8 +1853,7 @@ const showCategoryDropdown = ref(false)
 
 // 新增：搜索和分类筛选方法
 const handleSearchPrompts = () => {
-  // 搜索逻辑已在 computed 中实现，这里可以添加额外处理
-  console.log('搜索关键词:', promptSearchKeyword.value)
+  // 搜索逻辑已在 computed 中实现
 }
 
 const toggleCategoryDropdown = () => {
@@ -1796,9 +1889,10 @@ const formatPromptTime = (timeStr?: string) => {
 }
 
 const formatUsageCount = (count?: number) => {
-  if (!count || count < 1000) return count?.toString() || '0'
-  if (count < 10000) return `${(count / 1000).toFixed(1)}k`
-  return `${(count / 10000).toFixed(1)}w`
+  if (count === undefined || count === null) return '0'
+  if (count < 1000) return count.toString()
+  if (count < 1_000_000) return `${(count / 1000).toFixed(1)}K`
+  return `${(count / 1_000_000).toFixed(1)}M`
 }
 
 const getAvatarColor = (name: string) => {
@@ -1925,6 +2019,34 @@ const followUpSelectedModelId = ref<number | string>('')
 // 字段值存储
 const fieldValues = ref<Record<string, string>>({})
 
+// 动态字段全屏编辑相关状态
+const fieldFullscreenDialogVisible = ref(false)
+const fieldFullscreenContent = ref('')
+const fieldFullscreenFieldName = ref('')
+const fieldFullscreenFieldLabel = ref('')
+
+const openFieldFullscreenEditor = (fieldName: string, fieldLabel: string) => {
+  fieldFullscreenFieldName.value = fieldName
+  fieldFullscreenFieldLabel.value = fieldLabel
+  fieldFullscreenContent.value = fieldValues.value[fieldName] || ''
+  fieldFullscreenDialogVisible.value = true
+}
+
+const saveFieldFullscreenEditor = () => {
+  fieldValues.value[fieldFullscreenFieldName.value] = fieldFullscreenContent.value
+  fieldFullscreenDialogVisible.value = false
+  fieldFullscreenFieldName.value = ''
+  fieldFullscreenFieldLabel.value = ''
+  fieldFullscreenContent.value = ''
+}
+
+const cancelFieldFullscreenEditor = () => {
+  fieldFullscreenDialogVisible.value = false
+  fieldFullscreenFieldName.value = ''
+  fieldFullscreenFieldLabel.value = ''
+  fieldFullscreenContent.value = ''
+}
+
 // 提示词编辑相关状态
 const promptEditDialogVisible = ref(false)
 const editingPrompt = ref<{ id: number; name: string; content: string; category: string }>({
@@ -1940,6 +2062,7 @@ const fieldsConfig = ref<Array<{
   label: string;
   type: 'text' | 'textarea' | 'select';
   options: string[];
+  optionLabels?: string[];
   optionsText: string;
   description: string;
 }>>([])
@@ -2006,7 +2129,7 @@ const selectedPromptInfo = computed(() => {
 })
 
 const allFields = computed(() => {
-  const fields: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }> = []
+  const fields: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }> = []
   pinnedPrompts.value.filter(p => p.enabled).forEach(prompt => {
     if (prompt.fields) {
       prompt.fields.forEach(field => {
@@ -2082,14 +2205,21 @@ const filteredPrompts = computed(() => {
 })
 
 const promptSelectDialogTitle = computed(() => {
+  const base = currentGenerator.value?.name || '选择提示词'
   if (currentGenerator.value && selectedGeneratorCardPacks.value.length > 0) {
     const packNames = selectedGeneratorCardPacks.value.join('+')
-    return `选择提示词 - ${packNames}卡包`
+    return `${base} · ${packNames}卡包`
   }
-  return '选择提示词'
+  return base
 })
 
 const additionalInfoLength = computed(() => additionalInfo.value.length)
+
+const currentTemplateDescription = computed(() => {
+  if (!selectedTemplateId.value) return ''
+  const target = pinnedPrompts.value.find(p => p.id === selectedTemplateId.value)
+  return target?.description || ''
+})
 
 const selectedBook = computed(() => {
   return books.value.find(book => book.id === selectedBookId.value) || null
@@ -2169,8 +2299,15 @@ const hasRelatedContext = computed(() => relatedContextItems.value.length > 0)
 const canGenerate = computed(() => {
   if (!selectedModel.value) return false
 
-  const hasPromptFoundation = Boolean(editableFixedPrompt.value.trim()) || pinnedPrompts.value.some(p => p.enabled)
-  if (!hasPromptFoundation) return false
+  // 自定义模式：检查自定义提示词内容
+  if (promptTabMode.value === 'custom') {
+    const hasCustomPrompt = customPromptContent.value.trim() !== ''
+    if (!hasCustomPrompt) return false
+  } else {
+    // 模板选择模式：检查固定提示词或已启用的模板
+    const hasPromptFoundation = Boolean(editableFixedPrompt.value.trim()) || pinnedPrompts.value.some(p => p.enabled)
+    if (!hasPromptFoundation) return false
+  }
 
   const hasAdditionalContent = additionalInfo.value.trim() !== '' || hasRelatedContext.value
 
@@ -2200,7 +2337,7 @@ const isPromptPinned = (promptId: number) => {
   return pinnedPrompts.value.some(p => p.id === promptId)
 }
 
-const togglePromptPin = (prompt: { id: number; name: string; category: string; content: string; fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }> }) => {
+const togglePromptPin = (prompt: { id: number; name: string; category: string; content: string; fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }> }) => {
   const index = pinnedPrompts.value.findIndex(p => p.id === prompt.id)
   if (index > -1) {
     pinnedPrompts.value.splice(index, 1)
@@ -2213,6 +2350,13 @@ const removePinnedPrompt = (promptId: number) => {
   const index = pinnedPrompts.value.findIndex(p => p.id === promptId)
   if (index > -1) {
     pinnedPrompts.value.splice(index, 1)
+  }
+}
+
+const togglePinnedPrompt = (promptId: number) => {
+  const target = pinnedPrompts.value.find(p => p.id === promptId)
+  if (target) {
+    target.enabled = !target.enabled
   }
 }
 
@@ -2412,6 +2556,15 @@ const buildSelectedPromptContent = () => {
 
 const buildSystemPrompt = () => {
   const fixedContent = editableFixedPrompt.value.trim()
+
+  // 自定义模式：使用用户输入的自定义提示词
+  if (promptTabMode.value === 'custom' && customPromptContent.value.trim()) {
+    return [fixedContent, customPromptContent.value.trim()]
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
+  // 模板选择模式：使用选中的模板
   const selectedContent = buildSelectedPromptContent()
 
   return [fixedContent, selectedContent ? `\n${selectedContent}` : '']
@@ -2537,7 +2690,8 @@ const openGenerator = (generator: GeneratorItem) => {
 
   const savedFormState = loadFormStateFromStorage(generator.id)
   if (savedFormState) {
-    selectedModel.value = savedFormState.selectedModel || getDefaultModelId()
+    const savedModelId = savedFormState.selectedModel
+    selectedModel.value = (savedModelId && models.value.some(m => m.id === savedModelId)) ? savedModelId : getDefaultModelId()
     inputParams.value = savedFormState.inputParams || ''
     additionalInfo.value = savedFormState.additionalInfo || ''
     selectedBookId.value = savedFormState.selectedBookId
@@ -3427,7 +3581,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 .creative-page {
   padding: 40px;
   background: #f8fafc;
-  min-height: 100vh;
+  min-height: 100%;
   position: relative;
 }
 
@@ -3478,22 +3632,16 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 .generators-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   width: 100%;
   position: relative;
   z-index: 1;
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 1200px) {
   .generators-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
-}
-
-@media (max-width: 1100px) {
-  .generators-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -3513,104 +3661,94 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   }
 }
 
+/* === 生成器卡片 - 皮肤令牌（参考 v2-card 风格） === */
+.generators-grid {
+  /* 表面 */
+  --gc-card-bg: #fff;
+  --gc-card-bg-soft: #fafbfc;
+  --gc-card-border: rgb(229, 231, 235);
+  --gc-card-border-hover: rgba(24, 160, 88, 0.32);
+  --gc-card-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.06), 0 3px 6px 0 rgba(0, 0, 0, 0.04);
+  --gc-card-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 8px 20px 0 rgba(0, 0, 0, 0.06);
+  --gc-card-radius: 14px;
+  --gc-card-padding-y: 18px;
+  --gc-card-padding-x: 14px;
+  --gc-card-gap: 12px;
+  --gc-card-min-height: 132px;
+  /* 文字 */
+  --gc-title-color: rgb(31, 34, 37);
+  --gc-meta-color: rgb(102, 102, 102);
+  --gc-accent: #18a058;
+  --gc-accent-soft: rgba(24, 160, 88, 0.12);
+  /* NEW 标签 */
+  --gc-new-bg-from: #ef4444;
+  --gc-new-bg-to: #dc2626;
+  --gc-new-text: #ffffff;
+  --gc-new-shadow: 0 2px 8px rgba(239, 68, 68, 0.22);
+  /* 水印 / 箭头 */
+  --gc-watermark-color: rgba(24, 160, 88, 0.08);
+  --gc-watermark-color-hover: rgba(24, 160, 88, 0.16);
+  --gc-arrow-color: rgba(0, 0, 0, 0.32);
+  --gc-arrow-color-hover: #fff;
+  --gc-arrow-bg-hover: var(--gc-accent);
+  /* 动画曲线 */
+  --gc-bezier: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .generator-card {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border-radius: 16px;
-  padding: 20px 24px;
+  background: var(--gc-card-bg);
+  border-radius: var(--gc-card-radius);
+  padding: var(--gc-card-padding-y) var(--gc-card-padding-x);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
+  gap: var(--gc-card-gap);
+  min-height: var(--gc-card-min-height);
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  border: 1px solid #e2e8f0;
-  box-shadow:
-    0 4px 24px rgba(148, 163, 184, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
+  transition: all 0.25s var(--gc-bezier);
+  border: 1px solid var(--gc-card-border);
+  box-shadow: var(--gc-card-shadow);
   position: relative;
   overflow: hidden;
 }
 
-.generator-card .card-texture {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image:
-    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(148, 163, 184, 0.08) 0%, transparent 50%);
-  opacity: 1;
-  pointer-events: none;
-  border-radius: 16px;
-}
-
-.generator-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(8, 198, 190, 0.4), transparent);
-  opacity: 0;
-  transition: opacity 0.4s;
-}
-
-.generator-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 20px;
-  background: radial-gradient(circle at 30% 50%, rgba(8, 198, 190, 0.06) 0%, transparent 60%);
-  opacity: 0;
-  transition: opacity 0.4s;
-  pointer-events: none;
-}
-
-.generator-card:hover::before {
-  opacity: 1;
-}
-
-.generator-card:hover::after {
-  opacity: 1;
-}
-
 .generator-card:hover {
-  transform: translateY(-6px);
-  box-shadow:
-    0 20px 48px rgba(148, 163, 184, 0.18),
-    0 0 0 1px rgba(8, 198, 190, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border-color: rgba(8, 198, 190, 0.35);
+  transform: translateY(-2px);
+  box-shadow: var(--gc-card-shadow-hover);
+  border-color: var(--gc-card-border-hover);
 }
 
-.card-content-left {
-  flex: 1;
-  min-width: 0;
+.card-content-bottom {
+  width: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   position: relative;
   z-index: 1;
+  margin-top: auto;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
 }
 
 .generator-card .card-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
-  text-align: left;
+  color: var(--gc-title-color);
+  text-align: center;
   line-height: 1.4;
   letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .new-tag {
@@ -3620,20 +3758,21 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   letter-spacing: 0.6px;
   padding: 2px 6px;
   border-radius: 4px;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: linear-gradient(135deg, var(--gc-new-bg-from) 0%, var(--gc-new-bg-to) 100%);
   border: none;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+  color: var(--gc-new-text);
+  box-shadow: var(--gc-new-shadow);
 }
 
 .card-desc {
   font-size: 12px;
-  color: #64748b;
+  color: var(--gc-meta-color);
   margin: 0;
   line-height: 1.5;
+  text-align: center;
   display: -webkit-box;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   box-orient: vertical;
   overflow: hidden;
@@ -3641,315 +3780,43 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   letter-spacing: 0.2px;
 }
 
-.card-icon-wrapper {
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-  width: 100px;
-  height: 100px;
+/* 角标水印（参考 v2-card 的 v2-watermark） */
+.card-watermark {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 88px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--gc-watermark-color);
+  pointer-events: none;
+  transition: color 0.25s var(--gc-bezier), transform 0.25s var(--gc-bezier);
 }
 
-.card-circle-decoration {
-  width: 80px;
-  height: 80px;
+.generator-card:hover .card-watermark {
+  color: var(--gc-watermark-color-hover);
+  transform: rotate(8deg) scale(1.05);
+}
+
+/* 右下角箭头（参考 v2-card 的 v2-arrow-box） */
+.card-arrow-box {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  position: relative;
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gc-arrow-color);
+  background: transparent;
+  transition: all 0.25s var(--gc-bezier);
 }
 
-/* 脑洞生成器 - MagicStick - 星芒放射 */
-.deco-MagicStick {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.12) 0%, transparent 40%),
-    conic-gradient(
-      from 0deg,
-      rgba(8, 198, 190, 0.06) 0deg,
-      transparent 15deg,
-      rgba(8, 198, 190, 0.04) 30deg,
-      transparent 45deg,
-      rgba(8, 198, 190, 0.06) 60deg,
-      transparent 75deg,
-      rgba(8, 198, 190, 0.04) 90deg,
-      transparent 105deg,
-      rgba(8, 198, 190, 0.06) 120deg,
-      transparent 135deg,
-      rgba(8, 198, 190, 0.04) 150deg,
-      transparent 165deg,
-      rgba(8, 198, 190, 0.06) 180deg,
-      transparent 195deg,
-      rgba(8, 198, 190, 0.04) 210deg,
-      transparent 225deg,
-      rgba(8, 198, 190, 0.06) 240deg,
-      transparent 255deg,
-      rgba(8, 198, 190, 0.04) 270deg,
-      transparent 285deg,
-      rgba(8, 198, 190, 0.06) 300deg,
-      transparent 315deg,
-      rgba(8, 198, 190, 0.04) 330deg,
-      transparent 345deg,
-      rgba(8, 198, 190, 0.06) 360deg
-    );
-}
-
-.deco-MagicStick::after {
-  content: '';
-  position: absolute;
-  top: 30%;
-  left: 30%;
-  right: 30%;
-  bottom: 30%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(8, 198, 190, 0.15) 0%, transparent 70%);
-}
-
-/* 书名生成器 - Document - 书页纹理 */
-.deco-Document {
-  background:
-    linear-gradient(180deg,
-      rgba(8, 198, 190, 0.03) 0px,
-      rgba(8, 198, 190, 0.03) 1px,
-      transparent 1px,
-      transparent 10px
-    ),
-    linear-gradient(90deg,
-      rgba(8, 198, 190, 0.02) 0px,
-      rgba(8, 198, 190, 0.02) 1px,
-      transparent 1px,
-      transparent 14px
-    ),
-    radial-gradient(circle at 30% 30%, rgba(8, 198, 190, 0.08) 0%, transparent 50%);
-}
-
-.deco-Document::after {
-  content: '';
-  position: absolute;
-  top: 20%;
-  left: 15%;
-  right: 15%;
-  bottom: 20%;
-  border-left: 2px solid rgba(8, 198, 190, 0.08);
-  border-radius: 0;
-}
-
-/* 简介生成器 - EditPen - 笔触纹理 */
-.deco-EditPen {
-  background:
-    radial-gradient(circle at 25% 25%, rgba(8, 198, 190, 0.1) 0%, transparent 30%),
-    radial-gradient(circle at 75% 60%, rgba(8, 198, 190, 0.08) 0%, transparent 25%),
-    radial-gradient(circle at 50% 80%, rgba(8, 198, 190, 0.06) 0%, transparent 20%),
-    linear-gradient(135deg, rgba(8, 198, 190, 0.04) 0%, transparent 50%);
-}
-
-.deco-EditPen::after {
-  content: '';
-  position: absolute;
-  top: 25%;
-  left: 20%;
-  width: 60%;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(8, 198, 190, 0.15), rgba(8, 198, 190, 0.05));
-  border-radius: 1px;
-  box-shadow:
-    0 8px 0 rgba(8, 198, 190, 0.1),
-    0 16px 0 rgba(8, 198, 190, 0.07),
-    0 24px 0 rgba(8, 198, 190, 0.04);
-}
-
-/* 大纲生成器 - Reading - 层级结构纹理 */
-.deco-Reading {
-  background:
-    linear-gradient(90deg,
-      transparent 0%,
-      rgba(8, 198, 190, 0.06) 20%,
-      rgba(8, 198, 190, 0.06) 22%,
-      transparent 22%,
-      transparent 40%,
-      rgba(8, 198, 190, 0.05) 40%,
-      rgba(8, 198, 190, 0.05) 42%,
-      transparent 42%,
-      transparent 60%,
-      rgba(8, 198, 190, 0.04) 60%,
-      rgba(8, 198, 190, 0.04) 62%,
-      transparent 62%,
-      transparent 80%,
-      rgba(8, 198, 190, 0.03) 80%,
-      rgba(8, 198, 190, 0.03) 82%,
-      transparent 82%
-    ),
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.06) 0%, transparent 60%);
-}
-
-.deco-Reading::after {
-  content: '';
-  position: absolute;
-  top: 15%;
-  left: 25%;
-  right: 25%;
-  bottom: 15%;
-  border-radius: 4px;
-  border: 1px solid rgba(8, 198, 190, 0.08);
-}
-
-/* 细纲生成器 - Tickets - 票据/网格纹理 */
-.deco-Tickets {
-  background:
-    linear-gradient(rgba(8, 198, 190, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(8, 198, 190, 0.04) 1px, transparent 1px),
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.06) 0%, transparent 50%);
-  background-size: 10px 10px, 10px 10px, 100% 100%;
-}
-
-.deco-Tickets::after {
-  content: '';
-  position: absolute;
-  top: 10%;
-  left: 10%;
-  right: 10%;
-  bottom: 10%;
-  border-radius: 50%;
-  border: 1px dashed rgba(8, 198, 190, 0.1);
-}
-
-/* 黄金开篇生成器 - Lightning - 闪电纹理 */
-.deco-Lightning {
-  background:
-    conic-gradient(
-      from 45deg,
-      transparent 0deg,
-      rgba(8, 198, 190, 0.1) 10deg,
-      transparent 20deg,
-      transparent 90deg,
-      rgba(8, 198, 190, 0.08) 100deg,
-      transparent 110deg,
-      transparent 180deg,
-      rgba(8, 198, 190, 0.06) 190deg,
-      transparent 200deg,
-      transparent 270deg,
-      rgba(8, 198, 190, 0.08) 280deg,
-      transparent 290deg
-    ),
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.1) 0%, transparent 40%);
-}
-
-.deco-Lightning::after {
-  content: '';
-  position: absolute;
-  top: 35%;
-  left: 35%;
-  right: 35%;
-  bottom: 35%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(8, 198, 190, 0.2) 0%, transparent 70%);
-}
-
-/* 金手指生成器 - Cpu - 电路板纹理 */
-.deco-Cpu {
-  background:
-    linear-gradient(0deg, rgba(8, 198, 190, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(8, 198, 190, 0.05) 1px, transparent 1px),
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.08) 0%, transparent 30%),
-    radial-gradient(circle at 20% 20%, rgba(8, 198, 190, 0.04) 0%, transparent 15%),
-    radial-gradient(circle at 80% 80%, rgba(8, 198, 190, 0.04) 0%, transparent 15%);
-  background-size: 12px 12px, 12px 12px, 100% 100%, 100% 100%, 100% 100%;
-}
-
-.deco-Cpu::after {
-  content: '';
-  position: absolute;
-  top: 25%;
-  left: 25%;
-  right: 25%;
-  bottom: 25%;
-  border-radius: 4px;
-  border: 1px solid rgba(8, 198, 190, 0.1);
-  background: rgba(8, 198, 190, 0.04);
-}
-
-/* 名字生成器 - CollectionTag - 印章纹理 */
-.deco-CollectionTag {
-  background:
-    repeating-conic-gradient(
-      from 0deg,
-      rgba(8, 198, 190, 0.03) 0deg 5deg,
-      transparent 5deg 10deg
-    ),
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.08) 0%, transparent 50%);
-}
-
-.deco-CollectionTag::after {
-  content: '';
-  position: absolute;
-  top: 20%;
-  left: 20%;
-  right: 20%;
-  bottom: 20%;
-  border-radius: 50%;
-  border: 2px solid rgba(8, 198, 190, 0.1);
-}
-
-/* 人设生成器 - User - 轮廓纹理 */
-.deco-User {
-  background:
-    radial-gradient(ellipse 40% 30% at 50% 35%, rgba(8, 198, 190, 0.1) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 40% at 50% 75%, rgba(8, 198, 190, 0.06) 0%, transparent 70%),
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.04) 0%, transparent 60%);
-}
-
-.deco-User::after {
-  content: '';
-  position: absolute;
-  top: 10%;
-  left: 10%;
-  right: 10%;
-  bottom: 10%;
-  border-radius: 50%;
-  border: 1px solid rgba(8, 198, 190, 0.06);
-}
-
-/* 世界观生成器 - OfficeBuilding - 建筑结构纹理 */
-.deco-OfficeBuilding {
-  background:
-    linear-gradient(0deg,
-      transparent 0%,
-      transparent 30%,
-      rgba(8, 198, 190, 0.06) 30%,
-      rgba(8, 198, 190, 0.06) 32%,
-      transparent 32%,
-      transparent 50%,
-      rgba(8, 198, 190, 0.05) 50%,
-      rgba(8, 198, 190, 0.05) 52%,
-      transparent 52%,
-      transparent 70%,
-      rgba(8, 198, 190, 0.04) 70%,
-      rgba(8, 198, 190, 0.04) 72%,
-      transparent 72%
-    ),
-    linear-gradient(90deg,
-      transparent 0%,
-      transparent 30%,
-      rgba(8, 198, 190, 0.05) 30%,
-      rgba(8, 198, 190, 0.05) 32%,
-      transparent 32%,
-      transparent 60%,
-      rgba(8, 198, 190, 0.04) 60%,
-      rgba(8, 198, 190, 0.04) 62%,
-      transparent 62%
-    ),
-    radial-gradient(circle at 50% 50%, rgba(8, 198, 190, 0.06) 0%, transparent 50%);
-}
-
-.deco-OfficeBuilding::after {
-  content: '';
-  position: absolute;
-  top: 15%;
-  left: 15%;
-  right: 15%;
-  bottom: 15%;
-  border-radius: 4px;
-  border: 1px solid rgba(8, 198, 190, 0.08);
+.generator-card:hover .card-arrow-box {
+  color: var(--gc-arrow-color-hover);
+  background: var(--gc-arrow-bg-hover);
 }
 
 /* 弹窗样式 - 使用全局样式 */
@@ -3957,41 +3824,87 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 .generator-dialog-modal .el-dialog {
-  width: min(88vw, 1500px);
-  height: 94vh;
-  max-height: 94vh;
-  margin: 0 auto;
+  width: 1200px;
+  max-width: 90vw;
+  height: 95vh;
+  max-height: 95vh;
+  margin: 0 auto !important;
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(circle at top right, rgba(8, 198, 190, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(248, 253, 253, 0.98) 0%, rgba(239, 248, 247, 0.98) 100%);
-  border: 1px solid rgba(8, 198, 190, 0.2);
-  border-radius: 14px;
+  background: #ffffff;
+  border: none;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(6, 95, 70, 0.15);
+  box-shadow:
+    0 1px 2px -2px rgba(0, 0, 0, 0.08),
+    0 3px 6px 0 rgba(0, 0, 0, 0.06),
+    0 5px 12px 4px rgba(0, 0, 0, 0.04);
+  padding: 0;
 }
 
 .generator-dialog-modal .el-dialog__header {
   flex-shrink: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(242, 251, 250, 0.88) 100%);
-  border-bottom: 1px solid rgba(8, 198, 190, 0.16);
-  padding: 14px 20px;
-  backdrop-filter: blur(12px);
+  background: #ffffff;
+  border-bottom: 1px solid rgb(240, 240, 240);
+  padding: 0;
+  position: relative;
+}
+
+.gen-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  position: relative;
+}
+
+.gen-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(31, 34, 37);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.gen-title-icon {
+  color: #18a058;
+  font-size: 18px;
+}
+
+.gen-dialog-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gen-tutorial-btn {
+  color: #94a3b8 !important;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.gen-tutorial-btn:hover {
+  color: #64748b !important;
+}
+
+.gen-close-btn {
+  color: #94a3b8 !important;
+  margin-left: 4px;
+}
+
+.gen-close-btn:hover {
+  color: #64748b !important;
 }
 
 .generator-dialog-modal .el-dialog__title {
   color: #0f766e;
   font-size: 17px;
   font-weight: 700;
-}
-
-.generator-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #5f7f7b;
-}
-
-.generator-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #0f766e;
 }
 
 .generator-dialog-modal .el-dialog__body {
@@ -4003,10 +3916,59 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 .generator-dialog-modal .el-dialog__footer {
   flex-shrink: 0;
-  border-top: 1px solid rgba(8, 198, 190, 0.14);
-  padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
+  border-top: 1px solid rgb(240, 240, 240);
+  padding: 12px 16px;
+  background: #ffffff;
+}
+
+.gen-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.gen-footer-disclaimer {
+  font-size: 13px;
+  color: #6b8481;
+  letter-spacing: 0.2px;
+}
+
+.gen-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gen-generate-btn {
+  min-width: 110px;
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+  box-shadow: none;
+  font-weight: 400;
+  border-radius: 3px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gen-generate-btn:hover:not(.is-disabled) {
+  background: #36ad6a !important;
+  border-color: #36ad6a !important;
+  color: #ffffff !important;
+}
+
+.gen-generate-btn:active:not(.is-disabled) {
+  background: #0c7a43 !important;
+  border-color: #0c7a43 !important;
+  color: #ffffff !important;
+}
+
+.gen-generate-btn.is-disabled {
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+  opacity: 0.5;
+  box-shadow: none;
 }
 
 .dialog-content {
@@ -4015,127 +3977,432 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   min-height: 0;
 }
 
-.pinned-prompts-area {
-  width: 34%;
-  min-width: 300px;
-  padding: 16px;
-  border-right: 1px solid rgba(8, 198, 190, 0.14);
+/* 左侧模板区 */
+.prompt-template-area {
+  width: 36%;
+  min-width: 320px;
+  padding: 8px;
+  border-right: 1px solid rgb(240, 240, 240);
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba(227, 246, 243, 0.76) 0%, rgba(240, 250, 248, 0.66) 100%);
+  background: #ffffff;
 }
 
-.pinned-header {
+.template-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(8, 198, 190, 0.16);
-  font-weight: 600;
-  color: #0f5d56;
-  font-size: 14px;
+  border-bottom: 1px solid rgba(8, 198, 190, 0.14);
+  margin-bottom: 12px;
 }
 
-.pinned-header .el-button {
-  margin-left: auto;
-  background: linear-gradient(135deg, #08c6be 0%, #059691 100%);
-  border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 10px 24px rgba(8, 198, 190, 0.22);
+.template-detail-btn {
+  background: #ffffff !important;
+  border: 1px solid rgb(224, 224, 230) !important;
+  color: rgb(51, 54, 57) !important;
+  font-weight: 400;
+  border-radius: 3px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.pinned-header .card-pack-select {
-  width: 140px;
-  margin-left: 8px;
+.template-detail-btn:hover {
+  background: #ffffff !important;
+  border-color: #36ad6a !important;
+  color: #36ad6a !important;
 }
 
-.pinned-header .el-button:hover {
-  background: linear-gradient(135deg, #09b4ad 0%, #047a75 100%);
-  border-color: transparent;
-  color: #ffffff;
+.card-pack-select {
+  flex: 1;
+  min-width: 0;
 }
 
-.pinned-list {
+.template-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 8px 0;
 }
 
-.pinned-item {
-  background: rgba(255, 255, 255, 0.76);
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  border: 1px solid rgba(8, 198, 190, 0.1);
-  transition: all 0.2s;
-}
-
-.pinned-item.disabled {
-  background: rgba(246, 249, 249, 0.82);
-  opacity: 0.72;
-}
-
-.pinned-item.disabled .pinned-item-name {
-  color: #88a09d;
-}
-
-.pinned-item-header {
+.template-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
-.pinned-item-name {
-  font-weight: 600;
-  color: #134e4a;
+.template-item:hover {
+  background: rgb(250, 250, 252);
+}
+
+.template-item.active {
+  background: rgba(24, 160, 88, 0.08);
+}
+
+.template-item-switch {
+  flex-shrink: 0;
+}
+
+.template-item-name {
+  flex: 1;
   font-size: 14px;
+  font-weight: 400;
+  color: rgb(51, 54, 57);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
-.pinned-item-desc {
-  font-size: 12px;
-  color: #5f7f7b;
-  line-height: 1.5;
+.template-item.active .template-item-name {
+  color: #18a058;
+  font-weight: 500;
 }
 
-.remove-icon {
-  margin-left: auto;
+.template-item-remove {
   color: #7f9a96;
   cursor: pointer;
   transition: color 0.2s;
+  flex-shrink: 0;
+  font-size: 14px;
 }
 
-.remove-icon:hover {
-  color: #f87171;
+.template-item-remove:hover {
+  color: #f43f5e;
 }
 
-.empty-pinned {
+.empty-template {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: #7f9a96;
+  color: rgba(118, 124, 130, 1);
 }
 
-.empty-pinned .el-icon {
-  color: #7f9a96;
-}
-
-.empty-pinned p {
+.empty-template p {
   margin-top: 12px;
   font-size: 14px;
-  color: #6b8481;
+  color: rgba(118, 124, 130, 1);
 }
 
-.function-area {
-  width: 66%;
-  padding: 20px 24px;
+.template-footer {
+  padding-top: 8px;
+  border-top: 1px solid rgb(240, 240, 240);
+  margin-top: 4px;
+}
+
+.more-prompt-btn {
+  width: 100%;
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+  font-weight: 400;
+  font-size: 14px;
+  height: 34px;
+  border-radius: 3px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.more-prompt-btn:hover {
+  background: #36ad6a !important;
+  border-color: #36ad6a !important;
+  color: #ffffff !important;
+}
+
+.more-prompt-btn:active {
+  background: #0c7a43 !important;
+  border-color: #0c7a43 !important;
+  color: #ffffff !important;
+}
+
+/* 右侧表单区 */
+.form-area {
+  flex: 1;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   overflow-y: auto;
-  background: linear-gradient(180deg, rgba(252, 255, 255, 0.7) 0%, rgba(244, 251, 250, 0.78) 100%);
+  background: #ffffff;
+}
+
+.form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-block-label {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgb(31, 34, 37);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 0 6px 2px;
+  line-height: 26px;
+  height: 26px;
+}
+
+.form-block-action {
+  font-weight: 400;
+  font-size: 12px;
+  color: #94a3b8 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 2px 6px !important;
+}
+
+.form-block-action:hover {
+  color: #64748b !important;
+  background: transparent !important;
+}
+
+.form-block-label .required-tag {
+  margin-left: 4px;
+  height: 20px;
+  line-height: 18px;
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+.required-mark {
+  color: #d03050;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.prompt-tab-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prompt-tab-group .el-button {
+  font-weight: 400;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgb(224, 224, 230);
+  border-radius: 3px;
+  background: #ffffff;
+  color: rgb(51, 54, 57);
+  height: 28px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.prompt-tab-group .el-button:hover {
+  border-color: #36ad6a;
+  color: #36ad6a;
+}
+
+.prompt-tab-group .el-button.is-active,
+.prompt-tab-group .el-button--primary {
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+}
+
+.prompt-tab-group .el-button--primary:hover {
+  background: #36ad6a !important;
+  border-color: #36ad6a !important;
+  color: #ffffff !important;
+}
+
+.prompt-template-select {
+  margin-top: 4px;
+}
+
+.custom-prompt-container {
+  margin-top: 4px;
+}
+
+.custom-prompt-container :deep(.el-textarea__inner) {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.custom-prompt-container :deep(.el-textarea__inner:focus) {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.custom-prompt-container :deep(.el-input__count) {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.form-area .el-input__wrapper {
+  background: #ffffff;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0 12px;
+  min-height: 28px;
+}
+
+.form-area .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px #36ad6a inset;
+}
+
+.form-area .el-input__wrapper.is-focus {
+  box-shadow:
+    0 0 0 1px #18a058 inset,
+    0 0 0 2px rgba(24, 160, 88, 0.2);
+}
+
+.form-area .el-textarea__inner {
+  background: #ffffff;
+  border-radius: 3px;
+  color: rgb(51, 54, 57);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 4px 12px;
+  resize: none;
+  border: 1px solid rgb(224, 224, 230);
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-area .el-textarea__inner:hover {
+  border-color: #36ad6a;
+}
+
+.form-area .el-textarea__inner:focus {
+  border-color: #18a058;
+  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.2);
+  outline: none;
+}
+
+.form-area .el-textarea__inner::placeholder {
+  color: rgba(194, 194, 194, 1);
+  font-weight: 400;
+}
+
+.form-area .el-select__wrapper {
+  background: #ffffff !important;
+  border-radius: 3px !important;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset !important;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-height: 28px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.form-area .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px #36ad6a inset !important;
+}
+
+.form-area .el-select__wrapper.is-focused {
+  box-shadow:
+    0 0 0 1px #18a058 inset !important,
+    0 0 0 2px rgba(24, 160, 88, 0.2) !important;
+}
+
+.form-tip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 2px;
+  color: #5f7f7b;
+}
+
+.form-tip-orange {
+  color: #ea7c2c;
+  font-weight: 500;
+}
+
+.form-tip-text {
+  color: inherit;
+}
+
+.form-tip-content {
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.form-tip-link {
+  color: #18a058;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.form-tip-link:hover {
+  color: #36ad6a;
+  text-decoration: underline;
+}
+
+.form-tip-link-strong {
+  color: #18a058;
+  font-weight: 500;
+}
+
+.field-description {
+  font-size: 13px;
+  color: rgba(118, 124, 130, 1);
+  margin-top: -2px;
+}
+
+.input-container {
+  position: relative;
+  width: 100%;
+}
+
+.input-container .fullscreen-btn {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(8, 198, 190, 0.3);
+  color: #08c6be;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.input-container .fullscreen-btn:hover {
+  background: #08c6be;
+  color: #fff;
+  border-color: #08c6be;
+  transform: scale(1.05);
+}
+
+.fullscreen-editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fullscreen-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  font-size: 12px;
+  color: #7f9a96;
+}
+
+.fullscreen-editor-footer .char-count {
+  color: #08c6be;
+  font-weight: 500;
 }
 
 @media (max-width: 1100px) {
@@ -4149,19 +4416,19 @@ const viewHistoryDetail = (record: HistoryRecord) => {
     flex-direction: column;
   }
 
-  .pinned-prompts-area,
-  .function-area {
+  .prompt-template-area,
+  .form-area {
     width: 100%;
     min-width: 0;
   }
 
-  .pinned-prompts-area {
+  .prompt-template-area {
     max-height: 32%;
     border-right: none;
-    border-bottom: 1px solid rgba(8, 198, 190, 0.14);
+    border-bottom: 1px solid rgba(8, 198, 190, 0.16);
   }
 
-  .function-area {
+  .form-area {
     flex: 1;
   }
 }
@@ -4234,8 +4501,8 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 .context-tip {
-  font-size: 12px;
-  color: #62807c;
+  font-size: 13px;
+  color: rgba(118, 124, 130, 1);
   line-height: 1.5;
 }
 
@@ -4451,16 +4718,17 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 /* 固定提示词弹窗样式 */
+/* 固定提示词弹窗 - 内容 */
 .fixed-prompt-dialog-content {
   padding: 10px 0;
 }
 
 .fixed-prompt-dialog-content :deep(.el-textarea__inner) {
-  background-color: #2a2a2a;
-  color: #ffffff;
+  background-color: var(--fp-bg-soft);
+  color: var(--fp-text-color);
   font-family: 'Courier New', monospace;
-  line-height: 1.6;
-  border-color: #4a4a4a;
+  line-height: var(--fp-line-height);
+  border-color: var(--fp-border-color);
 }
 
 .form-item {
@@ -4934,468 +5202,452 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   border-color: transparent;
 }
 
-/* 提示词选择弹窗样式 - 精致紧凑风格 */
+/* === 提示词选择弹窗 - 皮肤令牌（参考 Naive UI n-card 风格） === */
+.prompt-select-dialog-modal {
+  /* 表面 / 文字 */
+  --ps-bg: #fff;
+  --ps-bg-embedded: rgb(250, 250, 252);
+  --ps-bg-soft: #fafafa;
+  --ps-text-color: rgb(51, 54, 57);
+  --ps-text-color-secondary: rgb(102, 102, 102);
+  --ps-text-color-tertiary: rgba(0, 0, 0, 0.42);
+  --ps-title-color: rgb(31, 34, 37);
+  --ps-meta-color: rgb(102, 102, 102);
+  /* 边框 / 分割线 */
+  --ps-border-color: rgb(239, 239, 245);
+  --ps-border-color-soft: rgba(0, 0, 0, 0.06);
+  --ps-divider: #e5e7eb;
+  /* 阴影 */
+  --ps-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.08), 0 3px 6px 0 rgba(0, 0, 0, 0.06), 0 5px 12px 4px rgba(0, 0, 0, 0.04);
+  --ps-shadow-card-hover: 0 2px 8px -2px rgba(0, 0, 0, 0.08), 0 4px 12px 0 rgba(0, 0, 0, 0.04);
+  --ps-shadow-focus: 0 0 0 2px rgba(24, 160, 88, 0.16);
+  /* 圆角 */
+  --ps-radius-dialog: 20px;
+  --ps-radius-card: 12px;
+  --ps-radius-input: 8px;
+  --ps-radius-chip: 999px;
+  /* 主色 */
+  --ps-accent: #18a058;
+  --ps-accent-hover: #36ad6a;
+  --ps-accent-soft-bg: rgba(24, 160, 88, 0.08);
+  --ps-accent-soft-bg-hover: rgba(24, 160, 88, 0.14);
+  --ps-accent-border: rgba(24, 160, 88, 0.24);
+  /* 危险色 */
+  --ps-danger: #f43f5e;
+  --ps-danger-soft-bg: rgba(244, 63, 94, 0.06);
+  --ps-danger-border: rgba(244, 63, 94, 0.32);
+  /* 字号 / 间距 / 曲线 */
+  --ps-pad-y: 12px;
+  --ps-pad-x: 16px;
+  --ps-pad-content: 20px;
+  --ps-font-size: 14px;
+  --ps-font-size-sm: 13px;
+  --ps-font-size-xs: 12px;
+  --ps-title-size: 16px;
+  --ps-title-font-weight: 500;
+  --ps-line-height: 1.6;
+  --ps-bezier: cubic-bezier(0.4, 0, 0.2, 1);
+  /* 卡片 */
+  --ps-card-bg: #fff;
+  --ps-card-bg-hover: #fff;
+  --ps-card-border: rgb(239, 239, 245);
+  --ps-card-border-hover: rgba(24, 160, 88, 0.32);
+  /* 关闭按钮 */
+  --ps-close-size: 22px;
+  --ps-close-color: rgba(102, 102, 102, 1);
+  --ps-close-hover-bg: rgba(0, 0, 0, 0.09);
+  /* 滚动条 */
+  --ps-scroll-thumb: rgba(0, 0, 0, 0.18);
+  --ps-scroll-thumb-hover: rgba(0, 0, 0, 0.28);
+  /* 标签 / 装饰 */
+  --ps-tag-bg-soft: rgba(0, 0, 0, 0.04);
+  --ps-tag-bg-featured: rgba(251, 146, 60, 0.12);
+  --ps-tag-color-featured: #ea580c;
+  --ps-tag-border-featured: rgba(251, 146, 60, 0.32);
+  --ps-fire-color: #f97316;
+  --ps-crown-color: #fbbf24;
+}
+
+/* 弹窗容器 */
 .prompt-select-dialog-modal .el-dialog {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 
-    0 0 0 1px rgba(0, 0, 0, 0.02),
-    0 2px 4px rgba(0, 0, 0, 0.02),
-    0 8px 16px rgba(0, 0, 0, 0.06),
-    0 24px 48px rgba(0, 0, 0, 0.08);
+  width: 800px;
+  max-width: 95vw;
+  height: 85vh;
+  max-height: 85vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--ps-bg);
+  border: 1px solid var(--ps-border-color);
+  border-radius: var(--ps-radius-dialog);
   overflow: hidden;
-  animation: dialogEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--ps-shadow);
+  padding: 0;
+  animation: psDialogEnter 0.3s var(--ps-bezier);
 }
 
-@keyframes dialogEnter {
-  from {
-    opacity: 0;
-    transform: scale(0.98) translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+@keyframes psDialogEnter {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
+/* 头部 */
 .prompt-select-dialog-modal .el-dialog__header {
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 14px 18px;
+  background: var(--ps-bg);
+  border-bottom: 1px solid var(--ps-border-color);
+  padding: 0;
 }
 
-.prompt-select-dialog-modal .el-dialog__title {
-  color: #0a0a0a;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+.ps-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ps-pad-y) var(--ps-pad-x);
 }
 
-.prompt-select-dialog-modal .el-dialog__headerbtn {
-  top: 14px;
-  right: 14px;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border-radius: 6px;
-  transition: all 0.15s ease;
+.ps-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ps-title-color);
+  font-size: var(--ps-title-size);
+  font-weight: var(--ps-title-font-weight);
 }
 
-.prompt-select-dialog-modal .el-dialog__headerbtn:hover {
-  background: rgba(0, 0, 0, 0.05);
+.ps-title-icon { color: var(--ps-accent); font-size: 18px; }
+
+.ps-close-btn {
+  width: var(--ps-close-size);
+  height: var(--ps-close-size);
+  border-radius: 3px;
+  color: var(--ps-close-color) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s var(--ps-bezier);
+}
+.ps-close-btn:hover {
+  background: var(--ps-close-hover-bg);
+  color: var(--ps-close-color) !important;
 }
 
-.prompt-select-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #737373;
-  font-size: 14px;
-}
-
-.prompt-select-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #0a0a0a;
-}
-
+/* Body */
 .prompt-select-dialog-modal .el-dialog__body {
   padding: 0;
-  background: #fafafa;
+  background: var(--ps-bg);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .prompt-select-content {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  height: 100%;
+  min-height: 0;
 }
 
-/* 顶部标签导航 - 紧凑风格 */
+/* 顶部标签导航 */
 .tab-navigation {
   display: flex;
-  gap: 4px;
-  padding: 10px 14px;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  gap: 24px;
+  padding: 14px var(--ps-pad-x) 4px;
+  background: transparent;
+  border-bottom: 1px solid var(--ps-border-color);
+  align-items: center;
 }
 
 .tab-item {
-  padding: 6px 12px;
-  font-size: 13px;
+  position: relative;
+  padding: 6px 4px 10px;
+  font-size: var(--ps-font-size);
   font-weight: 500;
-  color: #737373;
+  color: var(--ps-text-color-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
-  border-radius: 5px;
-  letter-spacing: -0.01em;
+  transition: color 0.2s var(--ps-bezier);
+  letter-spacing: 0.2px;
+}
+.tab-item:hover { color: var(--ps-title-color); }
+.tab-item.active { color: var(--ps-accent); font-weight: 600; }
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 2px;
+  background: var(--ps-accent);
+  border-radius: 2px;
 }
 
-.tab-item:hover {
-  color: #171717;
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.tab-item.active {
-  color: #0a0a0a;
-  background: rgba(34, 197, 94, 0.12);
-  font-weight: 600;
-}
-
-/* 搜索筛选区 - 合并一行 */
+/* 搜索区 */
 .search-section {
   width: 100%;
-  padding: 10px 14px;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 12px var(--ps-pad-x);
+  background: transparent;
+  border-bottom: 1px solid var(--ps-border-color);
 }
 
-.search-box {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.search-input-field {
-  flex: 1;
-}
+.search-box { display: flex; gap: 10px; align-items: center; }
+.search-input-field { flex: 1; }
 
 .search-input-field .el-input__wrapper {
-  background: #fafafa;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--ps-bg-soft);
+  border: 1px solid var(--ps-border-color-soft);
   box-shadow: none;
-  border-radius: 6px;
-  transition: all 0.15s ease;
-  padding: 2px 10px;
-  height: 32px;
+  border-radius: var(--ps-radius-input);
+  transition: all 0.2s var(--ps-bezier);
+  padding: 2px 12px;
+  height: 36px;
 }
-
 .search-input-field .el-input__wrapper:hover {
-  border-color: rgba(0, 0, 0, 0.15);
-  background: #ffffff;
+  border-color: var(--ps-accent-border);
+  background: var(--ps-bg);
 }
-
 .search-input-field .el-input__wrapper.is-focus {
-  border-color: #22c55e;
-  background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+  border-color: var(--ps-accent);
+  background: var(--ps-bg);
+  box-shadow: var(--ps-shadow-focus);
 }
-
 .search-input-field .el-input__inner {
-  color: #0a0a0a;
+  color: var(--ps-text-color);
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--ps-font-size-sm);
 }
-
-.search-input-field .el-input__inner::placeholder {
-  color: #a3a3a3;
-}
+.search-input-field .el-input__inner::placeholder { color: var(--ps-text-color-tertiary); }
 
 .search-btn {
-  padding: 0 14px;
-  height: 32px;
-  background: #0a0a0a;
-  color: #ffffff;
+  padding: 0 18px;
+  height: 36px;
+  background: var(--ps-accent);
+  color: #fff;
   border: none;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: var(--ps-radius-input);
+  font-size: var(--ps-font-size-sm);
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
-  transition: all 0.15s ease;
+  gap: 5px;
+  transition: background 0.2s var(--ps-bezier);
 }
+.search-btn:hover { background: var(--ps-accent-hover); }
 
-.search-btn:hover {
-  background: #171717;
-}
-
-/* 分类筛选 - 紧凑风格 */
+/* 分类筛选 */
 .filter-section {
-  background: #ffffff;
-  border: none;
+  background: transparent;
   border-radius: 0;
   overflow: hidden;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--ps-border-color);
 }
-
-.filter-section:hover {
-  border-color: rgba(0, 0, 0, 0.05);
-  box-shadow: none;
-}
+.filter-section:hover { border-color: var(--ps-border-color); box-shadow: none; }
 
 .filter-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 10px var(--ps-pad-x) 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color 0.2s var(--ps-bezier);
   user-select: none;
-  background: #ffffff;
-}
-
-.filter-header:hover {
-  background: #fafafa;
-  color: #0a0a0a;
-}
-
-.filter-header span {
-  flex: 1;
-  font-size: 12px;
+  background: transparent;
+  font-size: var(--ps-font-size-sm);
   font-weight: 500;
-  color: #525252;
+  color: var(--ps-title-color);
 }
-
-.filter-arrow {
-  transition: transform 0.15s ease;
-  color: #a3a3a3;
-  font-size: 11px;
-}
-
-.filter-arrow.expanded {
-  transform: rotate(180deg);
-  color: #22c55e;
-}
+.filter-header:hover { color: var(--ps-accent); }
+.filter-header span { flex: 1; font-size: var(--ps-font-size-sm); font-weight: 500; color: inherit; }
+.filter-arrow { transition: transform 0.2s var(--ps-bezier); color: var(--ps-text-color-tertiary); font-size: 12px; }
+.filter-arrow.expanded { transform: rotate(180deg); color: var(--ps-accent); }
 
 .category-dropdown {
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
-  max-height: 180px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px var(--ps-pad-x) 14px;
+  border-top: 1px dashed var(--ps-border-color);
+  max-height: 160px;
   overflow-y: auto;
-  animation: dropdownSlide 0.15s ease;
-  background: #fafafa;
+  animation: dropdownSlide 0.2s var(--ps-bezier);
+  background: var(--ps-bg-soft);
 }
 
 @keyframes dropdownSlide {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .dropdown-item {
-  padding: 7px 14px;
-  font-size: 12px;
-  color: #525252;
+  padding: 5px 14px;
+  font-size: var(--ps-font-size-sm);
+  color: var(--ps-text-color-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
-  border-left: 2px solid transparent;
-  font-weight: 400;
+  transition: all 0.2s var(--ps-bezier);
+  border: 1px solid var(--ps-border-color);
+  background: var(--ps-bg);
+  border-radius: var(--ps-radius-chip);
+  font-weight: 500;
+  white-space: nowrap;
 }
-
 .dropdown-item:hover {
-  background: #ffffff;
-  color: #0a0a0a;
-  border-left-color: #22c55e;
+  background: var(--ps-accent-soft-bg);
+  color: var(--ps-accent);
+  border-color: var(--ps-accent-border);
 }
-
 .dropdown-item.selected {
-  background: rgba(34, 197, 94, 0.08);
-  color: #0a0a0a;
-  font-weight: 500;
-  border-left-color: #22c55e;
+  background: var(--ps-accent-soft-bg);
+  color: var(--ps-accent);
+  font-weight: 600;
+  border-color: var(--ps-accent);
 }
 
-.selected-tags {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
-  background: #ffffff;
-}
+.selected-tags { display: flex; align-items: center; gap: 6px; padding: 6px var(--ps-pad-x); background: var(--ps-bg); }
+.tag-label { font-size: 11px; color: var(--ps-text-color-tertiary); font-weight: 500; }
 
-.tag-label {
-  font-size: 11px;
-  color: #737373;
-  font-weight: 500;
-}
-
-/* 排序选项栏 - 紧凑风格 */
+/* 排序选项栏 */
 .sort-section {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  gap: 10px;
+  padding: 8px var(--ps-pad-x);
+  background: transparent;
+  border-bottom: 1px solid var(--ps-border-color);
 }
-
-.sort-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #525252;
-}
-
-.sort-options {
-  display: flex;
-  gap: 2px;
-  flex-wrap: wrap;
-}
+.sort-label { display: none; }
+.sort-options { display: flex; gap: 4px; flex-wrap: wrap; }
 
 .sort-btn {
-  padding: 4px 10px;
+  padding: 4px 12px;
   background: transparent;
   border: none;
-  border-radius: 4px;
-  color: #737373;
-  font-size: 12px;
+  color: var(--ps-text-color-secondary);
+  font-size: var(--ps-font-size-sm);
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 3px;
-  transition: all 0.15s ease;
+  transition: color 0.2s var(--ps-bezier);
+  position: relative;
+}
+.sort-btn:hover { color: var(--ps-title-color); }
+.sort-btn.active { color: var(--ps-accent); font-weight: 600; }
+.sort-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 12px; right: 12px; bottom: -8px;
+  height: 2px;
+  background: var(--ps-accent);
+  border-radius: 2px;
 }
 
-.sort-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: #171717;
-}
-
-.sort-btn.active {
-  background: rgba(34, 197, 94, 0.12);
-  color: #0a0a0a;
-  font-weight: 600;
-}
-
-/* 卡片列表 - 紧凑风格 */
+/* 卡片列表 */
 .prompt-select-list {
-  max-height: 480px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 8px;
+  padding: 12px var(--ps-pad-x);
   gap: 0;
+  background: var(--ps-bg-embedded);
 }
 
-/* 自定义滚动条 - 极简风格 */
-.prompt-select-list::-webkit-scrollbar {
-  width: 6px;
-}
+.prompt-select-list::-webkit-scrollbar { width: 6px; }
+.prompt-select-list::-webkit-scrollbar-track { background: transparent; }
+.prompt-select-list::-webkit-scrollbar-thumb { background: var(--ps-scroll-thumb); border-radius: 3px; }
+.prompt-select-list::-webkit-scrollbar-thumb:hover { background: var(--ps-scroll-thumb-hover); }
 
-.prompt-select-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.prompt-select-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.08);
-  border-radius: 3px;
-}
-
-.prompt-select-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.15);
-}
-
+/* 卡片 */
 .prompt-card-item {
   display: flex;
-  align-items: stretch;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(8, 198, 190, 0.1);
-  border-radius: 6px;
-  padding: 0;
-  transition: all 0.2s;
-  margin-bottom: 8px;
-  overflow: hidden;
+  flex-direction: column;
+  background: var(--ps-card-bg);
+  border: 1px solid var(--ps-card-border);
+  border-radius: var(--ps-radius-card);
+  padding: 14px 16px;
+  transition: all 0.2s var(--ps-bezier);
+  margin-bottom: 12px;
   position: relative;
-  min-height: 100px;
+  gap: 10px;
 }
-
-.prompt-card-item:last-child {
-  margin-bottom: 0;
-}
-
-.prompt-card-item::before {
-  display: none;
-}
-
+.prompt-card-item:last-child { margin-bottom: 0; }
+.prompt-card-item::before { display: none; }
 .prompt-card-item:hover {
-  border-color: rgba(8, 198, 190, 0.2);
-  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--ps-card-border-hover);
+  background: var(--ps-card-bg-hover);
+  box-shadow: var(--ps-shadow-card-hover);
 }
-
 .prompt-card-item.selected {
-  border-color: rgba(8, 198, 190, 0.3);
-  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--ps-accent);
+  background: var(--ps-accent-soft-bg);
+  box-shadow: none;
 }
-
-.prompt-card-item.selected::before {
-  display: none;
-}
+.prompt-card-item.selected::before { display: none; }
 
 .card-main {
   flex: 1;
-  padding: 16px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
   min-width: 0;
-  transition: all 0.2s;
 }
-
-.card-top-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
+.card-top-row { display: flex; align-items: center; gap: 10px; position: relative; }
 
 .author-avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: var(--ps-accent);
 }
 
-.card-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.card-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
+.card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.card-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 
 .card-tags {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  margin-top: 6px;
+  padding-left: 46px;
 }
-
 .card-category-tag {
-  background: rgba(8, 198, 190, 0.1) !important;
-  border-color: rgba(8, 198, 190, 0.2) !important;
-  color: #134e4a !important;
+  background: var(--ps-accent-soft-bg) !important;
+  border-color: var(--ps-accent-border) !important;
+  color: var(--ps-accent) !important;
+  font-size: 10px;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 18px;
 }
-
 .card-version-tag {
-  background: rgba(0, 0, 0, 0.05) !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  color: #5f7f7b !important;
+  background: var(--ps-tag-bg-soft) !important;
+  border-color: var(--ps-border-color-soft) !important;
+  color: var(--ps-text-color-secondary) !important;
+  font-size: 10px;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 18px;
 }
 
 .card-title {
-  font-size: 14px;
+  font-size: var(--ps-font-size);
   font-weight: 600;
-  color: #134e4a;
+  color: var(--ps-title-color);
   line-height: 1.4;
   flex: 1;
   min-width: 0;
+  max-width: calc(100% - 90px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5405,60 +5657,33 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  padding-left: 46px;
 }
+.author-name { font-size: var(--ps-font-size-xs); color: var(--ps-meta-color); display: flex; align-items: center; gap: 4px; }
+.author-stats { display: flex; align-items: center; gap: 8px; }
+.stat-item { display: flex; align-items: center; gap: 3px; font-size: var(--ps-font-size-xs); color: var(--ps-meta-color); font-weight: 500; }
+.stat-icon { width: 13px; height: 13px; }
+.fire-icon { color: var(--ps-fire-color); }
 
-.author-name {
-  font-size: 12px;
-  color: #5f7f7b;
+.card-featured-tag {
+  background: var(--ps-tag-bg-featured) !important;
+  border-color: var(--ps-tag-border-featured) !important;
+  color: var(--ps-tag-color-featured) !important;
+  font-size: 10px !important;
+  padding: 0 6px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+  font-weight: 600 !important;
 }
+.author-crown { color: var(--ps-crown-color); font-size: 12px; }
+.card-date { font-size: var(--ps-font-size-xs); color: var(--ps-text-color-tertiary); }
 
-.author-stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #5f7f7b;
-}
-
-.stat-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.fire-icon {
-  color: #f97316;
-}
-
-.card-date {
-  font-size: 12px;
-  color: #5f7f7b;
-}
-
-.card-category-tag {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 500;
-  border-radius: 3px;
-  background: rgba(8, 198, 190, 0.1);
-  color: #0d9488;
-  border: none;
-  padding: 1px 6px;
-}
-
-.card-content {
-  margin-top: 0;
-}
-
+.card-content { margin-top: 0; }
 .card-desc {
-  font-size: 13px;
-  color: #5f7f7b;
-  line-height: 1.6;
+  font-size: 12.5px;
+  color: var(--ps-meta-color);
+  line-height: var(--ps-line-height);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -5466,93 +5691,136 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
+  padding-left: 46px;
 }
 
-/* 操作按钮 - 青绿色系 */
+/* 卡片操作按钮 */
 .card-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 10px 8px;
-  border-left: 1px solid rgba(8, 198, 190, 0.1);
-  background: rgba(255, 255, 255, 0.5);
-  min-width: 70px;
-  transition: all 0.2s;
-}
-
-.prompt-card-item:hover .card-actions {
-  background: rgba(255, 255, 255, 0.8);
-}
-
-.prompt-card-item.selected .card-actions {
-  background: rgba(255, 255, 255, 0.8);
+  justify-content: flex-end;
+  background: transparent;
+  border-left: none;
+  min-width: 0;
 }
 
 .action-btn {
-  padding: 5px 10px;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--ps-danger-border);
+  border-radius: var(--ps-radius-chip);
+  font-size: var(--ps-font-size-xs);
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 3px;
-  transition: all 0.2s;
+  transition: all 0.2s var(--ps-bezier);
   white-space: nowrap;
+  background: var(--ps-danger-soft-bg);
+  color: var(--ps-danger);
 }
-
-.action-btn::before {
-  display: none;
+.action-btn:hover {
+  background: var(--ps-danger);
+  color: #fff;
+  border-color: var(--ps-danger);
+  transform: none;
+  box-shadow: none;
 }
-
 .action-btn--add {
-  background: #08c6be;
-  color: #ffffff;
+  border-color: var(--ps-accent-border);
+  background: var(--ps-accent-soft-bg);
+  color: var(--ps-accent);
 }
-
 .action-btn--add:hover {
-  background: #07b0a9;
+  background: var(--ps-accent);
+  color: #fff;
+  border-color: var(--ps-accent);
+  box-shadow: none;
 }
 
-.action-btn--remove {
-  background: #f87171;
-  color: #ffffff;
-}
-
-.action-btn--remove:hover {
-  background: #ef4444;
-}
-
-/* 空状态 - 紧凑风格 */
+/* 空状态 */
 .empty-prompts {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 160px;
-  color: #a3a3a3;
-  background: #ffffff;
-  border-radius: 8px;
+  height: 200px;
+  color: var(--ps-text-color-tertiary);
+  background: transparent;
+  border-radius: var(--ps-radius-card);
   margin: 8px;
 }
+.empty-prompts .el-icon { color: var(--ps-text-color-tertiary); }
+.empty-prompts p { margin-top: 12px; font-size: var(--ps-font-size-sm); color: var(--ps-meta-color); font-weight: 500; }
+.empty-hint { margin-top: 6px !important; font-size: var(--ps-font-size-xs) !important; color: var(--ps-text-color-tertiary) !important; font-weight: 400 !important; }
 
-.empty-prompts .el-icon {
-  color: #d4d4d4;
+/* 创建提示词区域 */
+.create-prompt-section {
+  padding: 14px;
+  background: var(--ps-bg);
+}
+.create-prompt-form { max-width: 100%; margin: 0; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; margin-bottom: 14px; }
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: var(--ps-font-size-xs);
+  font-weight: 500;
+  color: var(--ps-title-color);
+  margin-bottom: 6px;
+}
+.form-group .el-input__wrapper,
+.form-group .el-textarea__inner {
+  background: var(--ps-bg-soft);
+  border: 1px solid var(--ps-border-color-soft);
+  border-radius: 6px;
+  transition: all 0.15s var(--ps-bezier);
+}
+.form-group .el-input__wrapper:hover,
+.form-group .el-textarea__inner:hover {
+  border-color: var(--ps-accent-border);
+  background: var(--ps-bg);
+}
+.form-group .el-input__wrapper.is-focus,
+.form-group .el-textarea__inner:focus {
+  border-color: var(--ps-accent);
+  background: var(--ps-bg);
+  box-shadow: var(--ps-shadow-focus);
 }
 
-.empty-prompts p {
-  margin-top: 12px;
-  font-size: 13px;
-  color: #737373;
-  font-weight: 400;
+.fields-config {
+  background: var(--ps-bg-soft);
+  border: 1px solid var(--ps-border-color-soft);
+  border-radius: 6px;
+  padding: 10px;
 }
-
-.empty-hint {
-  margin-top: 6px !important;
-  font-size: 12px !important;
-  color: #a3a3a3 !important;
-  font-weight: 400 !important;
+.field-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 6px;
+  background: var(--ps-bg);
+  border-radius: 4px;
+  border: 1px solid var(--ps-border-color-soft);
+}
+.field-item:last-child { margin-bottom: 0; }
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ps-border-color-soft);
+  margin-top: 16px;
+}
+.form-actions .el-button {
+  padding: 8px 16px;
+  font-size: var(--ps-font-size-sm);
+  border-radius: 5px;
 }
 
 /* 创建提示词区域 - 紧凑风格 */
@@ -6089,25 +6357,35 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   color: #0f766e;
 }
 
-.generator-dialog-modal .function-area::-webkit-scrollbar,
-.generator-dialog-modal .pinned-list::-webkit-scrollbar {
+.generator-dialog-modal .form-area::-webkit-scrollbar,
+.generator-dialog-modal .template-list::-webkit-scrollbar {
   width: 6px;
 }
 
-.generator-dialog-modal .function-area::-webkit-scrollbar-track,
-.generator-dialog-modal .pinned-list::-webkit-scrollbar-track {
+.generator-dialog-modal .form-area::-webkit-scrollbar-track,
+.generator-dialog-modal .template-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.generator-dialog-modal .function-area::-webkit-scrollbar-thumb,
-.generator-dialog-modal .pinned-list::-webkit-scrollbar-thumb {
+.generator-dialog-modal .form-area::-webkit-scrollbar-thumb,
+.generator-dialog-modal .template-list::-webkit-scrollbar-thumb {
   background: rgba(8, 198, 190, 0.2);
   border-radius: 3px;
 }
 
-.generator-dialog-modal .function-area::-webkit-scrollbar-thumb:hover,
-.generator-dialog-modal .pinned-list::-webkit-scrollbar-thumb:hover {
+.generator-dialog-modal .form-area::-webkit-scrollbar-thumb:hover,
+.generator-dialog-modal .template-list::-webkit-scrollbar-thumb:hover {
   background: rgba(8, 198, 190, 0.35);
+}
+
+:root[data-theme='dark'] .form-area::-webkit-scrollbar-thumb,
+:root[data-theme='dark'] .template-list::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.22);
+}
+
+:root[data-theme='dark'] .form-area::-webkit-scrollbar-thumb:hover,
+:root[data-theme='dark'] .template-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.4);
 }
 
 /* 生成器管理弹窗 - Element Plus 组件样式 */
@@ -6485,89 +6763,122 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   border-color: #6b7280;
 }
 
-/* 固定提示词查看弹窗 */
+/* === 固定提示词查看弹窗 - 皮肤令牌 === */
+.fixed-prompt-dialog-modal {
+  /* 表面 / 文字 */
+  --fp-bg: #fff;
+  --fp-bg-soft: #fafafa;
+  --fp-text-color: rgb(31, 34, 37);
+  --fp-text-color-muted: rgb(102, 102, 102);
+  --fp-placeholder-color: #9ca3af;
+  /* 边框 / 阴影 / 圆角 */
+  --fp-border-color: rgb(229, 231, 235);
+  --fp-border-color-hover: #d1d5db;
+  --fp-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.08), 0 3px 6px 0 rgba(0, 0, 0, 0.06), 0 5px 12px 4px rgba(0, 0, 0, 0.04);
+  --fp-radius: 14px;
+  /* 主色（绿色，与功能语义一致：复制即执行） */
+  --fp-accent: #22c55e;
+  --fp-accent-hover: #16a34a;
+  --fp-accent-text: #ffffff;
+  /* 危险 / 次要按钮 */
+  --fp-btn-default-bg: #fff;
+  --fp-btn-default-border: rgb(229, 231, 235);
+  --fp-btn-default-text: rgb(51, 54, 57);
+  --fp-btn-default-hover-bg: #f9fafb;
+  --fp-btn-default-hover-border: #d1d5db;
+  /* 文本域 */
+  --fp-textarea-bg: #fafafa;
+  --fp-textarea-border: rgb(229, 231, 235);
+  --fp-textarea-color: rgb(31, 34, 37);
+  --fp-line-height: 1.6;
+  /* 关闭 */
+  --fp-close-color: rgb(102, 102, 102);
+  --fp-close-hover-color: rgb(31, 34, 37);
+}
+
 .fixed-prompt-dialog-modal .el-dialog {
-  background: #1a1a1a;
+  background: var(--fp-bg);
+  border: 1px solid var(--fp-border-color);
+  border-radius: var(--fp-radius);
+  box-shadow: var(--fp-shadow);
+  overflow: hidden;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__header {
-  background: #1a1a1a;
-  border-bottom: 1px solid #333333;
+  background: var(--fp-bg);
+  border-bottom: 1px solid var(--fp-border-color);
+  padding: 14px 20px;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__title {
-  color: #ffffff;
+  color: var(--fp-text-color);
+  font-weight: 500;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #9ca3af;
+  color: var(--fp-close-color);
 }
-
 .fixed-prompt-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #ffffff;
+  color: var(--fp-close-hover-color);
 }
 
 .fixed-prompt-dialog-modal .el-dialog__body {
-  background: #1a1a1a;
+  background: var(--fp-bg);
+  padding: 16px 20px;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__footer {
-  background: #1a1a1a;
-  border-top: 1px solid #333333;
+  background: var(--fp-bg);
+  border-top: 1px solid var(--fp-border-color);
+  padding: 12px 20px;
 }
 
-.fixed-prompt-dialog-modal .el-input__wrapper {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
+.fixed-prompt-dialog-modal .el-input__wrapper,
+.fixed-prompt-dialog-modal .el-textarea__inner {
+  background: var(--fp-textarea-bg);
+  border-color: var(--fp-textarea-border);
+  color: var(--fp-textarea-color);
   box-shadow: none;
 }
 
-.fixed-prompt-dialog-modal .el-input__inner {
-  color: #ffffff;
-}
-
-.fixed-prompt-dialog-modal .el-input__inner::placeholder {
-  color: #6b7280;
-}
-
 .fixed-prompt-dialog-modal .el-textarea__inner {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  color: #ffffff;
+  font-family: 'Courier New', monospace;
+  line-height: var(--fp-line-height);
 }
 
+.fixed-prompt-dialog-modal .el-input__inner {
+  color: var(--fp-textarea-color);
+}
+
+.fixed-prompt-dialog-modal .el-input__inner::placeholder,
 .fixed-prompt-dialog-modal .el-textarea__inner::placeholder {
-  color: #6b7280;
+  color: var(--fp-placeholder-color);
 }
 
-.fixed-prompt-dialog-modal .el-textarea__inner:focus {
-  border-color: #4ade80;
-}
-
+.fixed-prompt-dialog-modal .el-textarea__inner:focus,
 .fixed-prompt-dialog-modal .el-input__wrapper:focus-within {
-  border-color: #4ade80;
+  border-color: var(--fp-accent);
 }
 
 .fixed-prompt-dialog-modal .el-button--primary {
-  background: #4ade80;
-  border-color: #4ade80;
-  color: #1a1a1a;
+  background: var(--fp-accent);
+  border-color: var(--fp-accent);
+  color: var(--fp-accent-text);
 }
-
 .fixed-prompt-dialog-modal .el-button--primary:hover {
-  background: #22c55e;
-  border-color: #22c55e;
+  background: var(--fp-accent-hover);
+  border-color: var(--fp-accent-hover);
 }
 
 .fixed-prompt-dialog-modal .el-button--default {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  color: #ffffff;
+  background: var(--fp-btn-default-bg);
+  border-color: var(--fp-btn-default-border);
+  color: var(--fp-btn-default-text);
 }
-
 .fixed-prompt-dialog-modal .el-button--default:hover {
-  background: #333333;
-  border-color: #6b7280;
+  background: var(--fp-btn-default-hover-bg);
+  border-color: var(--fp-btn-default-hover-border);
+  color: var(--fp-btn-default-text);
 }
 
 /* Alert组件深色主题 */
@@ -7186,13 +7497,33 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   color: #9ca3af;
 }
 
+:root[data-theme='dark'] .input-container .fullscreen-btn {
+  background: rgba(31, 41, 55, 0.9);
+  border-color: rgba(94, 234, 212, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .input-container .fullscreen-btn:hover {
+  background: #5eead4;
+  color: #0f172a;
+  border-color: #5eead4;
+}
+
+:root[data-theme='dark'] .fullscreen-editor-footer {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .fullscreen-editor-footer .char-count {
+  color: #5eead4;
+}
+
 :root[data-theme='dark'] .context-tip {
-  color: #9ca3af;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 :root[data-theme='dark'] .fixed-prompt-hint {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
+  background: rgba(94, 234, 212, 0.12);
+  color: #5eead4;
 }
 
 :root[data-theme='dark'] .pinned-prompts-area {
@@ -7206,12 +7537,12 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .pinned-header .el-button {
-  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
 }
 
 :root[data-theme='dark'] .pinned-header .el-button:hover {
-  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%);
 }
 
 :root[data-theme='dark'] .function-area {
@@ -7237,39 +7568,24 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   color: #64748b;
 }
 
-:root[data-theme='dark'] .generator-card {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border-color: rgba(8, 198, 190, 0.08);
-  box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-:root[data-theme='dark'] .card-texture {
-  background-image:
-    radial-gradient(circle at 25% 25%, rgba(8, 198, 190, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(5, 150, 145, 0.05) 0%, transparent 50%);
-}
-
-:root[data-theme='dark'] .generator-card .card-title {
-  color: #f1f5f9;
-}
-
-:root[data-theme='dark'] .generator-card::before {
-  background: linear-gradient(90deg, transparent, rgba(8, 198, 190, 0.25), transparent);
-}
-
-:root[data-theme='dark'] .generator-card::after {
-  background: radial-gradient(circle at 30% 50%, rgba(8, 198, 190, 0.12) 0%, transparent 60%);
-}
-
-:root[data-theme='dark'] .generator-card:hover {
-  box-shadow:
-    0 20px 48px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(8, 198, 190, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  border-color: rgba(8, 198, 190, 0.3);
+/* === 生成器卡片 - 深色皮肤令牌覆盖 === */
+:root[data-theme='dark'] .generators-grid {
+  --gc-card-bg: rgb(24, 24, 28);
+  --gc-card-bg-soft: rgb(30, 30, 36);
+  --gc-card-border: rgba(255, 255, 255, 0.08);
+  --gc-card-border-hover: rgba(54, 173, 106, 0.4);
+  --gc-card-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.5), 0 3px 6px 0 rgba(0, 0, 0, 0.4);
+  --gc-card-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 8px 20px 0 rgba(0, 0, 0, 0.32);
+  --gc-title-color: rgba(255, 255, 255, 0.92);
+  --gc-meta-color: rgba(255, 255, 255, 0.52);
+  --gc-accent: #36ad6a;
+  --gc-accent-soft: rgba(54, 173, 106, 0.18);
+  --gc-new-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+  --gc-watermark-color: rgba(255, 255, 255, 0.05);
+  --gc-watermark-color-hover: rgba(54, 173, 106, 0.32);
+  --gc-arrow-color: rgba(255, 255, 255, 0.42);
+  --gc-arrow-color-hover: #0f172a;
+  --gc-arrow-bg-hover: var(--gc-accent);
 }
 
 :root[data-theme='dark'] .card-icon {
@@ -7299,12 +7615,12 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-item.active {
-  background-color: rgba(74, 222, 128, 0.15);
-  border-color: #4ade80;
+  background-color: rgba(94, 234, 212, 0.16);
+  border-color: rgba(94, 234, 212, 0.45);
 }
 
 :root[data-theme='dark'] .generator-item-icon {
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
 }
 
 :root[data-theme='dark'] .generator-item-icon .el-icon {
@@ -7364,125 +7680,435 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-dialog-modal .el-dialog {
-  background:
-    radial-gradient(circle at top right, rgba(94, 234, 212, 0.1), transparent 28%),
-    linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
-  border-color: rgba(94, 234, 212, 0.3);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  background: #1e293b;
+  box-shadow:
+    0 1px 2px -2px rgba(0, 0, 0, 0.5),
+    0 3px 6px 0 rgba(0, 0, 0, 0.4),
+    0 5px 12px 4px rgba(0, 0, 0, 0.3);
 }
 
 :root[data-theme='dark'] .generator-dialog-modal .el-dialog__header {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.88) 100%);
-  border-bottom-color: rgba(94, 234, 212, 0.2);
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.18);
 }
 
-:root[data-theme='dark'] .generator-dialog-modal .el-dialog__title {
+:root[data-theme='dark'] .gen-dialog-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .gen-title-icon {
   color: #5eead4;
 }
 
+:root[data-theme='dark'] .gen-tutorial-btn {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+:root[data-theme='dark'] .gen-tutorial-btn:hover {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .gen-close-btn {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+:root[data-theme='dark'] .gen-close-btn:hover {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog__title {
+  color: #f3f4f6;
+}
+
 :root[data-theme='dark'] .generator-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #9ca3af;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 :root[data-theme='dark'] .generator-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
   color: #5eead4;
 }
 
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog__footer {
+  background: #1e293b;
+  border-top-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .gen-footer-disclaimer {
+  color: rgba(203, 213, 225, 0.85);
+}
+
+:root[data-theme='dark'] .prompt-template-area {
+  background: rgba(15, 23, 42, 0.45);
+  border-right-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .template-header {
+  border-bottom-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .template-detail-btn {
+  background: #1e293b !important;
+  border-color: rgba(94, 234, 212, 0.22) !important;
+  color: #cbd5e1 !important;
+}
+
+:root[data-theme='dark'] .template-detail-btn:hover {
+  background: rgba(94, 234, 212, 0.12) !important;
+  border-color: #5eead4 !important;
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .template-item {
+  background: transparent;
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .template-item:hover {
+  background: rgba(94, 234, 212, 0.06);
+}
+
+:root[data-theme='dark'] .template-item.active {
+  background: rgba(94, 234, 212, 0.16);
+}
+
+:root[data-theme='dark'] .template-item-name {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .template-item.active .template-item-name {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .template-item-remove {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .template-item-remove:hover {
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .empty-template {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .empty-template p {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .template-footer {
+  border-top-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .more-prompt-btn {
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%) !important;
+  border-color: transparent !important;
+  color: #0f172a !important;
+  box-shadow: 0 8px 20px rgba(45, 212, 191, 0.35);
+}
+
+:root[data-theme='dark'] .more-prompt-btn:hover {
+  background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%) !important;
+  box-shadow: 0 10px 24px rgba(45, 212, 191, 0.45);
+}
+
+:root[data-theme='dark'] .form-area {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .form-block-label {
+  color: #f3f4f6 !important;
+}
+
+:root[data-theme='dark'] .form-area .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.18) inset;
+}
+
+:root[data-theme='dark'] .form-area .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.32) inset;
+}
+
+:root[data-theme='dark'] .form-area .el-input__wrapper.is-focus {
+  box-shadow:
+    0 0 0 1px #5eead4 inset,
+    0 0 0 2px rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner {
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner:focus {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .form-area .el-select__wrapper {
+  background: rgba(15, 23, 42, 0.6) !important;
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.18) inset !important;
+}
+
+:root[data-theme='dark'] .form-area .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.32) inset !important;
+}
+
+:root[data-theme='dark'] .form-area .el-select__wrapper.is-focused {
+  box-shadow:
+    0 0 0 1px #5eead4 inset !important,
+    0 0 0 2px rgba(94, 234, 212, 0.2) !important;
+}
+
+:root[data-theme='dark'] .form-block-action {
+  color: #5eead4 !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .form-block-action:hover {
+  color: #2dd4bf !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .required-mark {
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .form-tip {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .form-tip-orange {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .form-tip-link {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .form-tip-link:hover {
+  color: #2dd4bf;
+}
+
+:root[data-theme='dark'] .form-tip-link-strong {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .field-description {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .gen-generate-btn.is-disabled {
+  background: #5eead4 !important;
+  border-color: #5eead4 !important;
+  color: #0f172a !important;
+  opacity: 0.45;
+}
+
+:root[data-theme='dark'] .prompt-tab-group .el-button {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .prompt-tab-group .el-button:hover {
+  border-color: #5eead4;
+  color: #5eead4;
+}
+
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog {
-  background: #18181b;
+  background: #1e293b;
   border-radius: 16px;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(94, 234, 212, 0.12),
     0 4px 12px rgba(0, 0, 0, 0.3),
     0 16px 40px rgba(0, 0, 0, 0.4),
     0 40px 80px rgba(0, 0, 0, 0.2);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__header {
-  background: #1c1c1f;
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.18);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__title {
-  color: #f4f4f5;
+  color: #f3f4f6;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #71717a;
+  color: #94a3b8;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #f4f4f5;
+  color: #5eead4;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__body {
-  background: #18181b;
+  background: #1e293b;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-input__wrapper {
-  background: #1c1c1f;
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__wrapper:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__inner {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner:focus {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.12);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__wrapper:focus-within {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.12);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown {
+  background: #1e293b;
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__item {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__item:hover {
+  background: rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__item.selected {
+  background: rgba(94, 234, 212, 0.18);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-tag--info {
+  background: rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.25);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-icon {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-icon:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-button--default {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(94, 234, 212, 0.22);
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-button--default:hover {
+  background: rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.4);
+  color: #5eead4;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-input__wrapper:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(94, 234, 212, 0.32);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-input__inner {
-  color: #f4f4f5;
+  color: #e2e8f0;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-input__inner::placeholder {
-  color: #52525b;
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner {
-  background: #1c1c1f;
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #f4f4f5;
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+  color: #e2e8f0;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(94, 234, 212, 0.32);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner::placeholder {
-  color: #52525b;
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner:focus {
   border-color: #5eead4;
-  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.18);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-input__wrapper:focus-within {
   border-color: #5eead4;
-  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
-  background: #222225;
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.18);
+  background: rgba(15, 23, 42, 0.6);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-select .el-input__wrapper {
-  background: #1c1c1f;
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown {
-  background: #1c1c1f;
-  border-color: rgba(255, 255, 255, 0.08);
+  background: #1e293b;
+  border-color: rgba(94, 234, 212, 0.18);
   border-radius: 10px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown__item {
-  color: #d4d4d8;
+  color: #cbd5e1;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown__item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(94, 234, 212, 0.08);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown__item.selected {
-  background: rgba(94, 234, 212, 0.1);
+  background: rgba(94, 234, 212, 0.18);
   color: #5eead4;
 }
 
@@ -7503,20 +8129,20 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-button--primary.is-disabled {
-  background: rgba(63, 63, 70, 0.6);
-  border-color: rgba(63, 63, 70, 0.4);
-  color: #52525b;
+  background: rgba(94, 234, 212, 0.18);
+  border-color: rgba(94, 234, 212, 0.12);
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-button--default {
-  background: #1c1c1f;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #d4d4d8;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(94, 234, 212, 0.22);
+  color: #cbd5e1;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-button--default:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(94, 234, 212, 0.1);
+  border-color: rgba(94, 234, 212, 0.4);
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-button--danger {
@@ -7531,21 +8157,21 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-tag--info {
-  background: rgba(94, 234, 212, 0.08);
-  border-color: rgba(94, 234, 212, 0.15);
+  background: rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.25);
   color: #5eead4;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-icon {
-  color: #71717a;
+  color: #94a3b8;
 }
 
 :root[data-theme='dark'] .generator-manager-dialog-modal .el-icon:hover {
-  color: #f4f4f5;
+  color: #5eead4;
 }
 
 :root[data-theme='dark'] .generator-detail-panel .detail-label {
-  color: #d4d4d8;
+  color: #cbd5e1;
 }
 
 :root[data-theme='dark'] .collapsible-label:hover {
@@ -7554,25 +8180,25 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 :root[data-theme='dark'] .generator-detail-panel .empty-detail,
 :root[data-theme='dark'] .generator-detail-panel .empty-detail .el-icon {
-  color: #3f3f46;
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .generator-detail-panel .empty-detail p {
-  color: #52525b;
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .generator-list-panel {
-  border-right-color: rgba(255, 255, 255, 0.06);
-  background: #1c1c1f;
+  border-right-color: rgba(94, 234, 212, 0.18);
+  background: #1e293b;
 }
 
 :root[data-theme='dark'] .generator-list-panel .panel-header {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
-  background: #1c1c1f;
+  border-bottom-color: rgba(94, 234, 212, 0.18);
+  background: #1e293b;
 }
 
 :root[data-theme='dark'] .generator-list-panel .panel-title {
-  color: #d4d4d8;
+  color: #cbd5e1;
 }
 
 :root[data-theme='dark'] .generator-list {
@@ -7580,20 +8206,20 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-list::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: rgba(94, 234, 212, 0.25);
 }
 
 :root[data-theme='dark'] .generator-list::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: rgba(94, 234, 212, 0.4);
 }
 
 :root[data-theme='dark'] .generator-item:hover {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: rgba(94, 234, 212, 0.08);
 }
 
 :root[data-theme='dark'] .generator-item.active {
-  background-color: #222225;
-  border-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(94, 234, 212, 0.16);
+  border-color: rgba(94, 234, 212, 0.3);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
@@ -7608,15 +8234,15 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-item-name {
-  color: #f4f4f5;
+  color: #f3f4f6;
 }
 
 :root[data-theme='dark'] .generator-item-desc {
-  color: #71717a;
+  color: #94a3b8;
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--primary.link {
-  color: #71717a !important;
+  color: #94a3b8 !important;
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--primary.link:hover {
@@ -7625,7 +8251,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--primary.link .el-icon {
-  color: #71717a !important;
+  color: #94a3b8 !important;
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--primary.link:hover .el-icon {
@@ -7633,7 +8259,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--danger.link {
-  color: #71717a !important;
+  color: #94a3b8 !important;
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--danger.link:hover {
@@ -7642,7 +8268,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--danger.link .el-icon {
-  color: #71717a !important;
+  color: #94a3b8 !important;
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button--danger.link:hover .el-icon {
@@ -7656,7 +8282,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button.is-disabled .el-icon {
-  color: #3f3f46 !important;
+  color: #475569 !important;
 }
 
 :root[data-theme='dark'] .generator-item-actions .el-button.is-disabled:hover {
@@ -7665,51 +8291,51 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .empty-list {
-  color: #52525b;
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .empty-list .el-icon {
-  color: #3f3f46;
+  color: #475569;
 }
 
 :root[data-theme='dark'] .empty-list p {
-  color: #52525b;
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .generator-detail-panel {
-  background-color: #18181b;
+  background-color: #1e293b;
 }
 
 :root[data-theme='dark'] .detail-content::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: rgba(94, 234, 212, 0.25);
 }
 
 :root[data-theme='dark'] .detail-content::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: rgba(94, 234, 212, 0.4);
 }
 
 :root[data-theme='dark'] .detail-actions {
-  border-top-color: rgba(255, 255, 255, 0.06);
+  border-top-color: rgba(94, 234, 212, 0.18);
 }
 
 :root[data-theme='dark'] .icon-picker-item {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: #1c1c1f;
+  border-color: rgba(94, 234, 212, 0.18);
+  background: rgba(15, 23, 42, 0.6);
 }
 
 :root[data-theme='dark'] .icon-picker-item:hover {
   border-color: #5eead4;
-  background: rgba(94, 234, 212, 0.04);
+  background: rgba(94, 234, 212, 0.08);
 }
 
 :root[data-theme='dark'] .icon-picker-item.selected {
   border-color: #5eead4;
-  background: rgba(94, 234, 212, 0.08);
-  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.15);
+  background: rgba(94, 234, 212, 0.12);
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.2);
 }
 
 :root[data-theme='dark'] .icon-picker-item .el-icon {
-  color: #71717a;
+  color: #94a3b8;
 }
 
 :root[data-theme='dark'] .icon-picker-item.selected .el-icon {
@@ -7717,37 +8343,51 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .icon-picker-name {
-  color: #52525b;
+  color: #64748b;
 }
 
 :root[data-theme='dark'] .icon-picker-item.selected .icon-picker-name {
   color: #5eead4;
 }
 
-:root[data-theme='dark'] .prompt-select-dialog-modal .el-dialog {
-  background: #1e293b;
-  border: 1px solid rgba(94, 234, 212, 0.3);
-}
-
-:root[data-theme='dark'] .prompt-select-dialog-modal .el-dialog__header {
-  background: #1e293b;
-  border-bottom-color: rgba(94, 234, 212, 0.2);
-}
-
-:root[data-theme='dark'] .prompt-select-dialog-modal .el-dialog__title {
-  color: #5eead4;
-}
-
-:root[data-theme='dark'] .prompt-select-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #9ca3af;
-}
-
-:root[data-theme='dark'] .prompt-select-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #5eead4;
-}
-
-:root[data-theme='dark'] .prompt-select-dialog-modal .el-dialog__body {
-  background: #1e293b;
+/* 提示词选择弹窗 - 深色皮肤令牌覆盖 */
+:root[data-theme='dark'] .prompt-select-dialog-modal {
+  --ps-bg: #1e293b;
+  --ps-bg-embedded: #1e293b;
+  --ps-bg-soft: #334155;
+  --ps-text-color: rgba(255, 255, 255, 0.88);
+  --ps-text-color-secondary: rgba(203, 213, 225, 0.7);
+  --ps-text-color-tertiary: rgba(148, 163, 184, 0.7);
+  --ps-title-color: #f3f4f6;
+  --ps-meta-color: rgba(148, 163, 184, 0.8);
+  --ps-border-color: rgba(94, 234, 212, 0.18);
+  --ps-border-color-soft: rgba(94, 234, 212, 0.12);
+  --ps-divider: rgba(94, 234, 212, 0.18);
+  --ps-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.5), 0 3px 6px 0 rgba(0, 0, 0, 0.4), 0 5px 12px 4px rgba(0, 0, 0, 0.32);
+  --ps-shadow-card-hover: 0 2px 8px -2px rgba(0, 0, 0, 0.5), 0 4px 12px 0 rgba(0, 0, 0, 0.32);
+  --ps-shadow-focus: 0 0 0 2px rgba(94, 234, 212, 0.28);
+  --ps-accent: #5eead4;
+  --ps-accent-hover: #2dd4bf;
+  --ps-accent-soft-bg: rgba(94, 234, 212, 0.14);
+  --ps-accent-soft-bg-hover: rgba(94, 234, 212, 0.22);
+  --ps-accent-border: rgba(94, 234, 212, 0.32);
+  --ps-danger: #f87171;
+  --ps-danger-soft-bg: rgba(248, 113, 113, 0.12);
+  --ps-danger-border: rgba(248, 113, 113, 0.32);
+  --ps-card-bg: #1e293b;
+  --ps-card-bg-hover: #334155;
+  --ps-card-border: rgba(94, 234, 212, 0.18);
+  --ps-card-border-hover: rgba(94, 234, 212, 0.4);
+  --ps-close-color: rgba(203, 213, 225, 0.7);
+  --ps-close-hover-bg: rgba(94, 234, 212, 0.12);
+  --ps-scroll-thumb: rgba(94, 234, 212, 0.25);
+  --ps-scroll-thumb-hover: rgba(94, 234, 212, 0.4);
+  --ps-tag-bg-soft: rgba(94, 234, 212, 0.12);
+  --ps-tag-bg-featured: rgba(251, 146, 60, 0.18);
+  --ps-tag-color-featured: #fdba74;
+  --ps-tag-border-featured: rgba(251, 146, 60, 0.4);
+  --ps-fire-color: #fb923c;
+  --ps-crown-color: #fcd34d;
 }
 
 :root[data-theme='dark'] .preview-dialog-modal .el-dialog {
@@ -7816,35 +8456,29 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   border-top-color: rgba(94, 234, 212, 0.2);
 }
 
-:root[data-theme='dark'] .fixed-prompt-dialog-modal .el-dialog {
-  background: #1e293b;
-  border: 1px solid rgba(94, 234, 212, 0.3);
-}
-
-:root[data-theme='dark'] .fixed-prompt-dialog-modal .el-dialog__header {
-  background: #1e293b;
-  border-bottom-color: rgba(94, 234, 212, 0.2);
-}
-
-:root[data-theme='dark'] .fixed-prompt-dialog-modal .el-dialog__title {
-  color: #5eead4;
-}
-
-:root[data-theme='dark'] .fixed-prompt-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #9ca3af;
-}
-
-:root[data-theme='dark'] .fixed-prompt-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #5eead4;
-}
-
-:root[data-theme='dark'] .fixed-prompt-dialog-modal .el-dialog__body {
-  background: #1e293b;
-}
-
-:root[data-theme='dark'] .fixed-prompt-dialog-modal .el-dialog__footer {
-  background: #1e293b;
-  border-top-color: rgba(94, 234, 212, 0.2);
+/* === 固定提示词查看弹窗 - 深色皮肤令牌覆盖 === */
+:root[data-theme='dark'] .fixed-prompt-dialog-modal {
+  --fp-bg: #1e293b;
+  --fp-bg-soft: rgba(15, 23, 42, 0.6);
+  --fp-text-color: #f3f4f6;
+  --fp-text-color-muted: rgba(203, 213, 225, 0.7);
+  --fp-placeholder-color: #64748b;
+  --fp-border-color: rgba(94, 234, 212, 0.18);
+  --fp-border-color-hover: rgba(94, 234, 212, 0.32);
+  --fp-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.5), 0 3px 6px 0 rgba(0, 0, 0, 0.4), 0 5px 12px 4px rgba(0, 0, 0, 0.32);
+  --fp-accent: #5eead4;
+  --fp-accent-hover: #2dd4bf;
+  --fp-accent-text: #0f172a;
+  --fp-btn-default-bg: rgba(30, 41, 59, 0.7);
+  --fp-btn-default-border: rgba(94, 234, 212, 0.22);
+  --fp-btn-default-text: #cbd5e1;
+  --fp-btn-default-hover-bg: rgba(94, 234, 212, 0.12);
+  --fp-btn-default-hover-border: rgba(94, 234, 212, 0.4);
+  --fp-textarea-bg: rgba(15, 23, 42, 0.6);
+  --fp-textarea-border: rgba(94, 234, 212, 0.18);
+  --fp-textarea-color: #e2e8f0;
+  --fp-close-color: rgba(203, 213, 225, 0.7);
+  --fp-close-hover-color: #5eead4;
 }
 
 :root[data-theme='dark'] .history-dialog-modal .el-dialog {
@@ -7957,12 +8591,13 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 :root[data-theme='dark'] .view-detail-btn {
-  background: #14b8a6;
+  background: #2dd4bf;
+  color: #0f172a;
 }
 
 :root[data-theme='dark'] .view-detail-btn:hover {
-  background: #0d9488;
-  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+  background: #5eead4;
+  box-shadow: 0 4px 12px rgba(45, 212, 191, 0.35);
 }
 
 :root[data-theme='dark'] .delete-btn {
@@ -8064,5 +8699,91 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 :root[data-theme='dark'] .clear-all-btn:hover:not(:disabled) {
   background: #f43f5e;
+}
+
+/* ── 生成器弹窗：暗色主题可见性强化 ─────────────────── */
+:root[data-theme='dark'] .form-block-label {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+:root[data-theme='dark'] .form-block-action {
+  color: #5eead4 !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .form-block-action:hover {
+  color: #2dd4bf !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .context-preview-item {
+  background: rgba(94, 234, 212, 0.08);
+  border-color: rgba(94, 234, 212, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:root[data-theme='dark'] .gen-footer-disclaimer {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select__placeholder,
+:root[data-theme='dark'] .generator-dialog-modal .el-select__placeholder.is-transparent {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__inner,
+:root[data-theme='dark'] .generator-dialog-modal .el-select__selected-item,
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner {
+  color: rgba(255, 255, 255, 0.92);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.92);
+}
+
+:root[data-theme='dark'] .form-area .el-input__inner,
+:root[data-theme='dark'] .form-area .el-select__placeholder,
+:root[data-theme='dark'] .form-area .el-select__selected-item,
+:root[data-theme='dark'] .form-area .el-textarea__inner {
+  color: rgba(255, 255, 255, 0.92);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.92);
+}
+
+:root[data-theme='dark'] .form-area .el-input__inner::placeholder,
+:root[data-theme='dark'] .form-area .el-textarea__inner::placeholder {
+  color: #64748b;
+  -webkit-text-fill-color: #64748b;
+}
+
+:root[data-theme='dark'] .model-name,
+:root[data-theme='dark'] .model-option .model-name {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* ── Select 下拉弹出层：暗色主题补全（popper 全链路） ── */
+:root[data-theme='dark'] .generator-dialog-modal .el-select__wrapper {
+  background-color: rgba(15, 23, 42, 0.6);
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.18) inset;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.32) inset;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px #5eead4 inset;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-popper.is-light,
+:root[data-theme='dark'] .generator-dialog-modal .el-popper.is-light.el-select__popper,
+:root[data-theme='dark'] .generator-dialog-modal .el-select__popper {
+  background: #1e293b !important;
+  border: 1px solid rgba(94, 234, 212, 0.18) !important;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__wrap {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown .el-scrollbar__view,
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown .el-scrollbar__bar {
+  background: transparent;
 }
 </style>

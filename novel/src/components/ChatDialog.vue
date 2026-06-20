@@ -8,12 +8,17 @@
               <div class="title-dot"></div>
               <span>AI 对话</span>
             </div>
-            <div class="chat-dialog-meta" v-if="currentConversation">
-              <span class="conv-badge">{{ currentConversation.title }}</span>
+            <div class="chat-dialog-header-right">
+              <div class="chat-dialog-meta" v-if="currentConversation">
+                <span class="conv-badge">{{ currentConversation.title }}</span>
+              </div>
+              <button class="chat-dialog-action-btn" @click="regexDialogVisible = true" title="正则过滤">
+                <el-icon><Setting /></el-icon>
+              </button>
+              <button class="chat-dialog-close" @click="close" title="关闭 (Esc)">
+                <el-icon><Close /></el-icon>
+              </button>
             </div>
-            <button class="chat-dialog-close" @click="close" title="关闭 (Esc)">
-              <el-icon><Close /></el-icon>
-            </button>
           </div>
 
           <div class="chat-dialog-body">
@@ -75,12 +80,12 @@
                         {{ msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'AI' : 'System' }}
                       </div>
                       <div class="message-content">
-                        <MarkdownRenderer v-if="msg.role === 'assistant'" :content="msg.content" />
+                        <MarkdownRenderer v-if="msg.role === 'assistant'" :content="msg.displayContent ?? msg.content" />
                         <div v-else class="plain-content">{{ msg.content }}</div>
                       </div>
                     </div>
                     <div class="message-actions">
-                      <button class="msg-action-btn" @click="copyMessage(msg.content)" title="复制">
+                      <button class="msg-action-btn" @click="copyMessage(msg)" title="复制">
                         <el-icon><DocumentCopy /></el-icon>
                       </button>
                       <button class="msg-action-btn msg-action-delete" @click="deleteChatMessage(index)" title="删除">
@@ -157,10 +162,93 @@
       </div>
     </Transition>
   </Teleport>
+
+  <el-dialog
+    v-model="regexDialogVisible"
+    title="正则过滤（仅显示）"
+    width="760px"
+    append-to-body
+  >
+    <div class="regex-dialog-body">
+      <div class="regex-dialog-row">
+        <el-switch v-model="displayRegexEnabled" active-text="启用过滤" inactive-text="关闭过滤" />
+        <el-switch v-model="streamGuardEnabled" active-text="流式防闪" inactive-text="关闭防闪" />
+        <el-switch v-model="copyUsesFiltered" active-text="复制过滤后" inactive-text="复制原文" />
+        <el-button size="small" @click="addRegexRule">新增规则</el-button>
+        <el-button size="small" @click="resetRegexRules">重置默认</el-button>
+      </div>
+
+      <div v-if="regexRules.length === 0" class="regex-empty">
+        <el-empty description="暂无规则" :image-size="80" />
+      </div>
+
+      <div v-else class="regex-rule-list">
+        <div v-for="(rule, idx) in regexRules" :key="rule.id" class="regex-rule-item">
+          <div class="regex-rule-header">
+            <el-switch v-model="rule.enabled" />
+            <el-input v-model="rule.name" size="small" placeholder="规则名称" class="regex-rule-name" />
+            <el-input v-model="rule.flags" size="small" placeholder="flags" class="regex-rule-flags" />
+            <el-button size="small" :disabled="idx === 0" @click="moveRule(idx, -1)">上移</el-button>
+            <el-button size="small" :disabled="idx === regexRules.length - 1" @click="moveRule(idx, 1)">下移</el-button>
+            <el-button size="small" type="danger" @click="removeRule(rule.id)">删除</el-button>
+          </div>
+          <div class="regex-rule-fields">
+            <el-input
+              v-model="rule.pattern"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 6 }"
+              placeholder="pattern（正则表达式）"
+            />
+            <el-input
+              v-model="rule.replacement"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 6 }"
+              placeholder="replacement（替换内容，可用 $1/$2 捕获组）"
+            />
+          </div>
+          <div v-if="rule.lastError" class="regex-rule-error">
+            {{ rule.lastError }}
+          </div>
+        </div>
+      </div>
+
+      <div class="regex-test">
+        <div class="regex-test-title">快速测试</div>
+        <el-input
+          v-model="regexTestInput"
+          type="textarea"
+          :autosize="{ minRows: 4, maxRows: 10 }"
+          placeholder="输入一段文本，查看过滤结果"
+        />
+        <div class="regex-test-title">过滤结果</div>
+        <el-input
+          :model-value="regexTestOutput"
+          type="textarea"
+          :autosize="{ minRows: 4, maxRows: 10 }"
+          readonly
+        />
+      </div>
+
+      <div class="regex-import-export">
+        <div class="regex-test-title">导入 / 导出</div>
+        <el-input
+          v-model="regexRulesJson"
+          type="textarea"
+          :autosize="{ minRows: 4, maxRows: 10 }"
+          placeholder="粘贴 JSON（数组）以导入，或点击导出生成 JSON"
+        />
+        <div class="regex-dialog-row">
+          <el-button size="small" @click="exportRegexRules">导出到文本</el-button>
+          <el-button size="small" @click="importRegexRules">从文本导入</el-button>
+          <el-button size="small" @click="copyRegexRulesJson">复制 JSON</el-button>
+        </div>
+      </div>
+    </div>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotRound,
@@ -172,7 +260,8 @@ import {
   InfoFilled,
   DocumentCopy,
   Promotion,
-  VideoPause
+  VideoPause,
+  Setting
 } from '@element-plus/icons-vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { conversationAPI, bookAPI, configAPI } from '@/api'
@@ -201,6 +290,258 @@ const selectedConfigId = ref<number | null>(null)
 const apiConfigs = ref<ApiModel[]>([])
 const chatAbortController = ref<AbortController | null>(null)
 const chatMessagesRef = ref<HTMLElement>()
+
+type RegexRule = {
+  id: string
+  name: string
+  pattern: string
+  flags: string
+  replacement: string
+  enabled: boolean
+  order: number
+  lastError?: string
+}
+
+const REGEX_SETTINGS_STORAGE_KEY = 'chat-regex-settings-v1'
+
+const regexDialogVisible = ref(false)
+const displayRegexEnabled = ref(true)
+const streamGuardEnabled = ref(true)
+const copyUsesFiltered = ref(false)
+const regexRules = ref<RegexRule[]>([])
+const regexTestInput = ref('')
+const regexRulesJson = ref('')
+
+const generateId = () => {
+  const g = globalThis as any
+  if (g.crypto?.randomUUID) return g.crypto.randomUUID()
+  return `r_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+const getDefaultRegexRules = (): RegexRule[] => {
+  const make = (partial: Omit<RegexRule, 'id' | 'order'>, order: number): RegexRule => ({
+    id: generateId(),
+    order,
+    ...partial
+  })
+  return [
+    make({
+      name: '移除 <think>…</think>',
+      pattern: '<think>[\\s\\S]*?<\\/think>',
+      flags: 'g',
+      replacement: '',
+      enabled: true
+    }, 10),
+    make({
+      name: '移除 <analysis>…</analysis>',
+      pattern: '<analysis>[\\s\\S]*?<\\/analysis>',
+      flags: 'g',
+      replacement: '',
+      enabled: false
+    }, 20)
+  ]
+}
+
+const normalizeOrder = () => {
+  regexRules.value.forEach((r, idx) => {
+    r.order = idx + 1
+  })
+}
+
+const addRegexRule = () => {
+  regexRules.value.push({
+    id: generateId(),
+    name: '新规则',
+    pattern: '',
+    flags: 'g',
+    replacement: '',
+    enabled: true,
+    order: regexRules.value.length + 1
+  })
+  normalizeOrder()
+}
+
+const removeRule = (id: string) => {
+  const idx = regexRules.value.findIndex(r => r.id === id)
+  if (idx >= 0) {
+    regexRules.value.splice(idx, 1)
+    normalizeOrder()
+  }
+}
+
+const moveRule = (index: number, direction: -1 | 1) => {
+  const nextIndex = index + direction
+  if (nextIndex < 0 || nextIndex >= regexRules.value.length) return
+  const moved = regexRules.value.splice(index, 1)[0]
+  regexRules.value.splice(nextIndex, 0, moved)
+  normalizeOrder()
+}
+
+const resetRegexRules = () => {
+  regexRules.value = getDefaultRegexRules()
+  normalizeOrder()
+}
+
+const exportRegexRules = () => {
+  regexRulesJson.value = JSON.stringify(regexRules.value.map(r => ({
+    id: r.id,
+    name: r.name,
+    pattern: r.pattern,
+    flags: r.flags,
+    replacement: r.replacement,
+    enabled: r.enabled,
+    order: r.order
+  })), null, 2)
+}
+
+const importRegexRules = () => {
+  try {
+    const parsed = JSON.parse(regexRulesJson.value)
+    if (!Array.isArray(parsed)) {
+      ElMessage.error('导入失败：JSON 必须是数组')
+      return
+    }
+    const nextRules: RegexRule[] = parsed.map((item: any, idx: number) => ({
+      id: typeof item.id === 'string' && item.id ? item.id : generateId(),
+      name: typeof item.name === 'string' ? item.name : `规则 ${idx + 1}`,
+      pattern: typeof item.pattern === 'string' ? item.pattern : '',
+      flags: typeof item.flags === 'string' ? item.flags : 'g',
+      replacement: typeof item.replacement === 'string' ? item.replacement : '',
+      enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
+      order: typeof item.order === 'number' ? item.order : idx + 1
+    }))
+    regexRules.value = nextRules.sort((a, b) => a.order - b.order)
+    normalizeOrder()
+    ElMessage.success('导入成功')
+  } catch (e: any) {
+    ElMessage.error('导入失败：' + (e?.message || 'JSON 解析错误'))
+  }
+}
+
+const copyRegexRulesJson = async () => {
+  if (!regexRulesJson.value) exportRegexRules()
+  try {
+    await navigator.clipboard.writeText(regexRulesJson.value)
+    ElMessage.success('JSON 已复制')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+const applyStreamingGuard = (text: string) => {
+  if (!streamGuardEnabled.value) return text
+  const guards: Array<{ open: string; close: string }> = [
+    { open: '<think>', close: '</think>' },
+    { open: '<analysis>', close: '</analysis>' }
+  ]
+
+  const cutPositions: number[] = []
+  for (const g of guards) {
+    const openIndex = text.lastIndexOf(g.open)
+    if (openIndex === -1) continue
+    const closeIndex = text.indexOf(g.close, openIndex + g.open.length)
+    if (closeIndex === -1) {
+      cutPositions.push(openIndex)
+    }
+  }
+
+  if (cutPositions.length === 0) return text
+  return text.slice(0, Math.min(...cutPositions))
+}
+
+const getActiveRules = () => {
+  return regexRules.value
+    .filter(r => r.enabled && r.pattern.trim())
+    .slice()
+    .sort((a, b) => a.order - b.order)
+}
+
+const applyRegexPipeline = (text: string) => {
+  if (!displayRegexEnabled.value) return text
+  let out = text
+
+  const activeRules = getActiveRules()
+  for (const rule of activeRules) {
+    rule.lastError = undefined
+    if (rule.pattern.length > 2000 || rule.replacement.length > 5000) {
+      rule.lastError = '规则过长，已跳过'
+      continue
+    }
+    try {
+      const flags = rule.flags?.trim() || 'g'
+      const re = new RegExp(rule.pattern, flags)
+      out = out.replace(re, rule.replacement)
+    } catch (e: any) {
+      rule.lastError = e?.message || '无效正则'
+    }
+  }
+  return out
+}
+
+const computeAssistantDisplay = (raw: string) => {
+  const guarded = applyStreamingGuard(raw || '')
+  return applyRegexPipeline(guarded)
+}
+
+const refreshDisplayContents = () => {
+  for (const msg of chatMessages.value) {
+    if (msg.role === 'assistant') {
+      msg.displayContent = computeAssistantDisplay(msg.content)
+    }
+  }
+}
+
+const regexTestOutput = computed(() => {
+  return computeAssistantDisplay(regexTestInput.value)
+})
+
+const loadRegexSettings = () => {
+  try {
+    const raw = localStorage.getItem(REGEX_SETTINGS_STORAGE_KEY)
+    if (!raw) {
+      resetRegexRules()
+      return
+    }
+    const parsed = JSON.parse(raw)
+    displayRegexEnabled.value = parsed?.displayRegexEnabled !== false
+    streamGuardEnabled.value = parsed?.streamGuardEnabled !== false
+    copyUsesFiltered.value = parsed?.copyUsesFiltered === true
+    if (Array.isArray(parsed?.regexRules)) {
+      regexRules.value = parsed.regexRules.map((item: any, idx: number) => ({
+        id: typeof item.id === 'string' && item.id ? item.id : generateId(),
+        name: typeof item.name === 'string' ? item.name : `规则 ${idx + 1}`,
+        pattern: typeof item.pattern === 'string' ? item.pattern : '',
+        flags: typeof item.flags === 'string' ? item.flags : 'g',
+        replacement: typeof item.replacement === 'string' ? item.replacement : '',
+        enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
+        order: typeof item.order === 'number' ? item.order : idx + 1
+      })).sort((a: RegexRule, b: RegexRule) => a.order - b.order)
+      normalizeOrder()
+    } else {
+      resetRegexRules()
+    }
+  } catch {
+    resetRegexRules()
+  }
+}
+
+const saveRegexSettings = () => {
+  const payload = {
+    displayRegexEnabled: displayRegexEnabled.value,
+    streamGuardEnabled: streamGuardEnabled.value,
+    copyUsesFiltered: copyUsesFiltered.value,
+    regexRules: regexRules.value.map(r => ({
+      id: r.id,
+      name: r.name,
+      pattern: r.pattern,
+      flags: r.flags,
+      replacement: r.replacement,
+      enabled: r.enabled,
+      order: r.order
+    }))
+  }
+  localStorage.setItem(REGEX_SETTINGS_STORAGE_KEY, JSON.stringify(payload))
+}
 
 const fetchBooks = async () => {
   try {
@@ -266,6 +607,11 @@ const selectConversation = async (conv: any) => {
     const res = await conversationAPI.getMessages(conv.id)
     if (res.success && res.data) {
       chatMessages.value = res.data
+      refreshDisplayContents()
+      const lastAssistant = [...chatMessages.value].reverse().find(m => m.role === 'assistant')
+      if (lastAssistant?.content) {
+        regexTestInput.value = lastAssistant.content
+      }
     }
   } catch (error) {
     console.error('加载消息失败:', error)
@@ -329,7 +675,11 @@ const deleteChatMessage = async (index: number) => {
   }
 }
 
-const copyMessage = (content: string) => {
+const copyMessage = (msg: ChatMessage) => {
+  const content = msg.role === 'assistant' && copyUsesFiltered.value
+    ? (msg.displayContent ?? msg.content)
+    : msg.content
+
   navigator.clipboard.writeText(content).then(() => {
     ElMessage.success('已复制到剪贴板')
   }).catch(() => {
@@ -382,7 +732,7 @@ const sendMessage = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages: chatMessages.value.slice(0, -1),
+        messages: chatMessages.value.slice(0, -1).map(m => ({ role: m.role, content: m.content })),
         configId: selectedConfigId.value
       }),
       signal: chatAbortController.value.signal
@@ -416,6 +766,7 @@ const sendMessage = async () => {
             if (parsed.content && currentMessage) {
               rawContent += parsed.content
               currentMessage.content = rawContent
+              currentMessage.displayContent = computeAssistantDisplay(rawContent)
               scrollToBottom()
             }
             if (parsed.error) {
@@ -480,10 +831,21 @@ watch(() => props.visible, (newVal) => {
 })
 
 onMounted(() => {
+  loadRegexSettings()
   fetchBooks()
   fetchConversations()
   fetchConfigs()
 })
+
+watch([displayRegexEnabled, streamGuardEnabled], () => {
+  saveRegexSettings()
+  refreshDisplayContents()
+}, { deep: false })
+
+watch(regexRules, () => {
+  saveRegexSettings()
+  refreshDisplayContents()
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -641,6 +1003,12 @@ onMounted(() => {
   min-width: 0;
 }
 
+.chat-dialog-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .conv-badge {
   font-size: var(--ds-text-sm);
   color: var(--ds-text-secondary);
@@ -664,9 +1032,103 @@ onMounted(() => {
   transition: all var(--ds-duration-fast) var(--ds-ease-out);
 }
 
+.chat-dialog-action-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--ds-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--ds-duration-fast) var(--ds-ease-out);
+}
+
+.chat-dialog-action-btn:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
+}
+
 .chat-dialog-close:hover {
   background: var(--ds-bg-hover);
   color: var(--ds-text-primary);
+}
+
+.regex-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.regex-dialog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.regex-rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.regex-rule-item {
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+  padding: 10px;
+  background: var(--el-bg-color);
+}
+
+.regex-rule-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.regex-rule-name {
+  width: 220px;
+}
+
+.regex-rule-flags {
+  width: 90px;
+}
+
+.regex-rule-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.regex-rule-error {
+  margin-top: 8px;
+  color: var(--el-color-danger);
+  font-size: var(--el-font-size-base);
+}
+
+.regex-test-title {
+  font-size: var(--el-font-size-base);
+  color: var(--el-text-color-secondary);
+  margin-bottom: 6px;
+}
+
+.regex-test {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.regex-import-export {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* ============================================

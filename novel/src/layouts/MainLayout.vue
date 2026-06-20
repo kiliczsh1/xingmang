@@ -2,19 +2,8 @@
   <div class="app-shell">
     <canvas ref="particleCanvas" class="bg-particles"></canvas>
     
-    <!-- 折叠状态的顶部栏 -->
-    <div class="topbar-collapsed-bar" v-if="!topbarExpanded">
-      <button class="topbar-expand-btn" @click="topbarExpanded = true" title="展开导航栏">
-        <el-icon><Expand /></el-icon>
-      </button>
-    </div>
-
-    <!-- 展开状态的顶部栏 -->
-    <header class="topbar topbar-expanded" v-else>
+    <header class="topbar topbar-expanded" v-if="!isHiddenTopbarRoute">
       <div class="brand-block">
-        <button class="topbar-collapse-btn" @click="topbarExpanded = false">
-          <el-icon><Fold /></el-icon>
-        </button>
         <div
           class="user-badge-wrapper"
           @click.stop="toggleUserPopup"
@@ -27,44 +16,6 @@
             class="user-popup"
             :class="{ visible: userPopupVisible }"
           >
-            <div class="profile-container">
-              <div class="user-info">
-                <div class="info-item">
-                  <label><el-icon class="label-icon"><Monitor /></el-icon>用户 ID:</label>
-                  <span>{{ machineId }}</span>
-                </div>
-                <div class="info-item">
-                  <label><el-icon class="label-icon"><User /></el-icon>用户名称:</label>
-                  <div class="name-edit-container">
-                    <span>{{ userName }}</span>
-                  </div>
-                </div>
-                <div class="info-item" v-if="userBio">
-                  <label><el-icon class="label-icon"><EditPen /></el-icon>个性签名:</label>
-                  <span class="bio-preview">{{ userBio }}</span>
-                </div>
-                <button class="profile-edit-trigger" @click.stop="openProfileEdit">
-                  <el-icon><Edit /></el-icon>
-                  <span>编辑个人资料</span>
-                </button>
-                <div class="info-item">
-                  <label><el-icon class="label-icon"><Timer /></el-icon>登录时间:</label>
-                  <span>{{ loginTime }}</span>
-                </div>
-                <div class="info-item">
-                  <label><el-icon class="label-icon"><DataAnalysis /></el-icon>总调用次数:</label>
-                  <span>{{ overview?.totalUsageCount || modelCallCount }}</span>
-                </div>
-                <div class="info-item">
-                  <label><el-icon class="label-icon"><List /></el-icon>提示词数量:</label>
-                  <span>{{ overview?.promptCount || promptCount }}</span>
-                </div>
-                <div class="info-item">
-                  <label><el-icon class="label-icon"><Collection /></el-icon>模型数量:</label>
-                  <span>{{ models.length }}</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         <div class="brand-copy">
@@ -93,7 +44,7 @@
           <span>{{ currentThemeType === 'dark' ? '亮色' : '暗色' }}</span>
         </button>
         <button
-          v-for="item in globalNavItems.filter(i => i.label !== '外观')"
+          v-for="item in globalNavItems.filter(i => i.label !== '外观' && i.label !== '论坛')"
           :key="item.label"
           class="topbar-action"
           type="button"
@@ -266,10 +217,9 @@ import {
   List,
   DataAnalysis,
   Monitor,
-  Expand,
-  Fold,
   ChatLineSquare,
-  Camera
+  Camera,
+  Share
 } from '@element-plus/icons-vue'
 import HistoryCenter from '../components/HistoryCenter.vue'
 import ChatDialog from '../components/ChatDialog.vue'
@@ -280,6 +230,21 @@ import type { UsageOverview, ApiModel } from '@/types'
 const route = useRoute()
 
 type ThemeType = 'light' | 'dark'
+
+// 这些路径下不显示顶部栏（折叠状态和展开状态都隐藏）
+// 包括：使用 FullScreenLayout 的全屏页 + MainLayout 下需要独立空间的拆书库/角色库
+const HIDDEN_TOPBAR_ROUTE_PATTERNS = [
+  /^\/analysis\/[^/]+(\/|$)/,
+  /^\/characters\/[^/]+(\/|$)/,
+  /^\/write(\/|$)/,
+  /^\/workflow\/[^/]+(\/|$)/,
+  /^\/experience-shares\/[^/]+(\/|$)/,
+  /^\/book-analysis-prompts(\/|$)/
+]
+
+const isHiddenTopbarRoute = computed(() => {
+  return HIDDEN_TOPBAR_ROUTE_PATTERNS.some(pattern => pattern.test(route.path))
+})
 
 const getInitialTheme = (): ThemeType => {
   const saved = localStorage.getItem('main-theme')
@@ -295,7 +260,6 @@ const historyDialogVisible = ref(false)
 const chatDialogVisible = ref(false)
 const messageCenterVisible = ref(false)
 const userPopupVisible = ref(false)
-const topbarExpanded = ref(true)
 const userName = ref('星芒创作者')
 const userBio = ref('')
 const machineId = ref('12345678')
@@ -583,6 +547,7 @@ const menuItems = [
   { index: '/prompt-preview', label: '提示预览', icon: View },
   { index: '/creative', label: '变量抽卡', icon: Star },
   { index: '/workflow', label: '工作流', icon: Connection },
+  { index: '/wiki-graph', label: 'wiki图谱', icon: Share },
   { index: '/experience-shares', label: '经验分享', icon: Collection },
   { index: '/config', label: 'API 配置', icon: Setting },
   { index: '/profile', label: '个人中心', icon: User }
@@ -603,6 +568,7 @@ const routeLabelMap: Record<string, string> = {
   '/prompt-preview': '提示预览',
   '/creative': '变量抽卡',
   '/workflow': '工作流',
+  '/wiki-graph': 'wiki图谱',
   '/experience-shares': '经验分享',
   '/config': 'API 配置',
   '/profile': '个人中心'
@@ -721,21 +687,12 @@ watch(
   },
   { immediate: true }
 )
-
-watch(
-  () => route.name,
-  (routeName) => {
-    if (routeName === 'BookAnalysis' || routeName === 'CharacterLibrary') {
-      topbarExpanded.value = false
-    }
-  },
-  { immediate: true }
-)
 </script>
 
 <style scoped>
 .app-shell {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background:
@@ -765,6 +722,8 @@ watch(
 
 .topbar {
   height: 64px;
+  flex-shrink: 0;
+  flex-grow: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -775,70 +734,12 @@ watch(
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
-  position: relative;
-  z-index: 10;
 }
 
-.topbar-collapsed-bar {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 100;
-}
-
-.topbar-expand-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid rgba(45, 212, 191, 0.25);
-  border-radius: 12px;
-  background: var(--topbar-background, rgba(255, 255, 255, 0.85));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: var(--menu-text, #5a6c7d);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.topbar-expand-btn:hover {
-  background: rgba(45, 212, 191, 0.15);
-  color: #2dd4bf;
-  border-color: rgba(45, 212, 191, 0.5);
-  box-shadow: 0 6px 20px rgba(45, 212, 191, 0.2);
-  transform: translateY(-2px);
-}
-
-.topbar-expand-btn .el-icon {
-  font-size: 18px;
-}
-
-.topbar-expanded .brand-block {
+.topbar .brand-block {
   display: flex;
   align-items: center;
   gap: 14px;
-}
-
-.topbar-collapse-btn {
-  width: 36px;
-  height: 36px;
-  border: 1px solid rgba(45, 212, 191, 0.2);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--menu-text, #5a6c7d);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s ease;
-}
-
-.topbar-collapse-btn:hover {
-  background: rgba(45, 212, 191, 0.1);
-  color: #2dd4bf;
-  border-color: rgba(45, 212, 191, 0.4);
 }
 
 .topbar::after {
@@ -1041,7 +942,6 @@ watch(
 .user-badge-wrapper {
   position: relative;
   display: inline-block;
-  z-index: 101;
 }
 
 .user-badge {
@@ -1150,7 +1050,6 @@ watch(
   opacity: 0;
   pointer-events: none;
   transition: opacity 0s 0s;
-  z-index: 9999;
   overflow: hidden;
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -1358,11 +1257,12 @@ watch(
   display: grid;
   grid-template-columns: 165px minmax(0, 1fr);
   position: relative;
-  z-index: 1;
 }
 
 .sidebar {
   padding: 0;
+  flex-shrink: 0;
+  min-height: 0;
   border-right: 1px solid var(--sidebar-border, rgba(45, 212, 191, 0.12));
   background: var(--sidebar-background, rgba(255, 255, 255, 0.72));
   backdrop-filter: blur(12px);
@@ -1412,6 +1312,8 @@ watch(
 .content-shell {
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   padding: 0;
   overflow: hidden;
 }

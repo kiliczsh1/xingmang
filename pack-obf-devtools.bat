@@ -115,10 +115,22 @@ if exist "%ROOT%server\package-lock.json" (
 )
 call :copy_file "%ROOT%server\database\db.js" "%OUTPUT_SERVER_DB_DIR%\db.js"
 if errorlevel 1 goto :fail
+if exist "%ROOT%server\database\import-prompts.js" (
+    call :copy_file "%ROOT%server\database\import-prompts.js" "%OUTPUT_SERVER_DB_DIR%\import-prompts.js"
+    if errorlevel 1 goto :fail
+)
 call :copy_dir "%ROOT%server\routes" "%OUTPUT_SERVER_DIR%\routes"
 if errorlevel 1 goto :fail
 if exist "%ROOT%server\utils" (
     call :copy_dir "%ROOT%server\utils" "%OUTPUT_SERVER_DIR%\utils"
+    if errorlevel 1 goto :fail
+)
+if exist "%ROOT%server\services" (
+    call :copy_dir "%ROOT%server\services" "%OUTPUT_SERVER_DIR%\services"
+    if errorlevel 1 goto :fail
+)
+if exist "%ROOT%server\cover_pkg" (
+    call :copy_dir "%ROOT%server\cover_pkg" "%OUTPUT_SERVER_DIR%\cover_pkg"
     if errorlevel 1 goto :fail
 )
 call :copy_dir "%ROOT%server\node_modules" "%OUTPUT_SERVER_NODE_MODULES%"
@@ -147,7 +159,7 @@ if not exist "%OUTPUT_SERVER_NODE_MODULES%\better-sqlite3\build\Release\better_s
     echo [ERROR] Missing packaged dependency: server\node_modules\better-sqlite3
     goto :fail
 )
-if not exist "%OUTPUT_SERVER_NODE_MODULES%\pdfjs-dist\legacy\build\pdf.mjs" (
+if not exist "%OUTPUT_SERVER_NODE_MODULES%\pdfjs-dist\build\pdf.mjs" (
     echo [ERROR] Missing packaged dependency: server\node_modules\pdfjs-dist
     goto :fail
 )

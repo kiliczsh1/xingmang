@@ -610,13 +610,15 @@ onMounted(loadDetail)
   background: #f5f5f5;
   box-shadow: none;
   max-width: 100%;
+  width: 100%;
+  aspect-ratio: 2 / 1;
 }
 
 .cover-image {
   display: block;
   width: 100%;
-  height: auto;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
 }
 
 .info-list {

@@ -403,7 +403,6 @@ const handleImportFile = async (event: Event) => {
 
 <style scoped>
 .workflow-page {
-  min-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
   gap: 28px;

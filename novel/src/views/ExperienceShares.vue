@@ -74,7 +74,8 @@
               <img :src="item.cover_url" :alt="item.title" class="card-cover-image" />
             </div>
             <div v-else class="card-cover card-cover-empty">
-              <el-icon><Picture /></el-icon>
+              <span class="cover-empty-title">{{ item.title || '未命名' }}</span>
+              <span class="cover-empty-author">{{ (item.author_name || '星')[0] }}</span>
             </div>
 
             <div class="card-body">
@@ -109,8 +110,8 @@
                   @change="(val: boolean) => handleSelectChange(item.id, val)"
                 />
                 <div class="footer-actions" v-else>
-                  <el-button type="primary" link size="small" @click="openEdit(item)">编辑</el-button>
-                  <el-button type="danger" link size="small" @click="handleDelete(item)">删除</el-button>
+                  <el-button type="primary" link size="small" @click.stop="openEdit(item)">编辑</el-button>
+                  <el-button type="danger" link size="small" @click.stop="handleDelete(item)">删除</el-button>
                 </div>
               </div>
             </div>
@@ -143,27 +144,12 @@
       v-model="dialogVisible"
       :title="dialogTitle"
       width="min(1100px, 92vw)"
-      top="4vh"
+      top="2vh"
       :close-on-click-modal="false"
-      destroy-on-close
-      @closed="resetFormState"
       append-to-body
+      @closed="resetFormState"
     >
       <div class="dialog-body">
-        <div class="dialog-mode-row">
-          <el-radio-group
-            v-if="!isEdit"
-            :model-value="formData.create_type"
-            @update:model-value="switchCreateMode"
-          >
-            <el-radio-button label="manual">手动创建</el-radio-button>
-            <el-radio-button label="pdf_import">PDF 导入创建</el-radio-button>
-          </el-radio-group>
-          <el-tag v-else :type="isPdfImportMode ? 'warning' : 'success'">
-            {{ isPdfImportMode ? 'PDF 导入创建' : '手动创建' }}
-          </el-tag>
-        </div>
-
         <el-alert
           v-if="isPdfImportMode"
           title="导入后系统只会自动生成标题和简介，正文不再强行解析，而是直接保留 PDF 原始预览效果。"
@@ -229,14 +215,22 @@
                 <span class="cover-upload-text">点击上传封面图</span>
                 <span class="cover-upload-hint">支持 jpg、png、gif 格式，建议尺寸 16:9</span>
               </div>
+              <div class="cover-url-input">
+                <span class="cover-url-label">或输入图片URL：</span>
+                <el-input
+                  v-model="formData.cover_url"
+                  placeholder="https://example.com/cover.jpg"
+                  clearable
+                  @input="handleCoverUrlInput"
+                />
+              </div>
             </div>
           </el-form-item>
 
           <el-form-item v-if="!isPdfImportMode" label="正文" required>
-            <ExperienceContentEditor
+            <TipTapEditor
               v-model="formData.content"
-              v-model:render-mode="formData.content_render_mode"
-              placeholder="请输入正文内容，支持 Markdown 语法"
+              placeholder="请输入正文内容"
               class="content-editor"
             />
           </el-form-item>
@@ -255,58 +249,51 @@
               </div>
             </div>
           </el-form-item>
-
-          <el-form-item label="PDF 附件">
-            <div class="pdf-section">
-              <div v-if="currentPdfDisplay" class="pdf-file-card">
-                <div class="pdf-file-main">
-                  <el-icon class="pdf-file-icon"><Document /></el-icon>
-                  <div class="pdf-file-meta">
-                    <div class="pdf-file-name">{{ currentPdfDisplay.fileName }}</div>
-                    <div class="pdf-file-desc">
-                      <span>{{ formatFileSize(currentPdfDisplay.fileSize) }}</span>
-                      <span>{{ currentPdfDisplay.isLocal ? '待发布后保存到系统' : '已保存附件' }}</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="pdf-file-actions">
-                  <el-button type="primary" plain @click="previewCurrentPdf">预览</el-button>
-                  <el-button @click="openPdfPicker(isPdfImportMode ? 'import' : 'attachment')">
-                    替换
-                  </el-button>
-                  <el-button type="danger" plain @click="removeCurrentPdf">移除</el-button>
-                </div>
-              </div>
-
-              <div v-else class="pdf-empty">
-                <div class="pdf-empty-text">
-                  <strong>支持上传 1 个 PDF 附件</strong>
-                  <span>仅支持 `.pdf`，单文件不超过 20MB。</span>
-                </div>
-                <el-button @click="openPdfPicker(isPdfImportMode ? 'import' : 'attachment')">
-                  选择 PDF
-                </el-button>
-              </div>
-
-              <el-alert
-                v-if="formData.pdf_parse_result"
-                :title="formData.pdf_parse_result"
-                :type="formData.pdf_parse_status === 'empty' ? 'warning' : 'success'"
-                :closable="false"
-                show-icon
-                class="parse-alert"
-              />
-            </div>
-          </el-form-item>
         </el-form>
       </div>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ isEdit ? '保存修改' : '发布' }}
-        </el-button>
+        <div class="form-footer">
+          <div class="form-footer-left">
+            <el-button @click="openPreviewDialog">预览效果</el-button>
+            <el-button v-if="!currentPdfDisplay" @click="openPdfPicker(isPdfImportMode ? 'import' : 'attachment')">
+              选择 PDF
+            </el-button>
+          </div>
+          <div class="form-footer-right">
+            <el-button @click="dialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="submitting" @click="handleSubmit">
+              {{ isEdit ? '保存修改' : '发布' }}
+            </el-button>
+          </div>
+        </div>
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="previewDialogVisible"
+      title="效果预览"
+      width="800px"
+      top="5vh"
+      destroy-on-close
+      append-to-body
+      class="preview-dialog"
+    >
+      <div class="preview-content">
+        <div class="preview-card">
+          <div v-if="previewData.cover_url" class="preview-cover">
+            <img :src="previewData.cover_url" alt="封面" />
+          </div>
+          <div class="preview-body">
+            <h2 class="preview-title">{{ previewData.title || '未填写标题' }}</h2>
+            <p v-if="previewData.summary" class="preview-summary">{{ previewData.summary }}</p>
+            <div class="preview-main">
+              <div v-if="previewData.content" class="preview-html" v-html="previewData.content"></div>
+              <p v-else class="preview-empty">暂无正文内容</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </el-dialog>
 
     <el-dialog
@@ -366,13 +353,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { experienceShareAPI } from '@/api'
 import type { ExperienceShare } from '@/types'
-import SplitRichTextEditor from '@/components/SplitRichTextEditor.vue'
-import ExperienceContentEditor from '@/components/ExperienceContentEditor.vue'
+import TipTapEditor from '@/components/TipTapEditor.vue'
 import PdfPageGallery from '@/components/PdfPageGallery.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 
 type CreateMode = 'manual' | 'pdf_import'
-type ContentRenderMode = 'markdown' | 'html'
 type PdfPickerMode = 'attachment' | 'import'
 
 type PdfUploadPayload = {
@@ -401,7 +385,7 @@ type FormState = {
   summary: string
   cover_url: string
   content: string
-  content_render_mode: ContentRenderMode
+  content_render_mode: 'markdown' | 'html'
   create_type: CreateMode
   author_name: string
   status: string
@@ -427,6 +411,13 @@ const importingPdf = ref(false)
 const experienceShares = ref<ExperienceShare[]>([])
 const dialogVisible = ref(false)
 const pdfPreviewVisible = ref(false)
+const previewDialogVisible = ref(false)
+const previewData = ref({
+  title: '',
+  summary: '',
+  content: '',
+  cover_url: ''
+})
 
 const currentPage = ref(1)
 const pageSize = 8
@@ -459,7 +450,7 @@ const createEmptyForm = (mode: CreateMode = 'manual'): FormState => ({
   summary: '',
   cover_url: '',
   content: '',
-  content_render_mode: 'markdown',
+  content_render_mode: 'html',
   create_type: mode,
   author_name: '星芒用户',
   status: 'published',
@@ -612,6 +603,8 @@ const handleCoverImageChange = async (event: Event) => {
       data_base64,
       objectUrl
     }
+    formData.value.cover_url = ''
+    formData.value.remove_cover = false
   } catch (error: any) {
     ElMessage.error(error.message || '上传图片失败')
   } finally {
@@ -625,6 +618,12 @@ const removeCoverImage = () => {
     formData.value.remove_cover = true
   }
   formData.value.cover_url = ''
+}
+
+const handleCoverUrlInput = () => {
+  if (formData.value.cover_url && localCoverImage.value) {
+    revokeLocalCoverImage()
+  }
 }
 
 const resetFormState = () => {
@@ -690,18 +689,6 @@ const handleCreateCommand = (command: CreateMode) => {
   openCreateDialog(command)
 }
 
-const switchCreateMode = (mode: string | number | boolean) => {
-  const nextMode = mode === 'pdf_import' ? 'pdf_import' : 'manual'
-  formData.value.create_type = nextMode
-  formData.value.pdf_parse_status = ''
-  formData.value.pdf_parse_result = ''
-  formData.value.content = nextMode === 'pdf_import' ? '' : formData.value.content
-  formData.value.content_render_mode = nextMode === 'pdf_import' ? 'markdown' : formData.value.content_render_mode
-  if (nextMode === 'manual') {
-    formData.value.source_file_name = ''
-  }
-}
-
 const openDetail = (item: ExperienceShare) => {
   router.push(`/experience-shares/${item.id}`)
 }
@@ -716,7 +703,7 @@ const fillEditForm = (item: ExperienceShare) => {
     summary: item.summary || '',
     cover_url: item.cover_url || '',
     content: item.content || '',
-    content_render_mode: item.content_render_mode === 'html' ? 'html' : 'markdown',
+    content_render_mode: item.content_render_mode === 'markdown' ? 'markdown' : 'html',
     create_type: item.create_type || 'manual',
     author_name: item.author_name || '星芒用户',
     status: item.status || 'published',
@@ -842,6 +829,17 @@ const handlePdfFileChange = async (event: Event) => {
   } finally {
     target.value = ''
   }
+}
+
+const openPreviewDialog = () => {
+  const coverUrl = localCoverImage.value?.objectUrl || formData.value.cover_url || ''
+  previewData.value = {
+    title: formData.value.title,
+    summary: formData.value.summary,
+    content: formData.value.content,
+    cover_url: coverUrl
+  }
+  previewDialogVisible.value = true
 }
 
 const previewCurrentPdf = () => {
@@ -1153,6 +1151,10 @@ const handleImportFileChange = async (event: Event) => {
 .experience-page {
   padding: 8px;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .experience-page::before {
@@ -1172,7 +1174,17 @@ const handleImportFileChange = async (event: Event) => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 24px;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(249, 250, 251, 0.95);
+  padding: 12px 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+  backdrop-filter: blur(10px);
+  border-radius: 0 0 12px 12px;
 }
 
 .page-header h2 {
@@ -1222,7 +1234,9 @@ const handleImportFileChange = async (event: Event) => {
 }
 
 .content-wrap {
-  min-height: 320px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .card-grid {
@@ -1288,11 +1302,39 @@ const handleImportFileChange = async (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #3b82f6 50%, #0ea5e9 100%);
+  position: relative;
+  padding: 16px;
 }
 
-.card-cover-empty .el-icon {
-  font-size: 48px;
-  color: #9ca3af;
+.cover-empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.cover-empty-author {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card-cover-image {
@@ -1432,8 +1474,7 @@ const handleImportFileChange = async (event: Event) => {
   display: flex;
   align-items: center;
   gap: 4px;
-  opacity: 0;
-  transition: opacity 0.25s ease;
+  opacity: 1;
 }
 
 .experience-card:hover .footer-actions {
@@ -1480,14 +1521,7 @@ const handleImportFileChange = async (event: Event) => {
   gap: 18px;
 }
 
-.dialog-mode-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.section-alert,
-.parse-alert {
+.section-alert {
   margin-top: 4px;
 }
 
@@ -1497,9 +1531,9 @@ const handleImportFileChange = async (event: Event) => {
   align-items: center;
   gap: 16px;
   padding: 18px 20px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(255, 247, 230, 0.9), rgba(255, 252, 244, 0.95));
-  border: 1px solid rgba(250, 173, 20, 0.22);
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid rgb(224, 224, 230);
 }
 
 .import-title {
@@ -1533,6 +1567,45 @@ const handleImportFileChange = async (event: Event) => {
   margin-top: 4px;
 }
 
+/* 表单标签样式 - 参考项目风格 */
+.experience-form :deep(.el-form-item__label) {
+  font-size: 14px;
+  font-weight: 400;
+  color: #1f2225;
+  text-align: right;
+  justify-content: flex-end;
+}
+
+/* 输入框样式 - 参考项目风格 */
+.experience-form :deep(.el-input__wrapper) {
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset;
+  background-color: rgba(255, 255, 255, 1);
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.experience-form :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #36ad6a inset;
+}
+
+.experience-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.2), 0 0 0 1px #18a058 inset;
+}
+
+.experience-form :deep(.el-textarea__inner) {
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.experience-form :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px #36ad6a inset;
+}
+
+.experience-form :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.2), 0 0 0 1px #18a058 inset;
+}
+
 .content-editor {
   width: 100%;
   max-height: 820px;
@@ -1548,10 +1621,10 @@ const handleImportFileChange = async (event: Event) => {
 .cover-preview-card {
   overflow: hidden;
   max-width: 420px;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  border: 1px solid rgb(224, 224, 230);
   background: #ffffff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 .cover-preview-image {
@@ -1579,16 +1652,16 @@ const handleImportFileChange = async (event: Event) => {
   width: 100%;
   max-width: 420px;
   height: 180px;
-  border-radius: 18px;
-  border: 2px dashed rgba(148, 163, 184, 0.35);
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 6px;
+  border: 2px dashed rgb(224, 224, 230);
+  background: #fafafa;
   cursor: pointer;
-  transition: border-color 0.25s ease, background 0.25s ease;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
 }
 
 .cover-upload-area:hover {
-  border-color: #08c6be;
-  background: linear-gradient(180deg, rgba(8, 198, 190, 0.04) 0%, rgba(244, 251, 250, 0.08) 100%);
+  border-color: #36ad6a;
+  background: rgba(24, 160, 88, 0.04);
 }
 
 .cover-upload-icon {
@@ -1607,72 +1680,18 @@ const handleImportFileChange = async (event: Event) => {
   color: #94a3b8;
 }
 
-.pdf-section {
+.cover-url-input {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: 100%;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.3);
 }
 
-.pdf-file-card,
-.pdf-empty {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-  padding: 16px 18px;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-}
-
-.pdf-file-main {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.pdf-file-icon {
-  font-size: 26px;
-  color: #dc2626;
-  flex-shrink: 0;
-}
-
-.pdf-file-meta {
-  min-width: 0;
-}
-
-.pdf-file-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-  word-break: break-all;
-}
-
-.pdf-file-desc {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.pdf-file-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.pdf-empty-text {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: #475569;
+.cover-url-label {
   font-size: 13px;
+  color: #64748b;
 }
 
 .pdf-content-preview {
@@ -1687,10 +1706,10 @@ const handleImportFileChange = async (event: Event) => {
   flex-direction: column;
   gap: 6px;
   padding: 14px 16px;
-  border-radius: 16px;
+  border-radius: 6px;
   color: #4b5b58;
-  background: linear-gradient(180deg, rgba(255, 251, 244, 0.96), rgba(247, 249, 247, 0.98));
-  border: 1px solid rgba(120, 94, 52, 0.08);
+  background: #f8fafc;
+  border: 1px solid rgb(224, 224, 230);
 }
 
 .pdf-content-preview__frame {
@@ -1699,17 +1718,17 @@ const handleImportFileChange = async (event: Event) => {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  border: 1px solid rgb(224, 224, 230);
   background: #ffffff;
 }
 
 .pdf-content-preview__empty {
   padding: 18px;
-  border-radius: 16px;
+  border-radius: 6px;
   color: #64748b;
   background: #f8fafc;
-  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border: 1px dashed rgb(224, 224, 230);
 }
 
 .pdf-preview-shell {
@@ -1751,11 +1770,89 @@ const handleImportFileChange = async (event: Event) => {
   padding-right: 2px;
 }
 
+.form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.form-footer-left {
+  display: flex;
+  gap: 10px;
+}
+
+.form-footer-right {
+  display: flex;
+  gap: 10px;
+}
+
+.preview-content {
+  padding: 0;
+}
+
+.preview-card {
+  border-radius: 6px;
+  border: 1px solid rgb(224, 224, 230);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.preview-cover {
+  width: 100%;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.preview-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-body {
+  padding: 20px;
+}
+
+.preview-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2225;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+}
+
+.preview-summary {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0 0 16px 0;
+  line-height: 1.6;
+}
+
+.preview-main {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.8;
+}
+
+.preview-html,
+.preview-markdown {
+  min-height: 100px;
+}
+
+.preview-empty {
+  color: #94a3b8;
+  text-align: center;
+  padding: 40px 0;
+}
+
 @media (max-width: 900px) {
+  .experience-page {
+    height: 100%;
+  }
+
   .page-header,
   .import-panel,
-  .pdf-file-card,
-  .pdf-empty,
   .pdf-preview-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -1788,6 +1885,10 @@ const handleImportFileChange = async (event: Event) => {
 
 :root[data-theme='dark'] .page-header p {
   color: #94a3b8;
+}
+
+:root[data-theme='dark'] .page-header {
+  background: rgba(15, 23, 42, 0.92);
 }
 
 :root[data-theme='dark'] .experience-card {
@@ -1829,5 +1930,34 @@ const handleImportFileChange = async (event: Event) => {
 :root[data-theme='dark'] .card-bottom-left .el-tag--info {
   background: rgba(148, 163, 184, 0.12);
   color: #94a3b8;
+}
+
+:root[data-theme='dark'] .card-footer {
+  border-top-color: rgba(51, 65, 85, 0.4);
+  background: rgba(15, 23, 42, 0.4);
+}
+
+:root[data-theme='dark'] .footer-left .el-tag--success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+  color: #34d399;
+}
+
+:root[data-theme='dark'] .footer-left .el-tag--warning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%);
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .footer-left .el-tag--info {
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.15) 0%, rgba(148, 163, 184, 0.08) 100%);
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .footer-actions .el-button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme='dark'] .footer-actions .el-button--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 </style>

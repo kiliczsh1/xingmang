@@ -26,6 +26,7 @@ export interface Chapter {
   title: string
   content: string
   summary?: string
+  word_count?: number
   order_num: number
   type: 'chapter' | 'memo'
   volume_id?: number
@@ -48,6 +49,7 @@ export interface Prompt {
     label: string
     type: 'text' | 'textarea' | 'select'
     options: string[]
+    optionLabels?: string[]
     description: string
     required: boolean
   }>
@@ -104,6 +106,9 @@ export interface ApiProvider {
   provider_type: string
   api_key: string
   api_url: string
+  url_suffix_mode: 'compat' | 'none'
+  api_format?: 'openai' | 'claude' | 'gemini'
+  use_full_url?: boolean
   created_at: string
   updated_at: string
   models?: ApiModel[]
@@ -248,10 +253,12 @@ export interface MonthlyStats {
 export interface Volume {
   id: number
   book_id: number
+  parent_id?: number | null
   title: string
   order_num: number
   created_at: string
   updated_at: string
+  folder_name?: string
 }
 
 export type GraphEntityType = 'character' | 'location' | 'item' | 'faction' | 'event' | 'skill' | 'clue'

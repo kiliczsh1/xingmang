@@ -149,30 +149,89 @@
     <el-dialog
       v-model="providerDialogVisible"
       :title="isEditProvider ? '编辑服务商' : '添加服务商'"
-      width="600px"
+      width="720px"
       append-to-body
+      class="provider-add-dialog"
     >
-      <el-form :model="providerFormData" label-width="100px">
-        <el-form-item label="服务商名称" required>
-          <el-input v-model="providerFormData.name" placeholder="请输入服务商名称" />
-        </el-form-item>
-        <el-form-item label="服务商类型" required>
-          <el-select v-model="providerFormData.provider_type" placeholder="请选择服务商类型" style="width: 100%">
-            <el-option label="OpenAI" value="openai" />
-            <el-option label="Azure OpenAI" value="azure" />
-            <el-option label="Claude" value="claude" />
-            <el-option label="通义千问" value="qwen" />
-            <el-option label="DeepSeek" value="deepseek" />
-            <el-option label="其他" value="other" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="API地址" required>
-          <el-input v-model="providerFormData.api_url" placeholder="例如: https://api.openai.com/v1（自动兼容/chat/completions）" />
-        </el-form-item>
-        <el-form-item label="API密钥" required>
-          <el-input v-model="providerFormData.api_key" type="password" placeholder="请输入API密钥" show-password />
-        </el-form-item>
-      </el-form>
+      <!-- Tab 切换 -->
+      <div class="model-add-tabs">
+        <div
+          class="model-add-tab"
+          :class="{ active: providerAddMode === 'preset' }"
+          @click="providerAddMode = 'preset'"
+        >
+          模型服务商
+        </div>
+        <div
+          class="model-add-tab"
+          :class="{ active: providerAddMode === 'custom' }"
+          @click="providerAddMode = 'custom'"
+        >
+          自定义配置
+        </div>
+      </div>
+
+      <!-- 模型服务商 Tab -->
+      <div v-show="providerAddMode === 'preset'" class="model-add-content">
+        <el-form :model="providerFormData" label-width="100px">
+          <el-form-item label="服务商" required>
+            <el-select v-model="providerFormData.provider_type" placeholder="选择模型服务商" style="width: 100%" @change="onPresetProviderChange">
+              <el-option label="OpenAI" value="openai" />
+              <el-option label="Azure OpenAI" value="azure" />
+              <el-option label="Claude" value="claude" />
+              <el-option label="通义千问" value="qwen" />
+              <el-option label="DeepSeek" value="deepseek" />
+              <el-option label="Gemini" value="gemini" />
+              <el-option label="硅基流动 SiliconFlow" value="siliconflow" />
+              <el-option label="ModelScope" value="modelscope" />
+              <el-option label="其他" value="other" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="API 密钥" required>
+            <el-input v-model="providerFormData.api_key" type="password" placeholder="输入 API 密钥" show-password />
+          </el-form-item>
+          <el-form-item label="备注名称">
+            <el-input v-model="providerFormData.name" placeholder="服务商名称（选填，留空则自动填）" />
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <!-- 自定义配置 Tab -->
+      <div v-show="providerAddMode === 'custom'" class="model-add-content">
+        <el-form :model="providerFormData" label-width="100px">
+          <el-alert type="info" :closable="false" show-icon class="custom-config-hint">
+            <template #default>
+              请填写兼容 OpenAI API 的服务端点地址，不要以斜杠结尾。/chat/completions 将会被补充到你填写的地址末尾。
+            </template>
+          </el-alert>
+          <el-form-item label="API 格式" required>
+            <el-select v-model="providerFormData.api_format" placeholder="请选择 API 格式" style="width: 100%">
+              <el-option label="OpenAI Chat Completions 格式" value="openai" />
+              <el-option label="Claude Messages 格式" value="claude" />
+              <el-option label="Gemini 格式" value="gemini" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="完整 URL">
+            <div class="url-mode-row">
+              <el-switch v-model="providerFormData.use_full_url" />
+              <span class="form-item-hint">开启后直接使用填写的地址</span>
+            </div>
+          </el-form-item>
+          <el-form-item label="请求地址" required>
+            <el-input
+              v-model="providerFormData.api_url"
+              placeholder="e.g. https://api.openai.com/v1"
+            />
+          </el-form-item>
+          <el-form-item label="服务商名称" required>
+            <el-input v-model="providerFormData.name" placeholder="请输入服务商名称" />
+          </el-form-item>
+          <el-form-item label="API 密钥" required>
+            <el-input v-model="providerFormData.api_key" type="password" placeholder="输入 API 密钥" show-password />
+          </el-form-item>
+        </el-form>
+      </div>
+
       <template #footer>
         <el-button @click="providerDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleSubmitProvider">确定</el-button>
@@ -237,21 +296,32 @@
         <el-form-item label="模型标识" required>
           <el-input v-model="modelFormData.model" placeholder="例如: gpt-4, claude-3-opus-20240229" />
         </el-form-item>
-        <el-form-item label="温度">
-          <el-slider v-model="modelFormData.temperature" :min="0" :max="2" :step="0.1" />
-          <span style="margin-left: 10px;">{{ modelFormData.temperature }}</span>
-        </el-form-item>
-        <el-form-item label="最大Token">
-          <el-input-number v-model="modelFormData.max_tokens" :min="100" :max="resolvedModelMaxTokens" :step="100" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="Top P">
-          <el-slider v-model="modelFormData.top_p" :min="0" :max="1" :step="0.05" />
-          <span style="margin-left: 10px;">{{ modelFormData.top_p }}</span>
-        </el-form-item>
-        <el-form-item label="惩罚力度">
-          <el-slider v-model="modelFormData.frequency_penalty" :min="-2" :max="2" :step="0.1" />
-          <span style="margin-left: 10px;">{{ modelFormData.frequency_penalty }}</span>
-        </el-form-item>
+
+        <!-- 高级配置折叠区 -->
+        <div class="advanced-config-toggle" @click="showModelAdvanced = !showModelAdvanced">
+          <span>高级配置</span>
+          <el-icon :class="{ 'is-rotate': showModelAdvanced }"><ArrowDown /></el-icon>
+        </div>
+        <el-collapse-transition>
+          <div v-show="showModelAdvanced" class="advanced-config-content">
+            <el-form-item label="温度">
+              <el-slider v-model="modelFormData.temperature" :min="0" :max="2" :step="0.1" />
+              <span style="margin-left: 10px;">{{ modelFormData.temperature }}</span>
+            </el-form-item>
+            <el-form-item label="最大Token">
+              <el-input-number v-model="modelFormData.max_tokens" :min="100" :max="resolvedModelMaxTokens" :step="100" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="Top P">
+              <el-slider v-model="modelFormData.top_p" :min="0" :max="1" :step="0.05" />
+              <span style="margin-left: 10px;">{{ modelFormData.top_p }}</span>
+            </el-form-item>
+            <el-form-item label="惩罚力度">
+              <el-slider v-model="modelFormData.frequency_penalty" :min="-2" :max="2" :step="0.1" />
+              <span style="margin-left: 10px;">{{ modelFormData.frequency_penalty }}</span>
+            </el-form-item>
+          </div>
+        </el-collapse-transition>
+
         <el-form-item label="模型描述">
           <el-input v-model="modelFormData.description" type="textarea" :rows="3" placeholder="模型的简介描述" />
         </el-form-item>
@@ -335,12 +405,17 @@ const activeTab = ref('providers')
 const providers = ref<ApiProvider[]>([])
 const providerDialogVisible = ref(false)
 const isEditProvider = ref(false)
+const providerAddMode = ref<'preset' | 'custom'>('preset')
+const showProviderAdvanced = ref(false)
 const providerFormData = ref({
   id: 0,
   name: '',
   provider_type: 'openai',
   api_key: '',
-  api_url: ''
+  api_url: '',
+  url_suffix_mode: 'compat' as 'compat' | 'none',
+  api_format: 'openai' as 'openai' | 'claude' | 'gemini',
+  use_full_url: false
 })
 
 const models = ref<ApiModel[]>([])
@@ -351,6 +426,7 @@ const discoveredModels = ref<Array<{ id: string; name: string; max_tokens?: numb
 const discoveringModels = ref(false)
 const selectedDiscoveredModel = ref('')
 const resolvedModelMaxTokens = ref(128000)
+const showModelAdvanced = ref(false)
 const modelFormData = ref({
   id: 0,
   provider_id: 0,
@@ -414,176 +490,14 @@ const initializeDefaultProviders = async () => {
       }
     ]
     
-    let deepSeekProviderId: number | null = null
-    let siliconFlowProviderId: number | null = null
-    let modelScopeProviderId: number | null = null
-    let bltcyProviderId: number | null = null
-    
     for (const provider of defaultProviders) {
       const res = await providerAPI.create(provider)
       if (res.success && res.data) {
         ElMessage.success(`已自动添加 ${provider.name} 服务商，请配置 API 密钥后使用`)
-        
-        if (provider.name === 'DeepSeek') {
-          deepSeekProviderId = res.data.id
-          
-          const deepSeekModels = [
-            {
-              provider_id: res.data.id,
-              name: 'DeepSeek Chat',
-              model: 'deepseek-chat',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 1
-            },
-            {
-              provider_id: res.data.id,
-              name: 'DeepSeek Reasoner',
-              model: 'deepseek-reasoner',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            }
-          ]
-          
-          for (const model of deepSeekModels) {
-            await configAPI.create(model)
-          }
-          
-          ElMessage.success('已为 DeepSeek 添加默认模型：deepseek-chat, deepseek-reasoner')
-        }
-        
-        if (provider.name === 'SiliconFlow') {
-          siliconFlowProviderId = res.data.id
-          
-          const siliconFlowModels = [
-            {
-              provider_id: res.data.id,
-              name: 'GLM-5',
-              model: 'Pro/zai-org/GLM-5',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 1
-            },
-            {
-              provider_id: res.data.id,
-              name: 'DeepSeek-R1',
-              model: 'deepseek-ai/DeepSeek-R1',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            }
-          ]
-          
-          for (const model of siliconFlowModels) {
-            await configAPI.create(model)
-          }
-          
-          ElMessage.success('已为 SiliconFlow 添加默认模型：GLM-5, DeepSeek-R1')
-        }
-        
-        if (provider.name === 'bltcy.ai') {
-          bltcyProviderId = res.data.id
-          
-          const bltcyModels = [
-            {
-              provider_id: res.data.id,
-              name: 'Gemini 3 Pro Preview',
-              model: 'gemini-3-pro-preview',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 1
-            },
-            {
-              provider_id: res.data.id,
-              name: 'Gemini 2.5 Pro',
-              model: 'gemini-2.5-pro',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            },
-            {
-              provider_id: res.data.id,
-              name: 'Gemini 3 Flash Preview',
-              model: 'gemini-3-flash-preview',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            },
-            {
-              provider_id: res.data.id,
-              name: 'Gemini 2.5 Flash Thinking',
-              model: 'gemini-2.5-flash-thinking',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            },
-            {
-              provider_id: res.data.id,
-              name: 'Gemini 2.5 Pro Thinking',
-              model: 'gemini-2.5-pro-thinking-*',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            },
-            {
-              provider_id: res.data.id,
-              name: 'DeepSeek R1',
-              model: 'deepseek-r1-250528',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            }
-          ]
-          
-          for (const model of bltcyModels) {
-            await configAPI.create(model)
-          }
-          
-          ElMessage.success('已为 bltcy.ai 添加默认模型：Gemini 3 Pro Preview, Gemini 2.5 Pro, Gemini 3 Flash Preview, Gemini 2.5 Flash Thinking, Gemini 2.5 Pro Thinking')
-        }
-        
-        if (provider.name === 'ModelScope') {
-          modelScopeProviderId = res.data.id
-          
-          const modelScopeModels = [
-            {
-              provider_id: res.data.id,
-              name: 'Kimi-K2.5',
-              model: 'moonshotai/Kimi-K2.5',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 1
-            },
-            {
-              provider_id: res.data.id,
-              name: 'GLM-5',
-              model: 'ZhipuAI/GLM-5',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            },
-            {
-              provider_id: res.data.id,
-              name: 'GLM-5.1',
-              model: 'ZhipuAI/GLM-5.1',
-              temperature: 0.7,
-              max_tokens: 12800,
-              is_default: 0
-            }
-          ]
-          
-          for (const model of modelScopeModels) {
-            await configAPI.create(model)
-          }
-          
-          ElMessage.success('已为 ModelScope 添加默认模型：Kimi-K2.5, GLM-5, GLM-5.1')
-        }
       }
     }
     
     await fetchProviders()
-    await fetchModels()
   } catch (error) {
     console.error('初始化默认服务商失败:', error)
   }
@@ -614,24 +528,34 @@ const getProviderModelCount = (providerId: number) => {
 
 const handleCreateProvider = () => {
   isEditProvider.value = false
+  providerAddMode.value = 'preset'
+  showProviderAdvanced.value = false
   providerFormData.value = {
     id: 0,
     name: '',
     provider_type: 'openai',
     api_key: '',
-    api_url: ''
+    api_url: '',
+    url_suffix_mode: 'compat',
+    api_format: 'openai',
+    use_full_url: false
   }
   providerDialogVisible.value = true
 }
 
 const handleEditProvider = (provider: ApiProvider) => {
   isEditProvider.value = true
+  providerAddMode.value = 'preset'
+  showProviderAdvanced.value = false
   providerFormData.value = {
     id: provider.id,
     name: provider.name,
     provider_type: provider.provider_type,
     api_key: provider.api_key,
-    api_url: provider.api_url
+    api_url: provider.api_url,
+    url_suffix_mode: provider.url_suffix_mode || 'compat',
+    api_format: 'openai',
+    use_full_url: provider.use_full_url || false
   }
   providerDialogVisible.value = true
 }
@@ -654,19 +578,68 @@ const handleDeleteProvider = async (provider: ApiProvider) => {
   }
 }
 
-const normalizeApiUrl = (url: string) => {
+const normalizeApiUrl = (url: string, useFullUrl: boolean) => {
   const trimmed = url.trim().replace(/\/+$/, '')
   if (!trimmed) return ''
+  // 开启完整URL时，直接返回用户填写的地址，不做任何修改
+  if (useFullUrl) return trimmed
+  // 已经以 /chat/completions 结尾，直接返回
   if (trimmed.endsWith('/chat/completions')) return trimmed
+  // 检查是否包含 /v1，如果没有则添加
+  if (!trimmed.includes('/v1')) {
+    return `${trimmed}/v1/chat/completions`
+  }
   return `${trimmed}/chat/completions`
 }
 
+// 预设服务商的本土地址映射（自动填充 API 地址）
+const PRESET_PROVIDER_DEFAULTS: Record<string, { name: string; api_url: string }> = {
+  openai: { name: 'OpenAI', api_url: 'https://api.openai.com/v1' },
+  azure: { name: 'Azure OpenAI', api_url: 'https://YOUR_RESOURCE.openai.azure.com' },
+  claude: { name: 'Claude', api_url: 'https://api.anthropic.com/v1' },
+  qwen: { name: '通义千问', api_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  deepseek: { name: 'DeepSeek', api_url: 'https://api.deepseek.com/v1' },
+  gemini: { name: 'Gemini', api_url: 'https://generativelanguage.googleapis.com/v1beta' },
+  siliconflow: { name: '硅基流动 SiliconFlow', api_url: 'https://api.siliconflow.cn/v1' },
+  modelscope: { name: 'ModelScope', api_url: 'https://api-inference.modelscope.cn/v1' },
+  other: { name: '', api_url: '' }
+}
+
+const onPresetProviderChange = (value: string) => {
+  const preset = PRESET_PROVIDER_DEFAULTS[value]
+  if (!preset) return
+  // 自动填名称（仅当用户没有自定义备注）
+  if (!providerFormData.value.name || Object.values(PRESET_PROVIDER_DEFAULTS).some(p => p.name === providerFormData.value.name)) {
+    providerFormData.value.name = preset.name
+  }
+  // 自动填 API 地址（仅当用户没改过）
+  if (!providerFormData.value.api_url) {
+    providerFormData.value.api_url = preset.api_url
+  }
+}
+
 const handleSubmitProvider = async () => {
-  if (!providerFormData.value.name || !providerFormData.value.provider_type || !providerFormData.value.api_url) {
-    ElMessage.warning('请填写完整信息')
+  if (!providerFormData.value.provider_type) {
+    ElMessage.warning('请选择服务商')
     return
   }
-  providerFormData.value.api_url = normalizeApiUrl(providerFormData.value.api_url)
+  if (!providerFormData.value.api_key) {
+    ElMessage.warning('请填写 API 密钥')
+    return
+  }
+  // 预设模式下若备注名称为空，用预设名兜底
+  if (!providerFormData.value.name) {
+    const preset = PRESET_PROVIDER_DEFAULTS[providerFormData.value.provider_type]
+    if (preset) {
+      providerFormData.value.name = preset.name
+    }
+  }
+  // 自定义模式下强制要求 URL
+  if (providerAddMode.value === 'custom' && !providerFormData.value.api_url) {
+    ElMessage.warning('请填写请求地址')
+    return
+  }
+  providerFormData.value.api_url = normalizeApiUrl(providerFormData.value.api_url, providerFormData.value.use_full_url)
   try {
     if (isEditProvider.value) {
       const res = await providerAPI.update(providerFormData.value.id, providerFormData.value)
@@ -695,6 +668,7 @@ const handleCreateModel = () => {
   discoveredModels.value = []
   selectedDiscoveredModel.value = ''
   resolvedModelMaxTokens.value = 128000
+  showModelAdvanced.value = false
   modelFormData.value = {
     id: 0,
     provider_id: providers.value[0]?.id || 0,
@@ -716,6 +690,7 @@ const handleEditModel = (model: ApiModel) => {
   discoveredModels.value = []
   selectedDiscoveredModel.value = ''
   resolvedModelMaxTokens.value = 128000
+  showModelAdvanced.value = false
   modelFormData.value = {
     id: model.id,
     provider_id: model.provider_id,
@@ -833,7 +808,7 @@ const resolveMaxTokens = (modelId: string, apiMaxTokens?: number | null) => {
   for (const [key, value] of Object.entries(KNOWN_MODEL_MAX_TOKENS)) {
     if (lower.includes(key)) return value
   }
-  return 2000
+  return 8192
 }
 
 const onDiscoveredModelSelect = (modelId: string) => {
@@ -1222,6 +1197,131 @@ const executeExportAll = () => {
   border-radius: 8px;
 }
 
+/* 模型添加对话框样式 */
+.model-add-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.model-add-tab {
+  padding: 12px 24px;
+  font-size: 14px;
+  color: #606266;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.model-add-tab:hover {
+  color: #409eff;
+}
+
+.model-add-tab.active {
+  color: #409eff;
+  font-weight: 500;
+}
+
+.model-add-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #409eff;
+}
+
+.model-add-content {
+  padding-top: 8px;
+}
+
+/* 高级配置折叠区 */
+.advanced-config-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  margin: 16px 0;
+  border-top: 1px dashed #e4e7ed;
+  cursor: pointer;
+  color: #606266;
+  font-size: 14px;
+  transition: color 0.2s;
+}
+
+.advanced-config-toggle:hover {
+  color: #409eff;
+}
+
+.advanced-config-toggle .el-icon {
+  transition: transform 0.3s;
+}
+
+.advanced-config-toggle .el-icon.is-rotate {
+  transform: rotate(180deg);
+}
+
+.advanced-config-content {
+  padding: 8px 0 16px;
+}
+
+/* 输入框字符计数 */
+.input-with-count {
+  width: 100%;
+}
+
+/* 上下文窗口输入 */
+.context-window-inputs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.context-input-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.context-label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.context-plus {
+  color: #909399;
+  font-size: 14px;
+}
+
+/* 模型 ID 输入行 */
+.model-id-input {
+  display: flex;
+  align-items: center;
+}
+
+/* 表单项提示 */
+.form-item-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* 自定义配置提示 */
+.custom-config-hint {
+  margin-bottom: 16px;
+}
+
+/* 完整 URL 行 */
+.url-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 @media (max-width: 768px) {
   .overview-grid {
     grid-template-columns: 1fr;
@@ -1230,6 +1330,19 @@ const executeExportAll = () => {
   .header {
     flex-direction: column;
     gap: 16px;
+    align-items: flex-start;
+  }
+
+  .context-window-inputs {
+    flex-direction: column;
+  }
+
+  .context-plus {
+    display: none;
+  }
+
+  .model-id-input {
+    flex-direction: column;
     align-items: flex-start;
   }
 }

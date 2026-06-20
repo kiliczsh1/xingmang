@@ -4,7 +4,7 @@ import type { ApiResponse, Book, Chapter, Prompt, Memo, ApiProvider, ApiModel, C
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 60000
+  timeout: 180000
 })
 
 // 响应拦截器
@@ -37,6 +37,10 @@ export const chapterAPI = {
     bookId: number
     chapters: Array<Pick<Chapter, 'title' | 'content'>>
   }) => api.post<any, ApiResponse<{ insertedCount: number; chapters: Chapter[] }>>('/chapters/import-book', data),
+  importFile: (data: {
+    bookId: number
+    file: { name: string; size: number; data_base64: string }
+  }) => api.post<any, ApiResponse<{ insertedCount: number; chapters: Chapter[] }>>('/chapters/import-file', data),
   update: (id: number, data: Partial<Chapter>) => api.put<any, ApiResponse<Chapter>>(`/chapters/${id}`, data),
   delete: (id: number) => api.delete<any, ApiResponse>(`/chapters/${id}`)
 }
@@ -119,6 +123,42 @@ export const aiAPI = {
   }) => api.post<any, ApiResponse<string>>('/ai/chat', data),
   generateDescription: (data: { title: string; promptId?: number }) => 
     api.post<any, ApiResponse<string>>('/ai/generate-description', data),
+  generateImage: (
+    data: {
+      messages: ChatMessage[]
+      configId?: number
+      size?: string
+      quality?: string
+      style?: string
+      reference_images?: Array<{
+        name: string
+        size: number
+        mime_type: string
+        data_base64: string
+        source_url?: string
+      }>
+    },
+    options?: { signal?: AbortSignal }
+  ) => api.post<any, ApiResponse<{ url: string }>>('/ai/generate-image', data, options),
+  getRankReferenceCategories: () =>
+    api.get<any, ApiResponse<Array<{
+      key: string
+      label: string
+      categories: Array<{
+        id: string
+        label: string
+        path: string
+        fullUrl: string
+      }>
+    }>>>('/ai/rank-reference/categories'),
+  getRankReferenceBooks: (path: string) =>
+    api.get<any, ApiResponse<Array<{
+      rank: number
+      title: string
+      author: string
+      coverUrl: string
+      bookPath: string
+    }>>>('/ai/rank-reference/books', { params: { path } }),
   recognizeCharacters: (data: { text: string; configId?: number; customPrompt?: string }) => 
     api.post<any, ApiResponse<any[]>>('/ai/recognize-characters', data)
 }
@@ -132,12 +172,12 @@ export const conversationAPI = {
   update: (id: number, data: { title: string }) => api.put<any, ApiResponse<any>>(`/conversations/${id}`, data),
   delete: (id: number) => api.delete<any, ApiResponse>(`/conversations/${id}`),
   getMessages: (id: number) => api.get<any, ApiResponse<any[]>>(`/conversations/${id}/messages`),
-  saveMessage: (id: number, data: { role: string; content: string }) => 
+  saveMessage: (id: number, data: { role: string; content: string; displayContent?: string }) =>
     api.post<any, ApiResponse<any>>(`/conversations/${id}/messages`, data),
   clearMessages: (id: number) => api.delete<any, ApiResponse>(`/conversations/${id}/messages`),
   deleteMessage: (conversationId: number, messageId: number) => 
     api.delete<any, ApiResponse>(`/conversations/${conversationId}/messages/${messageId}`),
-  updateMessage: (conversationId: number, messageId: number, data: { content: string }) => 
+  updateMessage: (conversationId: number, messageId: number, data: { content: string; displayContent?: string }) => 
     api.put<any, ApiResponse<any>>(`/conversations/${conversationId}/messages/${messageId}`, data)
 }
 
@@ -192,9 +232,13 @@ export const knowledgeGraphAPI = {
   createRelation: (data: Partial<GraphRelation>) => api.post<any, ApiResponse<GraphRelation>>('/knowledge-graph/relations', data),
   updateRelation: (id: number, data: Partial<GraphRelation>) => api.put<any, ApiResponse<GraphRelation>>(`/knowledge-graph/relations/${id}`, data),
   deleteRelation: (id: number) => api.delete<any, ApiResponse>(`/knowledge-graph/relations/${id}`),
-  analyze: (data: { bookId: number; configId?: number; scope?: 'all' | 'chapters'; chapterIds?: number[]; versionId: number }) =>
+  analyze: (data: { bookId: number; configId?: number; scope?: 'all' | 'chapters'; chapterIds?: number[]; versionId?: number }) =>
     api.post<any, ApiResponse<KnowledgeGraphData>>('/knowledge-graph/analyze', data, { timeout: 300000 }),
+  aiSupplement: (data: { bookId: number; configId: number; entityName: string; entityType: string; entityDescription: string; hint?: string; chapterIds?: number[] }) =>
+    api.post<any, ApiResponse<{ content: string }>>('/knowledge-graph/ai-supplement', data, { timeout: 120000 }),
   clearGraph: (bookId: number) => api.delete<any, ApiResponse>(`/knowledge-graph/graph/${bookId}`),
+  importGraph: (bookId: number, data: KnowledgeGraphData) =>
+    api.post<any, ApiResponse<KnowledgeGraphData>>('/knowledge-graph/graph/import', { bookId, ...data }),
   getVersions: (bookId: number) => api.get<any, ApiResponse<GraphVersion[]>>(`/knowledge-graph/versions/${bookId}`),
   createVersion: (bookId: number, name?: string) => api.post<any, ApiResponse<GraphVersion>>('/knowledge-graph/versions', { bookId, name }),
   getVersionData: (versionId: number) => api.get<any, ApiResponse<KnowledgeGraphData>>(`/knowledge-graph/version/${versionId}`),

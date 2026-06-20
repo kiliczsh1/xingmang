@@ -675,9 +675,9 @@
                             placeholder="请选择"
                           >
                             <el-option
-                              v-for="option in field.options"
+                              v-for="(option, optionIndex) in field.options"
                               :key="option"
-                              :label="option"
+                              :label="field.optionLabels?.[optionIndex] || option"
                               :value="option"
                             />
                           </el-select>

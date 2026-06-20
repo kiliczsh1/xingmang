@@ -76,6 +76,18 @@
   --button-default-bg: #152340;
   --button-default-text: #f4f7ff;
   --button-default-border: rgba(45, 212, 191, 0.14);
+
+  /* 自定义语义色 - 玫红（工作流徽章） */
+  --history-badge-workflow-bg: rgba(244, 63, 94, 0.15);
+  --history-badge-workflow-color: #fb7185;
+  --history-badge-workflow-border: rgba(244, 63, 94, 0.3);
+}
+
+/* 浅色主题对应变量 */
+:root:not([data-theme='dark']) {
+  --history-badge-workflow-bg: #fce7f3;
+  --history-badge-workflow-color: #db2777;
+  --history-badge-workflow-border: #fbcfe8;
 }
 
 /* 暗色主题下的页面样式覆盖 */
@@ -584,6 +596,46 @@
 :root[data-theme='dark'] .catalog-item.active .delete-action-btn:hover {
   background: rgba(255, 255, 255, 0.25) !important;
   color: #fff !important;
+}
+
+/* 章节卡片选中态（WriteCatalogTree）暗色主题 */
+:root[data-theme='dark'] .chapter-card {
+  background: rgba(15, 118, 110, 0.08) !important;
+}
+
+:root[data-theme='dark'] .chapter-card-indicator {
+  background: linear-gradient(180deg, #5eead4, #2dd4bf) !important;
+}
+
+:root[data-theme='dark'] .chapter-card-title {
+  color: #e2e8f0 !important;
+}
+
+:root[data-theme='dark'] .chapter-card-word-count {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .chapter-card-bookmark-icon {
+  color: #5eead4 !important;
+  opacity: 0.6;
+}
+
+:root[data-theme='dark'] .chapter-card-bookmark-icon:hover {
+  color: #fbbf24 !important;
+  opacity: 1;
+}
+
+:root[data-theme='dark'] .chapter-card-sub-row {
+  color: #7c8aa0 !important;
+}
+
+:root[data-theme='dark'] .chapter-action-delete {
+  background: rgba(248, 113, 113, 0.12) !important;
+  color: #f87171 !important;
+}
+
+:root[data-theme='dark'] .chapter-action-delete:hover {
+  background: rgba(248, 113, 113, 0.22) !important;
 }
 
 /* 中间编辑器面板暗色主题 */
@@ -1351,4 +1403,40 @@
 
 :root[data-theme='dark'] .test-col .field-label {
   color: var(--text-secondary) !important;
+}
+
+/* ── form-area Select 下拉弹出层：暗色主题（popper teleport 到 body） ── */
+:root[data-theme='dark'] .form-area-select-popper {
+  background: #1e293b !important;
+  border: 1px solid rgba(94, 234, 212, 0.18) !important;
+}
+
+:root[data-theme='dark'] .form-area-select-popper .el-select-dropdown__wrap {
+  background: #1e293b !important;
+}
+
+:root[data-theme='dark'] .form-area-select-popper .el-select-dropdown .el-scrollbar__view,
+:root[data-theme='dark'] .form-area-select-popper .el-select-dropdown .el-scrollbar__bar {
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .form-area-select-popper .el-select-dropdown__item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:root[data-theme='dark'] .form-area-select-popper .el-select-dropdown__item:hover {
+  background: rgba(94, 234, 212, 0.1) !important;
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .form-area-select-popper .el-select-dropdown__item.is-selected {
+  background: rgba(94, 234, 212, 0.15) !important;
+  color: #5eead4 !important;
+  font-weight: 500;
+}
+
+:root[data-theme='dark'] .form-area-select-popper .model-option .el-tag {
+  --el-tag-bg-color: rgba(94, 234, 212, 0.12) !important;
+  --el-tag-border-color: rgba(94, 234, 212, 0.24) !important;
+  --el-tag-text-color: #5eead4 !important;
 }

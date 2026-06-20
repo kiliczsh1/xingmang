@@ -36,14 +36,17 @@ router.get('/:id', (req, res) => {
 // 创建服务商
 router.post('/', (req, res) => {
   try {
-    const { name, provider_type, api_key, api_url } = req.body;
+    const { name, provider_type, api_key, api_url, api_format, use_full_url } = req.body;
     
     if (!name || !provider_type || !api_url) {
       return res.status(400).json({ success: false, message: '请填写完整信息' });
     }
     
-    const stmt = db.prepare('INSERT INTO api_providers (name, provider_type, api_key, api_url) VALUES (?, ?, ?, ?)');
-    const result = stmt.run(name, provider_type, api_key, api_url);
+    const format = api_format || 'openai';
+    const fullUrl = use_full_url ? 1 : 0;
+    
+    const stmt = db.prepare('INSERT INTO api_providers (name, provider_type, api_key, api_url, api_format, use_full_url) VALUES (?, ?, ?, ?, ?, ?)');
+    const result = stmt.run(name, provider_type, api_key, api_url, format, fullUrl);
     const provider = db.prepare('SELECT * FROM api_providers WHERE id = ?').get(result.lastInsertRowid);
     res.json({ success: true, data: provider });
   } catch (error) {
@@ -54,14 +57,17 @@ router.post('/', (req, res) => {
 // 更新服务商
 router.put('/:id', (req, res) => {
   try {
-    const { name, provider_type, api_key, api_url } = req.body;
+    const { name, provider_type, api_key, api_url, api_format, use_full_url } = req.body;
     
     if (!name || !provider_type || !api_url) {
       return res.status(400).json({ success: false, message: '请填写完整信息' });
     }
     
-    const stmt = db.prepare('UPDATE api_providers SET name = ?, provider_type = ?, api_key = ?, api_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    stmt.run(name, provider_type, api_key, api_url, req.params.id);
+    const format = api_format || 'openai';
+    const fullUrl = use_full_url ? 1 : 0;
+    
+    const stmt = db.prepare('UPDATE api_providers SET name = ?, provider_type = ?, api_key = ?, api_url = ?, api_format = ?, use_full_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    stmt.run(name, provider_type, api_key, api_url, format, fullUrl, req.params.id);
     const provider = db.prepare('SELECT * FROM api_providers WHERE id = ?').get(req.params.id);
     res.json({ success: true, data: provider });
   } catch (error) {

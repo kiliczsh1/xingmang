@@ -13,6 +13,10 @@
           <el-tag :type="isPdfImportMode ? 'warning' : 'success'">
             {{ isPdfImportMode ? 'PDF 导入创建' : '手动创建' }}
           </el-tag>
+          <el-button @click="openPreviewDialog">预览效果</el-button>
+          <el-button v-if="!currentPdfDisplay" @click="openPdfPicker(isPdfImportMode ? 'import' : 'attachment')">
+            选择 PDF
+          </el-button>
           <el-button type="primary" :loading="submitting" @click="handleSubmit">
             保存修改
           </el-button>
@@ -67,13 +71,30 @@
 
           <el-form-item v-if="!isPdfImportMode" label="封面图">
             <div class="cover-field">
-              <el-input
-                v-model="formData.cover_url"
-                placeholder="请输入封面图 URL，详情页顶部会展示这张图片"
-                clearable
-              />
-              <div v-if="formData.cover_url" class="cover-preview-card">
-                <img :src="formData.cover_url" alt="封面预览" class="cover-preview-image" />
+              <div v-if="currentCoverDisplay" class="cover-preview-card">
+                <img :src="currentCoverDisplay.url" alt="封面预览" class="cover-preview-image" />
+                <div class="cover-preview-actions">
+                  <el-button type="primary" plain size="small" @click="openCoverImagePicker">
+                    替换图片
+                  </el-button>
+                  <el-button type="danger" plain size="small" @click="removeCoverImage">
+                    移除
+                  </el-button>
+                </div>
+              </div>
+              <div v-else class="cover-upload-area" @click="openCoverImagePicker">
+                <el-icon class="cover-upload-icon"><Plus /></el-icon>
+                <span class="cover-upload-text">点击上传封面图</span>
+                <span class="cover-upload-hint">支持 jpg、png、gif 格式，建议尺寸 16:9</span>
+              </div>
+              <div class="cover-url-input">
+                <span class="cover-url-label">或输入图片URL：</span>
+                <el-input
+                  v-model="formData.cover_url"
+                  placeholder="https://example.com/cover.jpg"
+                  clearable
+                  @input="handleCoverUrlInput"
+                />
               </div>
             </div>
           </el-form-item>
@@ -93,10 +114,9 @@
           </el-form-item>
 
           <el-form-item v-if="!isPdfImportMode" label="正文" required>
-            <ExperienceContentEditor
+            <TipTapEditor
               v-model="formData.content"
-              v-model:render-mode="formData.content_render_mode"
-              placeholder="请输入正文内容，支持 Markdown 语法"
+              placeholder="请输入正文内容"
               class="content-editor"
             />
           </el-form-item>
@@ -113,49 +133,6 @@
               <div v-else class="pdf-content-preview__empty">
                 请先上传 PDF 文件，系统会按页展示图片内容。
               </div>
-            </div>
-          </el-form-item>
-
-          <el-form-item label="PDF 附件">
-            <div class="pdf-section">
-              <div v-if="currentPdfDisplay" class="pdf-file-card">
-                <div class="pdf-file-main">
-                  <el-icon class="pdf-file-icon"><Document /></el-icon>
-                  <div class="pdf-file-meta">
-                    <div class="pdf-file-name">{{ currentPdfDisplay.fileName }}</div>
-                    <div class="pdf-file-desc">
-                      <span>{{ formatFileSize(currentPdfDisplay.fileSize) }}</span>
-                      <span>{{ currentPdfDisplay.isLocal ? '待保存到系统' : '已保存附件' }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="pdf-file-actions">
-                  <el-button type="primary" plain @click="previewCurrentPdf">预览</el-button>
-                  <el-button @click="openPdfPicker(isPdfImportMode ? 'import' : 'attachment')">
-                    替换
-                  </el-button>
-                  <el-button type="danger" plain @click="removeCurrentPdf">移除</el-button>
-                </div>
-              </div>
-
-              <div v-else class="pdf-empty">
-                <div class="pdf-empty-text">
-                  <strong>支持上传 1 个 PDF 附件</strong>
-                  <span>仅支持 `.pdf`，单文件不超过 20MB。</span>
-                </div>
-                <el-button @click="openPdfPicker(isPdfImportMode ? 'import' : 'attachment')">
-                  选择 PDF
-                </el-button>
-              </div>
-
-              <el-alert
-                v-if="formData.pdf_parse_result"
-                :title="formData.pdf_parse_result"
-                :type="formData.pdf_parse_status === 'empty' ? 'warning' : 'success'"
-                :closable="false"
-                show-icon
-              />
             </div>
           </el-form-item>
         </el-form>
@@ -197,22 +174,54 @@
       style="display: none"
       @change="handlePdfFileChange"
     />
+
+    <input
+      ref="coverImageInputRef"
+      type="file"
+      accept="image/jpeg,image/png,image/gif,image/webp"
+      style="display: none"
+      @change="handleCoverImageChange"
+    />
+
+    <el-dialog
+      v-model="previewDialogVisible"
+      title="效果预览"
+      width="800px"
+      top="5vh"
+      destroy-on-close
+      append-to-body
+      class="preview-dialog"
+    >
+      <div class="preview-content">
+        <div class="preview-card">
+          <div v-if="previewData.cover_url" class="preview-cover">
+            <img :src="previewData.cover_url" alt="封面" />
+          </div>
+          <div class="preview-body">
+            <h2 class="preview-title">{{ previewData.title || '未填写标题' }}</h2>
+            <p v-if="previewData.summary" class="preview-summary">{{ previewData.summary }}</p>
+            <div class="preview-main">
+              <div v-if="previewData.content" class="preview-html" v-html="previewData.content"></div>
+              <p v-else class="preview-empty">暂无正文内容</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { experienceShareAPI } from '@/api'
 import type { ExperienceShare } from '@/types'
-import SplitRichTextEditor from '@/components/SplitRichTextEditor.vue'
-import ExperienceContentEditor from '@/components/ExperienceContentEditor.vue'
+import TipTapEditor from '@/components/TipTapEditor.vue'
 import PdfPageGallery from '@/components/PdfPageGallery.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 
 type PdfPickerMode = 'attachment' | 'import'
-type ContentRenderMode = 'markdown' | 'html'
 
 type PdfUploadPayload = {
   name: string
@@ -224,13 +233,22 @@ type LocalPdfAttachment = PdfUploadPayload & {
   objectUrl: string
 }
 
+type CoverImagePayload = {
+  name: string
+  size: number
+  data_base64: string
+}
+
+type LocalCoverImage = CoverImagePayload & {
+  objectUrl: string
+}
+
 type FormState = {
   id: number
   title: string
   summary: string
   cover_url: string
   content: string
-  content_render_mode: ContentRenderMode
   create_type: 'manual' | 'pdf_import'
   author_name: string
   version: string
@@ -242,6 +260,7 @@ type FormState = {
   existing_pdf_file_name: string
   existing_pdf_file_size: number
   remove_pdf: boolean
+  remove_cover: boolean
 }
 
 const MAX_PDF_SIZE = 20 * 1024 * 1024
@@ -252,14 +271,23 @@ const router = useRouter()
 const loading = ref(false)
 const loaded = ref(false)
 const submitting = ref(false)
+const previewDialogVisible = ref(false)
+const previewData = ref({
+  title: '',
+  summary: '',
+  content: '',
+  cover_url: ''
+})
 const importingPdf = ref(false)
 const pdfPreviewVisible = ref(false)
 const pdfPreviewUrl = ref('')
 const pdfPreviewFileName = ref('')
 const pdfPreviewDownloadName = ref('')
 const pdfFileInputRef = ref<HTMLInputElement | null>(null)
+const coverImageInputRef = ref<HTMLInputElement | null>(null)
 const pickerMode = ref<PdfPickerMode>('attachment')
 const localPdfAttachment = ref<LocalPdfAttachment | null>(null)
+const localCoverImage = ref<LocalCoverImage | null>(null)
 
 const createEmptyForm = (): FormState => ({
   id: 0,
@@ -267,7 +295,6 @@ const createEmptyForm = (): FormState => ({
   summary: '',
   cover_url: '',
   content: '',
-  content_render_mode: 'markdown',
   create_type: 'manual',
   author_name: '星芒用户',
   version: '',
@@ -278,7 +305,8 @@ const createEmptyForm = (): FormState => ({
   existing_pdf_file_url: '',
   existing_pdf_file_name: '',
   existing_pdf_file_size: 0,
-  remove_pdf: false
+  remove_pdf: false,
+  remove_cover: false
 })
 
 const formData = ref<FormState>(createEmptyForm())
@@ -322,6 +350,28 @@ const currentPdfDisplay = computed(() => {
   return null
 })
 
+const currentCoverDisplay = computed(() => {
+  if (localCoverImage.value) {
+    return {
+      url: localCoverImage.value.objectUrl,
+      name: localCoverImage.value.name,
+      size: localCoverImage.value.size,
+      isLocal: true
+    }
+  }
+
+  if (formData.value.cover_url) {
+    return {
+      url: formData.value.cover_url,
+      name: '',
+      size: 0,
+      isLocal: false
+    }
+  }
+
+  return null
+})
+
 const revokeLocalPdf = () => {
   if (localPdfAttachment.value?.objectUrl) {
     URL.revokeObjectURL(localPdfAttachment.value.objectUrl)
@@ -329,15 +379,87 @@ const revokeLocalPdf = () => {
   localPdfAttachment.value = null
 }
 
+const revokeLocalCoverImage = () => {
+  if (localCoverImage.value?.objectUrl) {
+    URL.revokeObjectURL(localCoverImage.value.objectUrl)
+  }
+  localCoverImage.value = null
+}
+
+const MAX_COVER_IMAGE_SIZE = 5 * 1024 * 1024
+
+const openCoverImagePicker = () => {
+  coverImageInputRef.value?.click()
+}
+
+const handleCoverImageChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  try {
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      throw new Error('请选择图片文件')
+    }
+
+    if (file.size > MAX_COVER_IMAGE_SIZE) {
+      throw new Error('图片大小不能超过 5MB')
+    }
+
+    revokeLocalCoverImage()
+
+    const data_base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = () => reject(new Error('读取图片失败'))
+      reader.readAsDataURL(file)
+    })
+
+    const objectUrl = URL.createObjectURL(file)
+
+    localCoverImage.value = {
+      name: file.name,
+      size: file.size,
+      data_base64,
+      objectUrl
+    }
+    formData.value.cover_url = ''
+    formData.value.remove_cover = false
+  } catch (error: any) {
+    ElMessage.error(error.message || '上传图片失败')
+  } finally {
+    target.value = ''
+  }
+}
+
+const removeCoverImage = () => {
+  revokeLocalCoverImage()
+  if (formData.value.cover_url) {
+    formData.value.remove_cover = true
+  }
+  formData.value.cover_url = ''
+}
+
+const handleCoverUrlInput = () => {
+  if (formData.value.cover_url && localCoverImage.value) {
+    revokeLocalCoverImage()
+  }
+}
+
 const fillForm = (item: ExperienceShare) => {
   revokeLocalPdf()
+  revokeLocalCoverImage()
   formData.value = {
     id: item.id,
     title: item.title || '',
     summary: item.summary || '',
     cover_url: item.cover_url || '',
     content: item.content || '',
-    content_render_mode: item.content_render_mode === 'html' ? 'html' : 'markdown',
     create_type: item.create_type || 'manual',
     author_name: item.author_name || '星芒用户',
     version: item.version || '',
@@ -348,7 +470,8 @@ const fillForm = (item: ExperienceShare) => {
     existing_pdf_file_url: item.pdf_file_url || '',
     existing_pdf_file_name: item.pdf_file_name || '',
     existing_pdf_file_size: Number(item.pdf_file_size || 0),
-    remove_pdf: false
+    remove_pdf: false,
+    remove_cover: false
   }
 }
 
@@ -433,7 +556,6 @@ const applyImportedDraft = (draft: Partial<ExperienceShare>) => {
   formData.value.title = draft.title || formData.value.title
   formData.value.summary = draft.summary || ''
   formData.value.content = ''
-  formData.value.content_render_mode = 'markdown'
   formData.value.create_type = 'pdf_import'
   formData.value.pdf_parse_status = draft.pdf_parse_status || ''
   formData.value.pdf_parse_result = draft.pdf_parse_result || ''
@@ -525,6 +647,17 @@ const removeCurrentPdf = () => {
   }
 }
 
+const openPreviewDialog = () => {
+  const coverUrl = localCoverImage.value?.objectUrl || formData.value.cover_url || ''
+  previewData.value = {
+    title: formData.value.title,
+    summary: formData.value.summary,
+    content: formData.value.content,
+    cover_url: coverUrl
+  }
+  previewDialogVisible.value = true
+}
+
 const handleSubmit = async () => {
   if (!formData.value.title.trim()) {
     ElMessage.warning('标题不能为空')
@@ -548,7 +681,6 @@ const handleSubmit = async () => {
       summary: formData.value.summary.trim(),
       cover_url: formData.value.cover_url.trim(),
       content: isPdfImportMode.value ? '' : formData.value.content,
-      content_render_mode: formData.value.content_render_mode,
       create_type: formData.value.create_type,
       author_name: formData.value.author_name.trim(),
       version: formData.value.version.trim(),
@@ -556,7 +688,8 @@ const handleSubmit = async () => {
       pdf_parse_status: formData.value.pdf_parse_status || null,
       pdf_parse_result: formData.value.pdf_parse_result || null,
       source_file_name: formData.value.source_file_name || null,
-      remove_pdf: formData.value.remove_pdf
+      remove_pdf: formData.value.remove_pdf,
+      remove_cover: formData.value.remove_cover
     }
 
     if (localPdfAttachment.value) {
@@ -564,6 +697,14 @@ const handleSubmit = async () => {
         name: localPdfAttachment.value.name,
         size: localPdfAttachment.value.size,
         data_base64: localPdfAttachment.value.data_base64
+      }
+    }
+
+    if (localCoverImage.value) {
+      payload.cover_image = {
+        name: localCoverImage.value.name,
+        size: localCoverImage.value.size,
+        data_base64: localCoverImage.value.data_base64
       }
     }
 
@@ -584,6 +725,7 @@ onMounted(loadDetail)
 
 onBeforeUnmount(() => {
   revokeLocalPdf()
+  revokeLocalCoverImage()
 })
 </script>
 
@@ -625,8 +767,6 @@ onBeforeUnmount(() => {
 
 .editor-topbar,
 .topbar-actions,
-.pdf-file-main,
-.pdf-file-actions,
 .pdf-preview-file,
 .pdf-preview-actions {
   display: flex;
@@ -686,6 +826,45 @@ onBeforeUnmount(() => {
   margin-top: 4px;
 }
 
+/* 表单标签样式 - 参考项目风格 */
+.experience-form :deep(.el-form-item__label) {
+  font-size: 14px;
+  font-weight: 400;
+  color: #1f2225;
+  text-align: right;
+  justify-content: flex-end;
+}
+
+/* 输入框样式 - 参考项目风格 */
+.experience-form :deep(.el-input__wrapper) {
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset;
+  background-color: rgba(255, 255, 255, 1);
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.experience-form :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #36ad6a inset;
+}
+
+.experience-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.2), 0 0 0 1px #18a058 inset;
+}
+
+.experience-form :deep(.el-textarea__inner) {
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.experience-form :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px #36ad6a inset;
+}
+
+.experience-form :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.2), 0 0 0 1px #18a058 inset;
+}
+
 .content-editor {
   width: 100%;
   max-height: 820px;
@@ -701,10 +880,10 @@ onBeforeUnmount(() => {
 .cover-preview-card {
   overflow: hidden;
   max-width: 420px;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  border: 1px solid rgb(224, 224, 230);
   background: #ffffff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 .cover-preview-image {
@@ -714,6 +893,65 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 
+.cover-preview-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  background: #fafafa;
+}
+
+.cover-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  height: 180px;
+  border-radius: 6px;
+  border: 2px dashed rgb(224, 224, 230);
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
+}
+
+.cover-upload-area:hover {
+  border-color: #36ad6a;
+  background: rgba(24, 160, 88, 0.04);
+}
+
+.cover-upload-icon {
+  font-size: 32px;
+  color: #94a3b8;
+}
+
+.cover-upload-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.cover-upload-hint {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.cover-url-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.3);
+}
+
+.cover-url-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
 .import-panel {
   width: 100%;
   display: flex;
@@ -721,9 +959,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 16px;
   padding: 16px 18px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(255, 247, 230, 0.92), rgba(255, 252, 244, 0.95));
-  border: 1px solid rgba(250, 173, 20, 0.2);
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid rgb(224, 224, 230);
 }
 
 .import-title {
@@ -739,60 +977,6 @@ onBeforeUnmount(() => {
   line-height: 1.7;
 }
 
-.pdf-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-}
-
-.pdf-file-card,
-.pdf-empty {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-}
-
-.pdf-file-icon {
-  font-size: 26px;
-  color: #dc2626;
-  flex-shrink: 0;
-}
-
-.pdf-file-meta {
-  min-width: 0;
-}
-
-.pdf-file-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-  word-break: break-all;
-}
-
-.pdf-file-desc {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.pdf-empty-text {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: #475569;
-  font-size: 13px;
-}
-
 .pdf-content-preview {
   width: 100%;
   display: flex;
@@ -805,10 +989,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 6px;
   padding: 14px 16px;
-  border-radius: 16px;
+  border-radius: 6px;
   color: #4b5b58;
-  background: linear-gradient(180deg, rgba(255, 251, 244, 0.96), rgba(247, 249, 247, 0.98));
-  border: 1px solid rgba(120, 94, 52, 0.08);
+  background: #f8fafc;
+  border: 1px solid rgb(224, 224, 230);
 }
 
 .pdf-content-preview__frame {
@@ -817,17 +1001,17 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  border: 1px solid rgb(224, 224, 230);
   background: #ffffff;
 }
 
 .pdf-content-preview__empty {
   padding: 18px;
-  border-radius: 16px;
+  border-radius: 6px;
   color: #64748b;
   background: #f8fafc;
-  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border: 1px dashed rgb(224, 224, 230);
 }
 
 .pdf-preview-shell {
@@ -861,12 +1045,69 @@ onBeforeUnmount(() => {
   padding-right: 2px;
 }
 
+.preview-content {
+  padding: 0;
+}
+
+.preview-card {
+  border-radius: 6px;
+  border: 1px solid rgb(224, 224, 230);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.preview-cover {
+  width: 100%;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.preview-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-body {
+  padding: 20px;
+}
+
+.preview-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2225;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+}
+
+.preview-summary {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0 0 16px 0;
+  line-height: 1.6;
+}
+
+.preview-main {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.8;
+}
+
+.preview-html,
+.preview-markdown {
+  min-height: 100px;
+}
+
+.preview-empty {
+  color: #94a3b8;
+  text-align: center;
+  padding: 40px 0;
+}
+
 @media (max-width: 900px) {
   .editor-topbar,
   .topbar-actions,
   .import-panel,
-  .pdf-file-card,
-  .pdf-empty,
   .pdf-preview-toolbar {
     flex-direction: column;
     align-items: stretch;

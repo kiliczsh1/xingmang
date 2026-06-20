@@ -31,8 +31,13 @@
     <div class="editor-body">
       <div class="editor-pane source-pane">
         <div class="pane-header">
-          <span>源码</span>
-          <span class="char-count">{{ charCount }} 字符</span>
+          <span>正文内容</span>
+          <div class="pane-header-right">
+            <span class="char-count">{{ charCount }} 字符</span>
+            <el-tag size="small" :type="localRenderMode === 'markdown' ? 'success' : 'info'">
+              {{ localRenderMode === 'markdown' ? 'MD 渲染' : 'HTML 渲染' }}
+            </el-tag>
+          </div>
         </div>
         <textarea
           ref="textareaRef"
@@ -44,25 +49,6 @@
           @focus="handleFocus"
           @blur="handleBlur"
         ></textarea>
-      </div>
-
-      <div class="editor-pane preview-pane">
-        <div class="pane-header">
-          <span>预览</span>
-          <el-tag size="small" :type="localRenderMode === 'markdown' ? 'success' : 'info'">
-            {{ localRenderMode === 'markdown' ? 'MD 渲染' : 'HTML 渲染' }}
-          </el-tag>
-        </div>
-        <div class="preview-content">
-          <MarkdownRenderer
-            v-if="localContent"
-            :content="localContent"
-            :render-mode="localRenderMode"
-          />
-          <div v-else class="preview-empty">
-            {{ placeholder }}
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -79,7 +65,6 @@ import {
   Picture,
   Tickets
 } from '@element-plus/icons-vue'
-import MarkdownRenderer from './MarkdownRenderer.vue'
 
 type RenderMode = 'markdown' | 'html'
 
@@ -311,11 +296,10 @@ watch(
 .experience-content-editor {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(0, 201, 167, 0.16);
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 255, 252, 0.98) 100%);
+  border: 1px solid rgb(224, 224, 230);
+  border-radius: 6px;
+  background: #ffffff;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 136, 110, 0.08);
 }
 
 .editor-toolbar {
@@ -324,8 +308,8 @@ watch(
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(0, 201, 167, 0.1);
-  background: linear-gradient(180deg, rgba(247, 255, 252, 0.98) 0%, rgba(240, 253, 249, 0.96) 100%);
+  border-bottom: 1px solid rgb(224, 224, 230);
+  background: #fafafa;
   flex-wrap: wrap;
 }
 
@@ -349,9 +333,9 @@ watch(
   height: 26px;
   padding: 0 7px;
   border: 1px solid transparent;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
-  color: #436a63;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #475569;
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -360,11 +344,9 @@ watch(
 }
 
 .toolbar-btn:hover:not(:disabled) {
-  border-color: rgba(0, 201, 167, 0.28);
-  background: rgba(255, 255, 255, 0.94);
-  color: #00a187;
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0, 168, 150, 0.12);
+  border-color: #36ad6a;
+  background: #ffffff;
+  color: #18a058;
 }
 
 .toolbar-btn:disabled {
@@ -407,25 +389,27 @@ watch(
   min-width: 0;
 }
 
-.source-pane {
-  border-right: 1px solid rgba(0, 201, 167, 0.1);
-}
-
 .pane-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  border-bottom: 1px solid rgba(0, 201, 167, 0.08);
-  background: rgba(247, 255, 252, 0.5);
+  border-bottom: 1px solid rgb(224, 224, 230);
+  background: #fafafa;
   font-size: 13px;
   font-weight: 600;
-  color: #436a63;
+  color: #475569;
+}
+
+.pane-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .char-count {
   font-size: 12px;
-  color: #92b8b0;
+  color: #94a3b8;
   font-weight: 400;
 }
 
@@ -439,48 +423,24 @@ watch(
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
   line-height: 1.7;
-  color: #29443f;
+  color: #334155;
   background: transparent;
 }
 
 .source-textarea::placeholder {
-  color: #92b8b0;
+  color: #94a3b8;
 }
 
 .source-textarea:disabled {
-  color: #99b7b1;
+  color: #94a3b8;
   cursor: not-allowed;
-  background: rgba(245, 252, 250, 0.5);
-}
-
-.preview-pane {
-  background: rgba(255, 251, 244, 0.3);
-}
-
-.preview-content {
-  flex: 1;
-  padding: 16px 20px;
-  overflow-y: auto;
-}
-
-.preview-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #92b8b0;
-  font-size: 14px;
+  background: #fafafa;
 }
 
 @media (max-width: 900px) {
   .editor-body {
     flex-direction: column;
     max-height: none;
-  }
-
-  .source-pane {
-    border-right: none;
-    border-bottom: 1px solid rgba(0, 201, 167, 0.1);
   }
 
   .editor-pane {

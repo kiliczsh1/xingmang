@@ -30,6 +30,7 @@
         :contenteditable="!disabled"
         :data-placeholder="placeholder"
         :spellcheck="false"
+        :style="{ fontFamily: props.fontFamily, fontSize: props.fontSize + 'px' }"
         @focus="handleFocus"
         @blur="handleBlur"
         @input="handleInput"
@@ -73,9 +74,13 @@ const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
   disabled?: boolean
+  fontFamily?: string
+  fontSize?: number
 }>(), {
   placeholder: '请输入简介内容',
-  disabled: false
+  disabled: false,
+  fontFamily: 'Microsoft YaHei',
+  fontSize: 16
 })
 
 const emit = defineEmits<{
@@ -526,7 +531,6 @@ onMounted(() => {
   overflow-y: auto;
   word-break: break-word;
   box-sizing: border-box;
-  font-family: 'Georgia', 'Times New Roman', serif;
 }
 
 .editor-surface.is-empty::before {

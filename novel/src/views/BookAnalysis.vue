@@ -240,7 +240,7 @@
             :class="{ active: activePromptCategory === category }"
             @click="activePromptCategory = category"
           >
-            {{ category }}
+            {{ category.replace('拆书-', '') }}
           </button>
         </div>
 
@@ -254,7 +254,7 @@
           >
             <div class="prompt-picker-card-header">
               <span class="prompt-picker-card-name">{{ prompt.name }}</span>
-              <el-tag size="small" type="info">{{ prompt.category }}</el-tag>
+              <el-tag size="small" type="info">{{ prompt.category.replace('拆书-', '') }}</el-tag>
             </div>
             <div class="prompt-picker-card-description">
               {{ prompt.description || '暂无介绍' }}
@@ -410,11 +410,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useBookStore } from '@/stores/book'
-import { chapterAPI, configAPI } from '@/api'
+import { chapterAPI, configAPI, promptAPI } from '@/api'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import type { Chapter, Prompt } from '@/types'
 
@@ -479,9 +479,9 @@ const selectedPromptInfo = computed(() => {
 const promptPickerCategories = computed(() => {
   const promptCategories = prompts.value
     .map(prompt => prompt.category?.trim() || '')
-    .filter(category => category && category !== '未分类')
+    .filter(category => category && category !== '拆书-未分类')
 
-  const categories = Array.from(new Set(['默认', ...promptLibraryCategories.value, ...promptCategories]))
+  const categories = Array.from(new Set([...promptLibraryCategories.value, ...promptCategories]))
   return categories
 })
 
@@ -497,12 +497,26 @@ const promptPickerPrompts = computed(() => {
     })
 })
 
+// 拆书库页面本身是暗色设计，需要避免全局暗色主题覆盖干扰
+const savedTheme = ref<string | null>(null)
+
 onMounted(async () => {
+  const root = document.documentElement
+  if (root.getAttribute('data-theme') === 'dark') {
+    savedTheme.value = 'dark'
+    root.removeAttribute('data-theme')
+  }
   await bookStore.fetchBook(bookId)
   await fetchChapters()
   await fetchPrompts()
   await fetchModels()
   loadHistoryRecords()
+})
+
+onUnmounted(() => {
+  if (savedTheme.value === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark')
+  }
 })
 
 const loadHistoryRecords = () => {
@@ -556,48 +570,36 @@ const fetchChapters = async () => {
 }
 
 const fetchPrompts = async () => {
-  const stored = localStorage.getItem('book-analysis-prompts_prompts')
-  const storedCategories = localStorage.getItem('book-analysis-prompts_categories')
+  try {
+    const res = await promptAPI.getAll()
+    if (res.success && res.data) {
+      // 只加载拆书分类的提示词（category 以 "拆书-" 开头）
+      prompts.value = res.data.filter((p: Prompt) => {
+        const category = p.category || ''
+        return category.startsWith('拆书-')
+      }).map((p: Prompt, index: number) => ({
+        ...p,
+        id: Number(p.id) || index + 1,
+        category: (typeof p.category === 'string' && p.category.trim()) ? p.category.trim() : '拆书-未分类',
+        order_num: Number.isFinite(p.order_num) ? Number(p.order_num) : index,
+      }))
 
-  if (storedCategories) {
-    try {
-      const parsedCategories = JSON.parse(storedCategories)
-      promptLibraryCategories.value = Array.isArray(parsedCategories)
-        ? parsedCategories
-            .map((item: unknown) => String(item).trim())
-            .filter((item: string) => item && item !== '未分类')
-        : []
-    } catch (e) {
-      console.error('Failed to parse stored categories:', e)
-      promptLibraryCategories.value = []
+      // 从提示词数据中提取分类（去掉"拆书-"前缀显示）
+      const categories = Array.from(new Set(
+        prompts.value
+          .map((p: Prompt) => p.category)
+          .filter((c: string) => c && c !== '拆书-未分类')
+      ))
+      promptLibraryCategories.value = categories
     }
-  } else {
+  } catch (e) {
+    console.error('Failed to fetch prompts from API:', e)
+    prompts.value = []
     promptLibraryCategories.value = []
   }
 
-  if (stored) {
-    try {
-      const allPrompts = JSON.parse(stored)
-      prompts.value = Array.isArray(allPrompts)
-        ? allPrompts
-            .filter((p: any) => p && typeof p.name === 'string' && typeof p.content === 'string')
-            .map((p: any, index: number) => ({
-              ...p,
-              id: Number(p.id) || index + 1,
-              category: (typeof p.category === 'string' && p.category.trim()) ? p.category.trim() : '未分类',
-              order_num: Number.isFinite(p.order_num) ? Number(p.order_num) : index,
-            }))
-        : []
-    } catch (e) {
-      console.error('Failed to parse stored prompts:', e)
-      prompts.value = []
-    }
-  } else {
-    prompts.value = []
-  }
-
   if (!promptPickerCategories.value.includes(activePromptCategory.value)) {
-    activePromptCategory.value = promptPickerCategories.value[0] || '默认'
+    activePromptCategory.value = promptPickerCategories.value[0] || '拆书-默认'
   }
 
   if (selectedPromptId.value && !prompts.value.some(prompt => prompt.id === selectedPromptId.value)) {
@@ -609,7 +611,7 @@ const fetchModels = async () => {
   try {
     const res = await configAPI.getAll()
     if (res.success && res.data) {
-      models.value = res.data.filter(m => m.enabled !== 0)
+      models.value = res.data
 
       const defaultModel = models.value.find(model => model.is_default === 1 || model.is_default === true)
       const currentSelectedModel = models.value.find(model => model.id === selectedModelId.value)
@@ -632,14 +634,7 @@ const handleSelectAllChange = (val: boolean) => {
 
 const getWordCount = (content: string) => {
   if (!content) return 0
-  const plainText = content.replace(/<[^>]*>/g, '')
-  let length = 0
-  for (const char of plainText) {
-    if (/[\u4e00-\u9fa5]/.test(char)) {
-      length += 1
-    }
-  }
-  return length
+  return content.replace(/\s/g, '').length
 }
 
 const goBack = () => {
@@ -647,7 +642,7 @@ const goBack = () => {
 }
 
 const managePrompts = () => {
-  router.push('/book-analysis-prompts')
+  router.push({ path: '/prompts', query: { tab: 'bookAnalysis' } })
 }
 
 const showPromptIntro = () => {
@@ -976,7 +971,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
   display: flex;
   flex-direction: column;
-  z-index: 10000;
+  z-index: 2000;
 }
 
 .page-header {

@@ -188,7 +188,6 @@ const createMarkdownIt = (allowHtml: boolean) => new MarkdownIt({
 /* 暗色主题适配 */
 :root[data-theme='dark'] .markdown-body {
   color: #e5e7eb !important;
-  background-color: #1e293b !important;
 }
 
 :root[data-theme='dark'] .markdown-body .hljs {

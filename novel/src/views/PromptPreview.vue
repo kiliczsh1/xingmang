@@ -517,6 +517,15 @@
                       @change="updateEditFieldOptions(index)"
                       class="field-input"
                     />
+                    <label>选项展示名称（每行一个，可选）：</label>
+                    <el-input
+                      v-model="field.optionLabelsText"
+                      type="textarea"
+                      :rows="3"
+                      placeholder="请输入展示名称，每行一个；留空时默认使用选项值"
+                      @change="updateEditFieldOptionLabels(index)"
+                      class="field-input"
+                    />
                   </div>
                   <el-input
                     v-model="field.description"
@@ -703,7 +712,9 @@ const editFieldsConfig = ref<Array<{
   label: string;
   type: 'text' | 'textarea' | 'select';
   options: string[];
+  optionLabels: string[];
   optionsText: string;
+  optionLabelsText: string;
   description: string;
   required: boolean;
 }>>([])
@@ -1005,7 +1016,9 @@ const editPreviewPrompt = () => {
       label: field.label,
       type: field.type,
       options: field.options || [],
+      optionLabels: field.optionLabels || [],
       optionsText: (field.options || []).join('\n'),
+      optionLabelsText: (field.optionLabels || []).join('\n'),
       description: field.description || '',
       required: field.required !== undefined ? field.required : true
     }))
@@ -1014,12 +1027,14 @@ const editPreviewPrompt = () => {
     editFieldsConfig.value = fieldNames.map(name => ({
       name,
       label: name,
-      type: 'text' as const,
-      options: [],
-      optionsText: '',
-      description: '',
-      required: true
-    }))
+        type: 'text' as const,
+        options: [],
+        optionLabels: [],
+        optionsText: '',
+        optionLabelsText: '',
+        description: '',
+        required: true
+      }))
   }
   
   editFormSubcategories.value = [...(prompt.subcategories || [])]
@@ -1045,7 +1060,9 @@ const addEditField = () => {
     label: '',
     type: 'text',
     options: [],
+    optionLabels: [],
     optionsText: '',
+    optionLabelsText: '',
     description: '',
     required: true
   })
@@ -1066,6 +1083,25 @@ const updateEditFieldOptions = (index: number) => {
   const field = editFieldsConfig.value[index]
   if (field) {
     field.options = field.optionsText.split('\n').map(opt => opt.trim()).filter(opt => opt)
+    field.optionLabels = field.optionLabels.slice(0, field.options.length)
+    field.optionLabelsText = field.optionLabels.join('\n')
+  }
+}
+
+const updateEditFieldOptionLabels = (index: number) => {
+  const field = editFieldsConfig.value[index]
+  if (field) {
+    const labels = field.optionLabelsText
+      .split('\n')
+      .map(opt => opt.trim())
+      .slice(0, field.options.length)
+
+    while (labels.length > 0 && !labels[labels.length - 1]) {
+      labels.pop()
+    }
+
+    field.optionLabels = labels
+    field.optionLabelsText = labels.join('\n')
   }
 }
 
@@ -1125,6 +1161,7 @@ const handleEditSubmit = async () => {
         label: field.label,
         type: field.type,
         options: field.options,
+        optionLabels: field.optionLabels,
         description: field.description,
         required: field.required
       })),
@@ -1174,10 +1211,12 @@ onMounted(async () => {
 
 <style scoped>
 .prompt-preview-container {
-  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   padding: 24px;
   background: linear-gradient(180deg, #eaf6f5 0%, #d9f0ee 30%, #e8f4f2 60%, #f0f7f6 100%);
-  background-attachment: fixed;
+  overflow: hidden;
 }
 
 .header {
@@ -1361,7 +1400,27 @@ onMounted(async () => {
  }
 
 .prompts-list {
-  min-height: 400px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.prompts-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.prompts-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prompts-list::-webkit-scrollbar-thumb {
+  background: #d0d8e0;
+  border-radius: 3px;
+}
+
+.prompts-list::-webkit-scrollbar-thumb:hover {
+  background: #b0bcc8;
 }
 
 .prompts-grid {
@@ -2395,5 +2454,183 @@ onMounted(async () => {
 
 :root[data-theme='dark'] .heat-number {
   color: #fbbf24;
+}
+
+/* ── Markdown 渲染内容：暗色主题可见性补全 ── */
+:root[data-theme='dark'] .preview-markdown-card {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .preview-markdown-card * {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .preview-markdown-card h1,
+:root[data-theme='dark'] .preview-markdown-card h2,
+:root[data-theme='dark'] .preview-markdown-card h3,
+:root[data-theme='dark'] .preview-markdown-card h4,
+:root[data-theme='dark'] .preview-markdown-card h5,
+:root[data-theme='dark'] .preview-markdown-card h6 {
+  color: #5eead4;
+  border-bottom-color: rgba(94, 234, 212, 0.25);
+}
+
+:root[data-theme='dark'] .preview-markdown-card a {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .preview-markdown-card a:hover {
+  color: #2dd4bf;
+}
+
+:root[data-theme='dark'] .preview-markdown-card strong {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .preview-markdown-card code {
+  background: rgba(15, 23, 42, 0.9);
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .preview-markdown-card pre {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(94, 234, 212, 0.2);
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .preview-markdown-card pre code {
+  background: transparent;
+  color: inherit;
+  border: none;
+}
+
+:root[data-theme='dark'] .preview-markdown-card blockquote {
+  background: rgba(94, 234, 212, 0.08);
+  border-left-color: #5eead4;
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .preview-markdown-card table {
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .preview-markdown-card table th,
+:root[data-theme='dark'] .preview-markdown-card table td {
+  border-color: rgba(94, 234, 212, 0.2);
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .preview-markdown-card table th {
+  background: rgba(94, 234, 212, 0.1);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .preview-markdown-card table tr:nth-child(even) {
+  background: rgba(94, 234, 212, 0.04);
+}
+
+:root[data-theme='dark'] .preview-markdown-card hr {
+  border-top-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .preview-markdown-card ul li::marker,
+:root[data-theme='dark'] .preview-markdown-card ol li::marker {
+  color: #5eead4;
+}
+
+/* ── 暗色主题：补全浅色硬编码边框 ── */
+:root[data-theme='dark'] .preview-meta-card {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .preview-meta-card h2 {
+  color: #f4f7ff;
+}
+
+:root[data-theme='dark'] .preview-meta-card span {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .preview-tag {
+  background: rgba(94, 234, 212, 0.1);
+  border-color: rgba(94, 234, 212, 0.25);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .preview-tag:hover {
+  background: rgba(94, 234, 212, 0.18);
+  border-color: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .preview-section-label {
+  color: #f4f7ff;
+  border-left-color: #5eead4;
+}
+
+:root[data-theme='dark'] .preview-markdown-card {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(94, 234, 212, 0.22) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme='dark'] .preview-encrypted-notice {
+  background: linear-gradient(135deg, rgba(230, 162, 60, 0.12) 0%, rgba(230, 162, 60, 0.06) 100%);
+  border-color: rgba(230, 162, 60, 0.55);
+}
+
+:root[data-theme='dark'] .preview-dialog :deep(.el-dialog) {
+  background: linear-gradient(180deg, #0d1424 0%, #111a2e 30%, #131d30 60%, #0f1729 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .preview-dialog :deep(.el-dialog__body) {
+  background: transparent;
+}
+
+:root[data-theme='dark'] .preview-dialog-content {
+  /* 继承暗色背景 */
+}
+
+:root[data-theme='dark'] .preview-scrollbar {
+  background: transparent;
+}
+
+:root[data-theme='dark'] .preview-scrollbar :deep(.el-scrollbar__wrap) {
+  background: transparent;
+}
+
+:root[data-theme='dark'] .preview-scrollbar :deep(.el-scrollbar__view) {
+  background: transparent;
+}
+
+:root[data-theme='dark'] .preview-body {
+  /* 继承暗色背景，无需额外设置 */
+}
+</style>
+
+<!-- 非 scoped：覆盖 append-to-body 的 el-dialog 暗色背景 -->
+<style>
+:root[data-theme='dark'] .preview-dialog.el-dialog {
+  background: linear-gradient(180deg, #0d1424 0%, #111a2e 30%, #131d30 60%, #0f1729 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .preview-dialog .el-dialog__body {
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .preview-dialog .el-scrollbar {
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .preview-dialog .el-scrollbar__wrap {
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .preview-dialog .el-scrollbar__view {
+  background: transparent !important;
 }
 </style>

@@ -1,11 +1,98 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database/db');
+const bookStorage = require('../services/bookStorage');
+
+// 导入文件章节（支持 txt / docx）
+router.post('/import-file', async (req, res) => {
+  try {
+    const { bookId, file } = req.body;
+    if (!bookId) {
+      return res.status(400).json({ success: false, message: '缺少书籍ID' });
+    }
+    if (!file || !file.name || !file.data_base64) {
+      return res.status(400).json({ success: false, message: '请选择要导入的文件' });
+    }
+
+    const MAX_SIZE = 20 * 1024 * 1024;
+    const buf = Buffer.from(file.data_base64, 'base64');
+    if (buf.length > MAX_SIZE) {
+      return res.status(400).json({ success: false, message: '文件大小不能超过 20MB' });
+    }
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    let textContent = '';
+
+    if (ext === 'txt') {
+      textContent = buf.toString('utf-8');
+    } else if (ext === 'docx') {
+      try {
+        const mammoth = require('mammoth');
+        const result = await mammoth.extractRawText({ buffer: buf });
+        textContent = result.value;
+      } catch (e) {
+        // mammoth 未安装时尝试用 JSZip 手动解析
+        try {
+          const JSZip = require('jszip');
+          const zip = await JSZip.loadAsync(buf);
+          const docXml = await zip.file('word/document.xml').async('string');
+          textContent = docXml.replace(/<w:p[^>]*>[\s\S]*?<\/w:p>/g, (match) => {
+            return match.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() + '\n';
+          }).trim();
+        } catch (e2) {
+          return res.status(400).json({ success: false, message: '解析 docx 失败，请安装 mammoth 或 jszip 依赖' });
+        }
+      }
+    } else {
+      return res.status(400).json({ success: false, message: '不支持的文件类型，仅支持 txt 和 docx' });
+    }
+
+    // 按 "第N章" 模式拆分章节
+    const chapterPattern = /第[一二三四五六七八九十百千零\d]+[章节回卷集部篇][^\n]*/g;
+    const matches = [...textContent.matchAll(chapterPattern)];
+
+    let chapters = [];
+    if (matches.length > 0) {
+      for (let i = 0; i < matches.length; i++) {
+        const startIdx = matches[i].index;
+        const endIdx = i < matches.length - 1 ? matches[i + 1].index : textContent.length;
+        const title = matches[i][0].trim();
+        const content = textContent.slice(startIdx, endIdx).trim();
+        chapters.push({ title, content });
+      }
+    } else {
+      // 未匹配到章节标题，将全文作为单个章节
+      chapters.push({
+        title: file.name.replace(/\.[^.]+$/, ''),
+        content: textContent
+      });
+    }
+
+    if (chapters.length === 0 || chapters.every(c => !c.content)) {
+      return res.status(400).json({ success: false, message: '文件内容为空或无法识别章节格式' });
+    }
+
+    const bookMeta = bookStorage.loadBookMetaById(Number(bookId));
+    if (!bookMeta) {
+      return res.status(404).json({ success: false, message: '书籍不存在' });
+    }
+
+    const inserted = bookStorage.importChapters(Number(bookId), chapters);
+    res.json({
+      success: true,
+      data: { insertedCount: inserted.length, chapters: inserted }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // 获取书本的所有章节
 router.get('/book/:bookId', (req, res) => {
   try {
-    const chapters = db.prepare('SELECT * FROM chapters WHERE book_id = ? ORDER BY order_num ASC').all(req.params.bookId);
+    const chapters = bookStorage.listChapters(Number(req.params.bookId));
+    if (!chapters) {
+      return res.status(404).json({ success: false, message: '书籍不存在' });
+    }
     res.json({ success: true, data: chapters });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -25,38 +112,11 @@ router.post('/import-book', (req, res) => {
       return res.status(400).json({ success: false, message: '没有可导入的章节内容' });
     }
 
-    const book = db.prepare('SELECT id FROM books WHERE id = ?').get(bookId);
-    if (!book) {
+    const bookMeta = bookStorage.loadBookMetaById(Number(bookId));
+    if (!bookMeta) {
       return res.status(404).json({ success: false, message: '书籍不存在' });
     }
-
-    const getMaxOrderStmt = db.prepare('SELECT COALESCE(MAX(order_num), -1) AS maxOrder FROM chapters WHERE book_id = ?');
-    const insertStmt = db.prepare('INSERT INTO chapters (book_id, title, content, order_num, type, volume_id) VALUES (?, ?, ?, ?, ?, ?)');
-    const getChapterStmt = db.prepare('SELECT * FROM chapters WHERE id = ?');
-    const updateBookStmt = db.prepare('UPDATE books SET updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-
-    const importTransaction = db.transaction((payload) => {
-      const maxOrderResult = getMaxOrderStmt.get(bookId);
-      const baseOrder = typeof maxOrderResult?.maxOrder === 'number' ? maxOrderResult.maxOrder : -1;
-      const insertedChapters = [];
-
-      payload.forEach((chapter, index) => {
-        const title = String(chapter?.title || '').trim() || `第${index + 1}章`;
-        const content = String(chapter?.content || '').trim();
-
-        if (!content) {
-          return;
-        }
-
-        const result = insertStmt.run(bookId, title, content, baseOrder + insertedChapters.length + 1, 'chapter', null);
-        insertedChapters.push(getChapterStmt.get(result.lastInsertRowid));
-      });
-
-      updateBookStmt.run(bookId);
-      return insertedChapters;
-    });
-
-    const inserted = importTransaction(chapters);
+    const inserted = bookStorage.importChapters(Number(bookId), chapters);
     res.json({
       success: true,
       data: {
@@ -71,11 +131,11 @@ router.post('/import-book', (req, res) => {
 
 router.get('/:id', (req, res) => {
   try {
-    const chapter = db.prepare('SELECT * FROM chapters WHERE id = ?').get(req.params.id);
-    if (!chapter) {
+    const loaded = bookStorage.getChapterMeta(Number(req.params.id));
+    if (!loaded) {
       return res.status(404).json({ success: false, message: '章节不存在' });
     }
-    res.json({ success: true, data: chapter });
+    res.json({ success: true, data: loaded.chapter });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -84,10 +144,10 @@ router.get('/:id', (req, res) => {
 // 创建章节
 router.post('/', (req, res) => {
   try {
-    const { book_id, title, content, summary, order_num, type, volume_id } = req.body;
-    const stmt = db.prepare('INSERT INTO chapters (book_id, title, content, summary, order_num, type, volume_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    const result = stmt.run(book_id, title, content || '', summary || '', order_num || 0, type || 'chapter', volume_id || null);
-    const chapter = db.prepare('SELECT * FROM chapters WHERE id = ?').get(result.lastInsertRowid);
+    const chapter = bookStorage.createChapter(req.body || {});
+    if (!chapter) {
+      return res.status(404).json({ success: false, message: '书籍不存在' });
+    }
     res.json({ success: true, data: chapter });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -97,26 +157,10 @@ router.post('/', (req, res) => {
 // 更新章节
 router.put('/:id', (req, res) => {
   try {
-    const { title, content, summary, order_num } = req.body;
-    const existing = db.prepare('SELECT * FROM chapters WHERE id = ?').get(req.params.id);
-
-    if (!existing) {
+    const chapter = bookStorage.updateChapter(Number(req.params.id), req.body || {});
+    if (!chapter) {
       return res.status(404).json({ success: false, message: '章节不存在' });
     }
-
-    const stmt = db.prepare(`
-      UPDATE chapters
-      SET title = ?, content = ?, summary = ?, order_num = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-    stmt.run(
-      title ?? existing.title,
-      content ?? existing.content,
-      summary ?? existing.summary ?? '',
-      order_num ?? existing.order_num,
-      req.params.id
-    );
-    const chapter = db.prepare('SELECT * FROM chapters WHERE id = ?').get(req.params.id);
     res.json({ success: true, data: chapter });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -126,8 +170,10 @@ router.put('/:id', (req, res) => {
 // 删除章节
 router.delete('/:id', (req, res) => {
   try {
-    const stmt = db.prepare('DELETE FROM chapters WHERE id = ?');
-    stmt.run(req.params.id);
+    const success = bookStorage.deleteChapter(Number(req.params.id));
+    if (!success) {
+      return res.status(404).json({ success: false, message: '章节不存在' });
+    }
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
