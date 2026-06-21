@@ -2,7 +2,7 @@
   <div class="creative-page">
     <div class="page-header">
       <div class="header-content">
-        <h1>创意区</h1>
+        <h1>抽卡区</h1>
         <p class="subtitle">选择生成器，开启你的创作之旅</p>
       </div>
       <div class="header-actions">
@@ -24,11 +24,17 @@
         class="generator-card"
         @click="openGenerator(generator)"
       >
-        <div class="card-title">{{ generator.name }}</div>
-        <div class="card-icon">
-          <el-icon :size="48">
-            <component :is="generator.icon" />
-          </el-icon>
+        <div class="card-watermark" aria-hidden="true">
+          <el-icon :size="44"><component :is="getIconComponent(generator.icon)" /></el-icon>
+        </div>
+        <div class="card-content-bottom">
+          <div class="card-header">
+            <div class="card-title">{{ generator.name }}</div>
+            <el-tag v-if="generator.isNew" size="small" type="danger" class="new-tag">NEW</el-tag>
+          </div>
+          <div class="card-arrow-box" aria-hidden="true">
+            <el-icon :size="14"><ArrowRight /></el-icon>
+          </div>
         </div>
       </div>
     </div>
@@ -36,108 +42,112 @@
     <!-- 生成器弹窗 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="currentGenerator?.name"
-      width="88vw"
+      width="1200px"
       align-center
       destroy-on-close
       class="generator-dialog"
       modal-class="generator-dialog-modal"
-      :show-close="true"
+      :show-close="false"
+      append-to-body
     >
-      <div class="dialog-content">
-        <!-- 左侧：固定提示词展示区 -->
-        <div class="pinned-prompts-area">
-          <div class="pinned-header">
-            <el-icon><Document /></el-icon>
-            <span>已固定的提示词</span>
+      <!-- 自定义标题栏 -->
+      <template #header>
+        <div class="gen-dialog-header">
+          <div class="gen-dialog-title">
+            <el-icon class="gen-title-icon"><MagicStick /></el-icon>
+            <span>{{ currentGenerator?.name || '创意生成' }}</span>
+          </div>
+          <div class="gen-dialog-header-right">
             <el-button
               type="primary"
+              link
               size="small"
-              @click="promptSelectDialogVisible = true"
+              class="gen-close-btn"
+              @click="dialogVisible = false"
             >
-              <el-icon><Plus /></el-icon>
-              选择提示词
+              <el-icon :size="18"><Close /></el-icon>
             </el-button>
           </div>
-          <div class="pinned-list">
+        </div>
+      </template>
+
+      <div class="dialog-content">
+        <!-- 左侧：提示词模板展示区 -->
+        <div class="prompt-template-area">
+          <div class="template-header">
+            <el-select
+              v-model="selectedGeneratorCardPacks"
+              multiple
+              size="small"
+              placeholder="选择卡包"
+              class="card-pack-select"
+              :max-collapse-tags="1"
+              @change="onCardPackSelectionChange"
+            >
+              <el-option
+                v-for="pack in availableCardPacks"
+                :key="pack"
+                :label="pack"
+                :value="pack"
+              />
+            </el-select>
+          </div>
+          <div class="template-list">
             <div
               v-for="prompt in pinnedPrompts"
               :key="prompt.id"
-              class="pinned-item"
-              :class="{ disabled: !prompt.enabled }"
+              class="template-item"
+              :class="{ active: prompt.enabled }"
             >
-              <div class="pinned-item-header">
-                <el-switch
-                  v-model="prompt.enabled"
-                  size="small"
-                  @click.stop
-                />
-                <span class="pinned-item-name">{{ prompt.name }}</span>
-                <el-tag size="small" type="info">{{ prompt.category }}</el-tag>
-                <el-icon class="remove-icon" @click="removePinnedPrompt(prompt.id)"><Close /></el-icon>
-              </div>
-              <div class="pinned-item-desc"></div>
+              <el-switch
+                v-model="prompt.enabled"
+                size="small"
+                class="template-item-switch"
+                @click.stop
+              />
+              <span class="template-item-name" @click="togglePinnedPrompt(prompt.id)">{{ prompt.name }}</span>
+              <el-icon class="template-item-remove" @click.stop="removePinnedPrompt(prompt.id)"><Close /></el-icon>
             </div>
-            <div v-if="pinnedPrompts.length === 0" class="empty-pinned">
-              <el-icon :size="32"><Document /></el-icon>
-              <p>点击右上角按钮选择提示词</p>
+            <div v-if="pinnedPrompts.length === 0" class="empty-template">
+              <el-icon :size="32"><DocumentRemove /></el-icon>
+              <p>点击"详情"按钮选择提示词模板</p>
             </div>
+          </div>
+          <div class="template-footer">
+            <el-button
+              type="success"
+              size="large"
+              class="more-prompt-btn"
+              @click="promptSelectDialogVisible = true"
+            >
+              更多提示词
+            </el-button>
           </div>
         </div>
 
-        <!-- 右侧：功能区 -->
-        <div class="function-area">
-          <!-- 固定提示词编辑 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Setting /></el-icon>
-              <span>发送给AI的提示词</span>
-              <div class="fixed-prompt-actions">
-                <el-button
-                  type="primary"
-                  link
-                  size="small"
-                  @click="saveFixedPrompt"
-                  :disabled="!hasFixedPromptChanged"
-                >
-                  <el-icon><Check /></el-icon>
-                  保存修改
-                </el-button>
-                <el-button
-                  type="primary"
-                  link
-                  size="small"
-                  @click="showFixedPrompt"
-                >
-                  <el-icon><View /></el-icon>
-                  查看完整提示词
-                </el-button>
-              </div>
-            </div>
-            <div v-if="false" class="fixed-prompt-preview">
-              <el-input
-                v-model="editableFixedPrompt"
-                type="textarea"
-                :rows="4"
-                placeholder="选择提示词后将显示完整提示词，您可以直接在此编辑..."
-              />
-            </div>
-            <div v-if="hasFixedPromptChanged" class="fixed-prompt-hint">
-              <el-tag size="small" type="warning">已修改</el-tag>
-              <span>提示词已修改，记得点击保存</span>
-            </div>
-          </div>
-
-          <!-- 选择模型 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Cpu /></el-icon>
-              <span>选择模型</span>
+        <!-- 右侧：表单区 -->
+        <div class="form-area">
+          <!-- AI模型 -->
+          <div class="form-block">
+            <div class="form-block-label">
+              <span>AI模型</span>
+              <el-button
+                type="primary"
+                link
+                size="small"
+                class="form-block-action"
+                @click="showFixedPrompt"
+              >
+                <el-icon><View /></el-icon>
+                <span>查看完整提示词</span>
+              </el-button>
             </div>
             <el-select
               v-model="selectedModel"
-              placeholder="请选择AI模型"
+              placeholder="思考者"
+              size="large"
               class="full-width"
+              popper-class="form-area-select-popper"
             >
               <el-option
                 v-for="model in models"
@@ -153,96 +163,146 @@
             </el-select>
           </div>
 
-          <!-- 任务参数 -->
-          <div v-if="hasAnyFields" class="selection-section">
-            <div class="section-header">
-              <el-icon><EditPen /></el-icon>
-              <span>任务参数</span>
-            </div>
-            
-            <!-- 如果有字段配置，显示动态生成的输入框 -->
-            <div class="fields-input-container">
-              <div
-                v-for="field in allFields"
-                :key="field.name"
-                class="field-input-item"
+          <!-- 提示词模板选择 -->
+          <div class="form-block">
+            <div class="form-block-label">提示词</div>
+            <div class="prompt-tab-group">
+              <el-button
+                :type="promptTabMode === 'custom' ? 'success' : 'default'"
+                round
+                size="default"
+                @click="promptTabMode = promptTabMode === 'custom' ? 'template' : 'custom'"
               >
-                <label class="field-label">
-                  {{ field.label }}
-                  <el-tag 
-                    :type="field.required !== false ? 'danger' : 'info'" 
-                    size="small"
-                    class="required-tag"
-                  >
-                    {{ field.required !== false ? '必选' : '选填' }}
-                  </el-tag>
-                </label>
-                <div v-if="field.description" class="field-description">{{ field.description }}</div>
-                
-                <!-- 单行文本 -->
+                自定义
+              </el-button>
+            </div>
+            <!-- 模板选择模式 -->
+            <el-select
+              v-if="promptTabMode !== 'custom'"
+              v-model="selectedTemplateId"
+              clearable
+              placeholder="请选择提示词模板"
+              size="large"
+              class="full-width prompt-template-select"
+            >
+              <el-option
+                v-for="prompt in pinnedPrompts"
+                :key="prompt.id"
+                :label="prompt.name"
+                :value="prompt.id"
+              />
+            </el-select>
+            <!-- 自定义模式 -->
+            <div v-else class="custom-prompt-container">
+              <el-input
+                v-model="customPromptContent"
+                type="textarea"
+                :autosize="{ minRows: 4, maxRows: 10 }"
+                placeholder="请输入自定义提示词内容..."
+                maxlength="2000"
+                show-word-limit
+                resize="none"
+              />
+            </div>
+            <div v-if="currentTemplateDescription && promptTabMode !== 'custom'" class="form-tip">
+              <span class="form-tip-text">使用方法：</span>
+              <span class="form-tip-content">{{ currentTemplateDescription }}</span>
+              <a class="form-tip-link form-tip-link-strong" @click="showFixedPrompt">查看介绍</a>
+            </div>
+          </div>
+
+          <!-- 任务参数：动态字段 -->
+          <template v-if="hasAnyFields">
+            <div
+              v-for="field in allFields"
+              :key="field.name"
+              class="form-block"
+            >
+              <div class="form-block-label">
+                {{ field.label }}
+                <span
+                  v-if="field.required !== false"
+                  class="required-mark"
+                  title="必填"
+                >*</span>
+              </div>
+              <div v-if="field.description" class="field-description">{{ field.description }}</div>
+
+              <div v-if="field.type === 'text' || field.type === 'textarea'" class="input-container">
                 <el-input
                   v-if="field.type === 'text'"
                   v-model="fieldValues[field.name]"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 6 }"
                   :placeholder="`请输入${field.label}`"
+                  maxlength="500"
+                  show-word-limit
+                  resize="none"
                 />
-                
-                <!-- 多行文本 -->
+
                 <el-input
                   v-else-if="field.type === 'textarea'"
                   v-model="fieldValues[field.name]"
                   type="textarea"
-                  :rows="4"
+                  :autosize="{ minRows: 2, maxRows: 8 }"
                   :placeholder="`请输入${field.label}`"
+                  maxlength="500"
+                  show-word-limit
+                  resize="none"
                 />
-                
-                <!-- 下拉选择 -->
-                <el-select
-                  v-else-if="field.type === 'select'"
-                  v-model="fieldValues[field.name]"
-                  :placeholder="`请选择${field.label}`"
-                  class="full-width"
+
+                <el-button
+                  class="fullscreen-btn"
+                  circle
+                  size="small"
+                  @click="openFieldFullscreenEditor(field.name, field.label)"
+                  title="全屏编辑"
                 >
-                  <el-option
-                    v-for="option in field.options"
-                    :key="option"
-                    :label="option"
-                    :value="option"
-                  />
-                </el-select>
+                  <el-icon><FullScreen /></el-icon>
+                </el-button>
               </div>
+
+              <el-select
+                v-else-if="field.type === 'select'"
+                v-model="fieldValues[field.name]"
+                :placeholder="`请选择${field.label}`"
+                class="full-width"
+                size="large"
+              >
+                <el-option
+                  v-for="(option, optionIndex) in field.options"
+                  :key="option"
+                  :label="field.optionLabels?.[optionIndex] || option"
+                  :value="option"
+                />
+              </el-select>
             </div>
-          </div>
+          </template>
 
           <!-- 补充信息 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><EditPen /></el-icon>
-              <span>补充信息</span>
-              <span class="section-meta">{{ additionalInfoLength }}</span>
-            </div>
+          <div class="form-block">
+            <div class="form-block-label">补充信息</div>
             <el-input
               v-model="additionalInfo"
               type="textarea"
-              :rows="4"
+              :rows="3"
               maxlength="500"
               show-word-limit
-              placeholder="输入本次生成的额外要求、风格偏好或限制条件..."
+              placeholder=""
               resize="none"
             />
           </div>
 
           <!-- 关联作品 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Document /></el-icon>
-              <span>关联作品（可选）</span>
-            </div>
+          <div class="form-block">
+            <div class="form-block-label">关联作品(可选)</div>
             <el-select
               v-model="selectedBookId"
               clearable
               filterable
-              placeholder="直接读取作品名称"
+              placeholder="选择一个作品以关联该作品的章节或备忘录"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="book in books"
@@ -254,19 +314,16 @@
           </div>
 
           <!-- 关联章节 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Document /></el-icon>
-              <span>关联章节（可选）</span>
-            </div>
+          <div v-if="selectedBookId" class="form-block">
+            <div class="form-block-label">关联章节</div>
             <el-select
-              v-model="selectedChapterId"
-              clearable
-              filterable
-              :loading="loadingBookContext"
-              :disabled="!selectedBookId"
-              placeholder="先选择作品，再选择作品内章节"
+              v-model="selectedChapterIds"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="选择要关联的章节"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="chapter in availableChapters"
@@ -275,53 +332,39 @@
                 :value="chapter.id"
               />
             </el-select>
-            <div class="context-tip">
-              可以选择关联章节以提供上下文参考，不选择也可以直接生成内容。
-            </div>
           </div>
 
           <!-- 关联备忘录 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><Document /></el-icon>
-              <span>关联备忘录（可选）</span>
-            </div>
+          <div v-if="selectedBookId" class="form-block">
+            <div class="form-block-label">关联备忘录</div>
             <el-select
               v-model="selectedMemoId"
               clearable
               filterable
-              placeholder="选择备忘录内容作为参考"
+              placeholder="选择一个备忘录"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="memo in memos"
                 :key="memo.id"
-                :label="memo.title"
+                :label="memo.title || memo.content?.slice(0, 30) + '...'"
                 :value="memo.id"
               />
             </el-select>
-            <div class="context-tip">
-              可以选择关联备忘录中的内容以提供上下文参考，不选择也可以直接生成内容。
-            </div>
           </div>
 
           <!-- 关联角色卡 -->
-          <div class="selection-section">
-            <div class="section-header">
-              <el-icon><User /></el-icon>
-              <span>关联角色卡（可选）</span>
-            </div>
+          <div v-if="selectedBookId" class="form-block">
+            <div class="form-block-label">关联角色卡</div>
             <el-select
               v-model="selectedCharacterIds"
               multiple
               collapse-tags
               collapse-tags-tooltip
-              clearable
-              filterable
-              :loading="loadingBookContext"
-              :disabled="!selectedBookId"
-              placeholder="先选择作品，再选择角色卡"
+              placeholder="选择要关联的角色卡"
               class="full-width"
+              size="large"
             >
               <el-option
                 v-for="character in availableCharacters"
@@ -330,16 +373,11 @@
                 :value="character.id"
               />
             </el-select>
-            <div class="context-tip">
-              可以选择关联角色卡以提供上下文参考，不选择也可以直接生成内容。
-            </div>
           </div>
 
-          <div v-if="hasRelatedContext" class="selection-section">
-            <div class="section-header">
-              <el-icon><View /></el-icon>
-              <span>已关联内容</span>
-            </div>
+          <!-- 关联内容（已关联列表） -->
+          <div v-if="hasRelatedContext" class="form-block">
+            <div class="form-block-label">已关联内容</div>
             <div class="context-preview-list">
               <div
                 v-for="item in relatedContextItems"
@@ -353,97 +391,443 @@
           </div>
         </div>
       </div>
-      
+
+      <!-- 自定义底部 -->
       <template #footer>
-        <div class="dialog-footer">
-          <el-button
-            v-if="!generating"
-            type="primary"
-            size="large"
-            :disabled="!canGenerate"
-            @click="generateContent"
-          >
-            <el-icon><Lightning /></el-icon>
-            <span>开始生成</span>
-          </el-button>
-          <el-button
-            v-else
-            type="danger"
-            size="large"
-            @click="stopGenerate"
-          >
-            <el-icon><Close /></el-icon>
-            <span>停止生成</span>
-          </el-button>
+        <div class="gen-dialog-footer">
+          <div class="gen-footer-disclaimer">以上内容均由AI生成,仅供参考和借鉴</div>
+          <div class="gen-footer-actions">
+            <el-button
+              v-if="!generating"
+              type="success"
+              size="large"
+              round
+              :disabled="!canGenerate"
+              class="gen-generate-btn"
+              @click="generateContent"
+            >
+              <el-icon><Promotion /></el-icon>
+              <span>生成</span>
+            </el-button>
+            <el-button
+              v-else
+              type="danger"
+              size="large"
+              round
+              class="gen-generate-btn"
+              @click="stopGenerate"
+            >
+              <el-icon><Close /></el-icon>
+              <span>停止生成</span>
+            </el-button>
+          </div>
         </div>
+      </template>
+    </el-dialog>
+
+    <!-- 动态字段全屏编辑弹窗 -->
+    <el-dialog
+      v-model="fieldFullscreenDialogVisible"
+      :title="`全屏编辑 - ${fieldFullscreenFieldLabel}`"
+      width="80%"
+      top="5vh"
+      align-center
+      append-to-body
+      destroy-on-close
+      class="field-fullscreen-dialog"
+    >
+      <div class="fullscreen-editor-container">
+        <el-input
+          v-model="fieldFullscreenContent"
+          type="textarea"
+          :rows="20"
+          :placeholder="`请输入${fieldFullscreenFieldLabel}`"
+          resize="vertical"
+          maxlength="10000"
+          show-word-limit
+        />
+        <div class="fullscreen-editor-footer">
+          <span class="char-count">{{ fieldFullscreenContent.length }} / 10000</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="cancelFieldFullscreenEditor">取消</el-button>
+        <el-button type="primary" @click="saveFieldFullscreenEditor">确认</el-button>
       </template>
     </el-dialog>
 
     <!-- 提示词选择弹窗 -->
     <el-dialog
       v-model="promptSelectDialogVisible"
-      title="选择提示词"
-      width="600px"
+      width="800px"
       destroy-on-close
       class="prompt-select-dialog"
       modal-class="prompt-select-dialog-modal"
-      center
+      top="5vh"
+      append-to-body
+      :show-close="false"
     >
-      <div class="prompt-select-content">
-        <el-input
-          v-model="promptSearchKeyword"
-          placeholder="搜索提示词..."
-          prefix-icon="Search"
-          clearable
-          class="search-input"
-        />
-        <div class="category-tabs" ref="categoryTabsRef">
-          <div
-            class="category-tabs-wrapper"
-            @mousedown="startDrag"
-            @mousemove="onDrag"
-            @mouseleave="endDrag"
-            @mouseup="endDrag"
+      <!-- 自定义标题栏 -->
+      <template #header>
+        <div class="ps-dialog-header">
+          <div class="ps-dialog-title">
+            <el-icon class="ps-title-icon"><CollectionTag /></el-icon>
+            <span>{{ promptSelectDialogTitle }}</span>
+          </div>
+          <el-button
+            type="primary"
+            link
+            size="small"
+            class="ps-close-btn"
+            @click="promptSelectDialogVisible = false"
           >
-            <div
-              v-for="category in promptCategories"
-              :key="category"
-              class="category-tab"
-              :class="{ active: selectedPromptCategory === category || (category === '全部' && selectedPromptCategory === 'all') }"
-              @click="selectedPromptCategory = category === '全部' ? 'all' : category"
-            >
-              {{ category }}
-            </div>
-          </div>
+            <el-icon :size="18"><Close /></el-icon>
+          </el-button>
         </div>
-        <div class="prompt-select-list">
-          <div
-            v-for="prompt in filteredPrompts"
-            :key="prompt.id"
-            class="prompt-select-item"
-            :class="{ selected: isPromptPinned(prompt.id) }"
-            @click="togglePromptPin(prompt)"
-          >
-            <el-checkbox
-              :model-value="isPromptPinned(prompt.id)"
-              @click.stop
-              @change="togglePromptPin(prompt)"
-            />
-            <div class="prompt-select-info">
-              <div class="prompt-select-name">{{ prompt.name }}</div>
-              <div class="prompt-select-desc">{{ prompt.content?.slice(0, 80) }}{{ prompt.content?.length > 80 ? '...' : '' }}</div>
-            </div>
-            <el-tag size="small" type="info">{{ prompt.category }}</el-tag>
-          </div>
-          <div v-if="filteredPrompts.length === 0" class="empty-prompts">
-            <el-icon :size="32"><Document /></el-icon>
-            <p>暂无匹配的提示词</p>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="promptSelectDialogVisible = false">关闭</el-button>
       </template>
+      <div class="prompt-select-content">
+        <!-- 第一步：顶部标签导航 -->
+        <div class="tab-navigation">
+          <div
+            v-for="tab in promptTabs"
+            :key="tab.key"
+            class="tab-item"
+            :class="{ active: activePromptTab === tab.key }"
+            @click="activePromptTab = tab.key"
+          >
+            {{ tab.label }}
+          </div>
+        </div>
+
+        <!-- 搜索、筛选、排序区域 - 仅在"全部"和"已固定"标签页显示 -->
+        <template v-if="activePromptTab === 'all' || activePromptTab === 'pinned'">
+          <!-- 第二步：重新设计的搜索区域 -->
+          <div class="search-section">
+            <div class="search-box">
+              <el-input
+                v-model="promptSearchKeyword"
+                placeholder="搜索提示词..."
+                clearable
+                class="search-input-field"
+                @keyup.enter="handleSearchPrompts"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+              <button class="search-btn" @click="handleSearchPrompts">
+                <el-icon><Search /></el-icon>
+                搜索
+              </button>
+            </div>
+          </div>
+
+          <!-- 第三步：优化分类筛选 - 下拉选择器 + 标签云 -->
+          <div class="filter-section">
+            <div class="filter-header" @click="toggleCategoryDropdown">
+              <el-icon><Filter /></el-icon>
+              <span>分类筛选</span>
+              <el-icon class="filter-arrow" :class="{ expanded: showCategoryDropdown }"><ArrowDown /></el-icon>
+            </div>
+            
+            <div v-if="showCategoryDropdown" class="category-dropdown">
+              <div
+                v-for="category in promptCategories"
+                :key="category"
+                class="dropdown-item"
+                :class="{ 
+                  selected: selectedPromptCategory === category || (category === '全部' && selectedPromptCategory === 'all')
+                }"
+                @click="selectCategory(category)"
+              >
+                {{ category }}
+              </div>
+            </div>
+
+            <div v-if="selectedPromptCategory !== 'all' && selectedPromptCategory !== '全部'" class="selected-tags">
+              <span class="tag-label">当前选择：</span>
+              <el-tag 
+                closable 
+                type="success" 
+                size="small"
+                @close="clearCategorySelection"
+              >
+                {{ selectedPromptCategory === 'all' ? '全部' : selectedPromptCategory }}
+              </el-tag>
+            </div>
+          </div>
+
+          <!-- 第四步：排序选项栏 -->
+          <div class="sort-section">
+            <div class="sort-label">
+              <el-icon><Sort /></el-icon>
+              <span>排序方式</span>
+            </div>
+            <div class="sort-options">
+              <button
+                v-for="option in sortOptions"
+                :key="option.key"
+                class="sort-btn"
+                :class="{ active: activeSortOption === option.key }"
+                @click="activeSortOption = option.key"
+              >
+                <el-icon v-if="option.icon"><component :is="option.icon" /></el-icon>
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- 第五步+第六步：根据标签显示不同内容 -->
+        
+        <!-- 全部标签页：显示提示词列表 -->
+        <template v-if="activePromptTab === 'all'">
+          <div class="prompt-select-list">
+            <div
+              v-for="prompt in sortedAndFilteredPrompts"
+              :key="prompt.id"
+              class="prompt-card-item"
+              :class="{ selected: isPromptPinned(prompt.id) }"
+            >
+              <div class="card-main" @click="togglePromptPin(prompt)">
+                <div class="card-top-row">
+                  <div class="author-avatar" :style="{ background: getAvatarColor(prompt.author || prompt.name) }">
+                    {{ (prompt.author || '匿').charAt(0) }}
+                  </div>
+                  <div class="card-info">
+                    <div class="card-title-row">
+                      <span class="card-title">{{ prompt.name }}</span>
+                    </div>
+                    <div class="card-meta-row">
+                      <span class="author-name">{{ prompt.author || '匿名用户' }}</span>
+                      <el-tag
+                        v-if="prompt.is_featured"
+                        size="small"
+                        class="card-featured-tag"
+                      >
+                        精选
+                      </el-tag>
+                      <span class="author-stats">
+                        <span class="stat-item">
+                          <el-icon class="fire-icon"><Sunny /></el-icon>
+                          {{ formatUsageCount(prompt.usage_count) }}
+                        </span>
+                      </span>
+                      <span class="card-date">{{ formatPromptTime(prompt.created_at) }}</span>
+                    </div>
+                    <div class="card-tags">
+                      <el-tag size="small" class="card-category-tag">{{ prompt.category }}</el-tag>
+                      <el-tag size="small" class="card-version-tag">{{ prompt.version || 'v1.0' }}</el-tag>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="card-content">
+                  <p class="card-desc">{{ prompt.description || '1' }}</p>
+                </div>
+              </div>
+
+              <div class="card-actions" @click.stop>
+                <button
+                  v-if="isPromptPinned(prompt.id)"
+                  class="action-btn action-btn--remove"
+                  @click="removePinnedPrompt(prompt.id)"
+                >
+                  <el-icon><Close /></el-icon>
+                  删除
+                </button>
+                <button
+                  v-else
+                  class="action-btn action-btn--add"
+                  @click="togglePromptPin(prompt)"
+                >
+                  <el-icon><Plus /></el-icon>
+                  添加
+                </button>
+              </div>
+            </div>
+            
+            <div v-if="sortedAndFilteredPrompts.length === 0" class="empty-prompts">
+              <el-icon :size="48"><Document /></el-icon>
+              <p>暂无匹配的提示词</p>
+              <p class="empty-hint">尝试调整筛选条件或搜索关键词</p>
+            </div>
+          </div>
+        </template>
+        
+        <!-- 已固定标签页：显示已固定的提示词 -->
+        <template v-else-if="activePromptTab === 'pinned'">
+          <div class="prompt-select-list">
+            <div
+              v-for="prompt in pinnedPrompts"
+              :key="prompt.id"
+              class="prompt-card-item selected"
+            >
+              <div class="card-main">
+                <div class="card-top-row">
+                  <div class="author-avatar" :style="{ background: getAvatarColor(prompt.author || prompt.name) }">
+                    {{ (prompt.author || '匿').charAt(0) }}
+                  </div>
+                  <div class="card-info">
+                    <div class="card-title-row">
+                      <span class="card-title">{{ prompt.name }}</span>
+                    </div>
+                    <div class="card-meta-row">
+                      <span class="author-name">{{ prompt.author || '匿名用户' }}</span>
+                      <el-tag
+                        v-if="prompt.is_featured"
+                        size="small"
+                        class="card-featured-tag"
+                      >
+                        精选
+                      </el-tag>
+                      <span class="author-stats">
+                        <span class="stat-item">
+                          <el-icon class="fire-icon"><Sunny /></el-icon>
+                          {{ formatUsageCount(prompt.usage_count) }}
+                        </span>
+                      </span>
+                      <span class="card-date">{{ formatPromptTime(prompt.created_at) }}</span>
+                    </div>
+                    <div class="card-tags">
+                      <el-tag size="small" class="card-category-tag">{{ prompt.category }}</el-tag>
+                      <el-tag size="small" class="card-version-tag">{{ prompt.version || 'v1.0' }}</el-tag>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="card-content">
+                  <p class="card-desc">{{ prompt.description || '1' }}</p>
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <el-switch
+                  v-model="prompt.enabled"
+                  size="small"
+                  active-text="启用"
+                  inactive-text="禁用"
+                  @change="savePinnedPromptsToStorage"
+                />
+                <button
+                  class="action-btn action-btn--remove"
+                  @click="removePinnedPrompt(prompt.id)"
+                  style="margin-left: 8px;"
+                >
+                  <el-icon><Close /></el-icon>
+                  移除
+                </button>
+              </div>
+            </div>
+            
+            <div v-if="pinnedPrompts.length === 0" class="empty-prompts">
+              <el-icon :size="48"><CollectionTag /></el-icon>
+              <p>暂无固定的提示词</p>
+              <p class="empty-hint">在"全部"标签页中添加提示词</p>
+            </div>
+          </div>
+        </template>
+        
+        <!-- 已创建标签页：创建新提示词 -->
+        <template v-else-if="activePromptTab === 'created'">
+          <div class="create-prompt-section">
+            <div class="create-prompt-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">提示词名称</label>
+                  <el-input
+                    v-model="newPromptForm.name"
+                    placeholder="输入提示词名称..."
+                    clearable
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">分类</label>
+                  <el-select
+                    v-model="newPromptForm.category"
+                    placeholder="选择分类"
+                    style="width: 100%"
+                    allow-create
+                    filterable
+                  >
+                    <el-option
+                      v-for="cat in promptCategories.filter(c => c !== '全部')"
+                      :key="cat"
+                      :label="cat"
+                      :value="cat"
+                    />
+                  </el-select>
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">作者</label>
+                  <el-input
+                    v-model="newPromptForm.author"
+                    placeholder="输入作者名称..."
+                    clearable
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">版本号</label>
+                  <el-input
+                    v-model="newPromptForm.version"
+                    placeholder="如: v1.0"
+                    clearable
+                  />
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">提示词内容</label>
+                <el-input
+                  v-model="newPromptForm.content"
+                  type="textarea"
+                  :rows="8"
+                  placeholder="输入提示词内容，可使用 {{变量名}} 格式定义变量..."
+                />
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">变量字段（可选）</label>
+                <div class="fields-config">
+                  <div
+                    v-for="(field, index) in newPromptForm.fields"
+                    :key="index"
+                    class="field-item"
+                  >
+                    <el-input v-model="field.name" placeholder="变量名" style="width: 100px" />
+                    <el-input v-model="field.label" placeholder="显示名称" style="flex: 1" />
+                    <el-select v-model="field.type" style="width: 100px">
+                      <el-option label="文本" value="text" />
+                      <el-option label="多行" value="textarea" />
+                      <el-option label="选择" value="select" />
+                    </el-select>
+                    <el-button type="danger" link @click="newPromptForm.fields.splice(index, 1)">
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                  <el-button type="primary" link @click="addNewPromptField">
+                    <el-icon><Plus /></el-icon>
+                    添加字段
+                  </el-button>
+                </div>
+              </div>
+              
+              <div class="form-actions">
+                <el-button @click="resetNewPromptForm">重置</el-button>
+                <el-button type="primary" @click="saveNewPrompt" :disabled="!canSaveNewPrompt">
+                  <el-icon><Check /></el-icon>
+                  保存提示词
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
     </el-dialog>
 
     <!-- 预览弹窗 -->
@@ -454,6 +838,7 @@
       destroy-on-close
       class="preview-dialog"
       modal-class="preview-dialog-modal"
+      append-to-body
     >
       <div class="preview-dialog-content">
         <div class="preview-dialog-header">
@@ -497,6 +882,15 @@
             <el-icon><Document /></el-icon>
             一键导入
           </el-button>
+          <el-button
+            v-if="!generating && previewContent"
+            type="warning"
+            link
+            @click="openFollowUp"
+          >
+            <el-icon><ChatDotRound /></el-icon>
+            追问
+          </el-button>
         </div>
         <el-scrollbar class="preview-scrollbar">
           <el-input
@@ -511,6 +905,123 @@
       </div>
     </el-dialog>
 
+    <!-- 追问对话弹窗 -->
+    <el-dialog
+      v-model="followUpDialogVisible"
+      width="800px"
+      class="followup-dialog"
+      modal-class="followup-dialog-modal"
+      destroy-on-close
+      append-to-body
+    >
+      <template #header>
+        <div class="followup-dialog-header">
+          <div class="header-title">
+            <el-icon><ChatDotRound /></el-icon>
+            <span>追问对话</span>
+          </div>
+          <el-select
+            v-model="followUpSelectedModelId"
+            placeholder="选择模型"
+            class="model-select"
+            size="small"
+          >
+            <el-option
+              v-for="model in models"
+              :key="model.id"
+              :label="model.name"
+              :value="model.id"
+            >
+              <div class="model-option-content">
+                <span>{{ model.name }}</span>
+                <el-tag v-if="model.provider_name" size="small" type="info">{{ model.provider_name }}</el-tag>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
+      </template>
+      <div class="followup-dialog-content">
+        <div class="followup-messages" ref="followUpMessagesContainer">
+          <div v-if="followUpMessages.length > 2 && !followUpHistoryExpanded" class="history-collapsed-hint">
+            <el-button
+              text
+              type="primary"
+              @click="followUpHistoryExpanded = true"
+              size="small"
+              class="expand-btn"
+            >
+              <el-icon><ArrowDown /></el-icon>
+              展开 {{ followUpMessages.length - 2 }} 条历史消息
+            </el-button>
+          </div>
+
+          <template v-if="followUpHistoryExpanded">
+            <transition-group name="message-slide">
+              <div
+                v-for="(msg, msgIndex) in followUpMessages"
+                :key="msgIndex"
+                :class="['followup-message-bubble', msg.role, { 'history-message': msgIndex < followUpMessages.length - 2 }]"
+              >
+                <div class="followup-message-sender">
+                  <el-icon class="sender-icon">
+                    <User v-if="msg.role === 'user'" />
+                    <ChatDotRound v-if="msg.role === 'assistant'" />
+                    <Setting v-if="msg.role === 'system'" />
+                  </el-icon>
+                  <span class="sender-name">
+                    {{ msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : '系统' }}
+                  </span>
+                </div>
+                <div class="followup-message-content">
+                  <MarkdownRenderer :content="msg.content" />
+                </div>
+              </div>
+            </transition-group>
+          </template>
+
+          <div v-if="followUpGenerating" class="followup-message-bubble assistant">
+            <div class="followup-message-sender">
+              <el-icon class="sender-icon"><ChatDotRound /></el-icon>
+              <span class="sender-name">AI</span>
+            </div>
+            <div class="followup-message-content">
+              <div class="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="followup-input-area">
+          <el-input
+            v-model="followUpUserInput"
+            type="textarea"
+            :rows="2"
+            placeholder="输入您的问题，按 Ctrl+Enter 发送..."
+            @keydown.enter.ctrl="sendFollowUpMessage"
+            :disabled="followUpGenerating"
+            resize="none"
+            class="followup-input"
+          />
+          <div class="followup-input-actions">
+            <el-tooltip content="发送 (Ctrl+Enter)" placement="top">
+              <el-button
+                type="primary"
+                @click="sendFollowUpMessage"
+                :loading="followUpGenerating"
+                :disabled="!followUpUserInput.trim()"
+                :icon="ChatDotRound"
+                circle
+                class="send-btn"
+              />
+            </el-tooltip>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 系统提示词修改弹窗 -->
     <el-dialog
       v-model="promptEditDialogVisible"
@@ -518,6 +1029,7 @@
       width="600px"
       destroy-on-close
       modal-class="prompt-edit-dialog-modal"
+      append-to-body
     >
       <div class="prompt-edit-content">
         <div class="form-item">
@@ -693,6 +1205,7 @@
       width="600px"
       destroy-on-close
       modal-class="fixed-prompt-dialog-modal"
+      append-to-body
     >
       <div class="fixed-prompt-dialog-content">
         <el-input
@@ -716,10 +1229,11 @@
     <el-dialog
       v-model="generatorManagerVisible"
       title="生成器管理"
-      width="900px"
+      width="960px"
       destroy-on-close
       class="generator-manager-dialog"
       modal-class="generator-manager-dialog-modal"
+      append-to-body
     >
       <div class="generator-manager-content">
         <!-- 左侧：生成器列表 -->
@@ -733,14 +1247,16 @@
           </div>
           <div class="generator-list">
             <div
-              v-for="gen in allGenerators"
+              v-for="(gen, index) in allGenerators"
               :key="gen.id"
               class="generator-item"
               :class="{ active: selectedGenerator?.id === gen.id }"
               @click="selectGenerator(gen)"
             >
               <div class="generator-item-icon">
-                <el-icon><Lightning /></el-icon>
+                <el-icon :size="18">
+                  <component :is="getIconComponent(gen.icon)" />
+                </el-icon>
               </div>
               <div class="generator-item-info">
                 <span class="generator-item-name">
@@ -750,6 +1266,24 @@
                 <span class="generator-item-desc">{{ gen.description?.slice(0, 30) }}{{ gen.description?.length > 30 ? '...' : '' }}</span>
               </div>
               <div class="generator-item-actions" @click.stop>
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  :disabled="index === 0"
+                  @click="moveGeneratorUp(index)"
+                >
+                  <el-icon><ArrowUp /></el-icon>
+                </el-button>
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  :disabled="index === allGenerators.length - 1"
+                  @click="moveGeneratorDown(index)"
+                >
+                  <el-icon><ArrowDown /></el-icon>
+                </el-button>
                 <el-button type="danger" link size="small" @click="deleteGenerator(gen)">
                   <el-icon><Delete /></el-icon>
                 </el-button>
@@ -768,6 +1302,26 @@
             <div class="detail-section">
               <label class="detail-label">生成器名称</label>
               <el-input v-model="selectedGenerator.name" placeholder="请输入生成器名称" />
+            </div>
+            <div class="detail-section">
+              <div class="detail-label collapsible-label" @click="iconPickerExpanded = !iconPickerExpanded">
+                <span>选择图标</span>
+                <el-icon class="collapse-arrow" :class="{ expanded: iconPickerExpanded }"><ArrowDown /></el-icon>
+              </div>
+              <div v-show="iconPickerExpanded" class="icon-picker-grid">
+                <div
+                  v-for="icon in availableIcons"
+                  :key="icon.name"
+                  class="icon-picker-item"
+                  :class="{ selected: selectedGenerator.icon === icon.name }"
+                  @click="selectedGenerator.icon = icon.name"
+                >
+                  <el-icon :size="20">
+                    <component :is="icon.component" />
+                  </el-icon>
+                  <span class="icon-picker-name">{{ icon.name }}</span>
+                </div>
+              </div>
             </div>
             <div class="detail-section">
               <label class="detail-label">功能描述</label>
@@ -812,11 +1366,12 @@
     <!-- 历史记录对话框 -->
     <el-dialog
       v-model="showHistoryDialog"
-      title="创意区历史记录"
+      title="抽卡区历史记录"
       width="900px"
       destroy-on-close
       class="history-dialog"
       modal-class="history-dialog-modal"
+      append-to-body
     >
       <div class="history-dialog-content">
         <div class="history-header">
@@ -912,6 +1467,7 @@
       modal-class="history-detail-dialog-modal"
       destroy-on-close
       align-center
+      append-to-body
     >
       <div class="history-detail-content" v-if="selectedHistoryRecord">
         <div class="conversation-messages">
@@ -946,10 +1502,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowRight,
+  ArrowDown,
+  ArrowUp,
   Document,
   Cpu,
   EditPen,
@@ -962,7 +1520,34 @@ import {
   Lightning,
   Close,
   User,
-  ChatDotRound
+  ChatDotRound,
+  MagicStick,
+  Reading,
+  Tickets,
+  FullScreen,
+  CollectionTag,
+  OfficeBuilding,
+  Star,
+  Sunny,
+  Moon,
+  Grid,
+  Picture,
+  Van,
+  Brush,
+  TrophyBase,
+  Medal,
+  DataLine,
+  TrendCharts,
+  Promotion,
+  Clock,
+  Timer,
+  Switch,
+  Key,
+  Coin,
+  Histogram,
+  PieChart,
+  DocumentRemove,
+  InfoFilled
 } from '@element-plus/icons-vue'
 import { promptAPI, configAPI, generatorAPI, bookAPI, chapterAPI, memoAPI, characterAPI } from '@/api'
 import type { Generator, Book, Chapter, Memo, Character, RelatedContent } from '@/types'
@@ -1055,6 +1640,7 @@ type GeneratorItem = {
   order_num?: number
   isDefault?: boolean
   isCustom?: boolean
+  isNew?: boolean
 }
 
 // 所有生成器列表（从localStorage加载默认生成器的修改）
@@ -1116,8 +1702,9 @@ const availableCharacters = ref<Character[]>([])
 const loadingBookContext = ref(false)
 
 const getDefaultModelId = () => {
+  if (models.value.length === 0) return ''
   const defaultModel = models.value.find(model => model.is_default === 1 || model.is_default === true)
-  return defaultModel?.id ?? models.value[0]?.id ?? ''
+  return defaultModel?.id ?? ''
 }
 
 // 加载模型列表
@@ -1125,7 +1712,7 @@ const fetchModels = async () => {
   try {
     const res = await configAPI.getAll()
     if (res.success && res.data) {
-      models.value = res.data
+      models.value = res.data.filter(m => m.enabled !== 0)
       selectedModel.value = getDefaultModelId()
     }
   } catch (error) {
@@ -1147,25 +1734,252 @@ const selectedPrompt = ref<number>()
 const selectedModel = ref<number | string>('')
 const inputParams = ref('')
 const additionalInfo = ref('')
+const promptTabMode = ref<'template' | 'custom'>('template')
+const customPromptContent = ref('')
+const selectedTemplateId = ref<number | null>(null)
 const selectedBookId = ref<number | null>(null)
-const selectedChapterId = ref<number | null>(null)
+const selectedChapterIds = ref<number[]>([])
 const selectedMemoId = ref<number | null>(null)
 const selectedCharacterIds = ref<number[]>([])
 const generating = ref(false)
 const generatedContent = ref('')
 const abortController = ref<AbortController | null>(null)
 const isEditingPreview = ref(false)
-const prompts = ref<Array<{ id: number; name: string; category: string; content: string; fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }> }>>([])
+
+type PromptItem = {
+  id: number
+  name: string
+  category: string
+  content: string
+  description?: string
+  author?: string
+  version?: string
+  fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }>
+  usage_count?: number
+  created_at?: string
+  is_featured?: boolean
+}
+
+const prompts = ref<PromptItem[]>([])
 
 // 固定提示词相关状态
-const pinnedPrompts = ref<Array<{ id: number; name: string; category: string; content: string; enabled: boolean; fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }> }>>([])
+const pinnedPrompts = ref<Array<PromptItem & { enabled: boolean }>>([])
 const promptSelectDialogVisible = ref(false)
 const promptSearchKeyword = ref('')
 const selectedPromptCategory = ref('all')
+const selectedGeneratorCardPacks = ref<string[]>([])
 const categoryTabsRef = ref<HTMLElement | null>(null)
 const isDragging = ref(false)
 const startX = ref(0)
 const scrollLeft = ref(0)
+
+// 新增：标签导航相关
+const activePromptTab = ref('all') // all: 全部, pinned: 已固定, created: 已创建
+const promptTabs = [
+  { key: 'all', label: '全部' },
+  { key: 'pinned', label: '已固定' },
+  { key: 'created', label: '已创建' }
+]
+
+// 新增：创建提示词表单
+const newPromptForm = ref({
+  name: '',
+  category: '',
+  author: '',
+  version: '',
+  content: '',
+  fields: [] as Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }>
+})
+
+const canSaveNewPrompt = computed(() => {
+  return newPromptForm.value.name.trim() !== '' && 
+         newPromptForm.value.category !== '' && 
+         newPromptForm.value.content.trim() !== ''
+})
+
+const addNewPromptField = () => {
+  newPromptForm.value.fields.push({
+    name: '',
+    label: '',
+    type: 'text',
+    options: [],
+    description: '',
+    required: false
+  })
+}
+
+const resetNewPromptForm = () => {
+  newPromptForm.value = {
+    name: '',
+    category: '',
+    author: '',
+    version: '',
+    content: '',
+    fields: []
+  }
+}
+
+const saveNewPrompt = () => {
+  if (!canSaveNewPrompt.value) return
+  
+  const newPrompt: PromptItem = {
+    id: Date.now(),
+    name: newPromptForm.value.name,
+    category: newPromptForm.value.category,
+    description: newPromptForm.value.content.slice(0, 50),
+    content: newPromptForm.value.content,
+    author: newPromptForm.value.author || '匿名',
+    version: newPromptForm.value.version || 'v1.0',
+    fields: newPromptForm.value.fields.length > 0 ? newPromptForm.value.fields : undefined,
+    created_at: new Date().toISOString(),
+    usage_count: 0
+  }
+  
+  prompts.value.unshift(newPrompt)
+  savePromptsToStorage()
+  resetNewPromptForm()
+  ElMessage.success('提示词创建成功！')
+}
+
+const savePromptsToStorage = () => {
+  if (currentGenerator.value) {
+    const key = `prompts_${currentGenerator.value.id}`
+    localStorage.setItem(key, JSON.stringify(prompts.value))
+  }
+}
+
+// 新增：分类下拉选择器相关
+const showCategoryDropdown = ref(false)
+
+// 新增：搜索和分类筛选方法
+const handleSearchPrompts = () => {
+  // 搜索逻辑已在 computed 中实现
+}
+
+const toggleCategoryDropdown = () => {
+  showCategoryDropdown.value = !showCategoryDropdown.value
+}
+
+const selectCategory = (category: string) => {
+  selectedPromptCategory.value = category === '全部' ? 'all' : category
+  showCategoryDropdown.value = false
+}
+
+const clearCategorySelection = () => {
+  selectedPromptCategory.value = 'all'
+}
+
+// 第四步：排序功能相关
+const activeSortOption = ref('latest') // latest: 最新, hot: 最热, monthly: 月榜, featured: 精选, search: 搜索
+const sortOptions = [
+  { key: 'hot', label: '最热', icon: 'TrendCharts' },
+  { key: 'monthly', label: '月榜', icon: 'Calendar' },
+  { key: 'featured', label: '精选', icon: 'Star' },
+  { key: 'latest', label: '最新', icon: 'Clock' },
+  { key: 'search', label: '搜索', icon: 'Search' }
+]
+
+// 第五步+第六步：格式化方法和计算属性
+const formatPromptTime = (timeStr?: string) => {
+  const date = timeStr ? new Date(timeStr) : new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const formatUsageCount = (count?: number) => {
+  if (count === undefined || count === null) return '0'
+  if (count < 1000) return count.toString()
+  if (count < 1_000_000) return `${(count / 1000).toFixed(1)}K`
+  return `${(count / 1_000_000).toFixed(1)}M`
+}
+
+const getAvatarColor = (name: string) => {
+  const colors = [
+    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+    'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+    'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+    'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)',
+    'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
+    'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)',
+    'linear-gradient(135deg, #cd9cf2 0%, #f6f3ff 100%)',
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+}
+
+// 排序和过滤后的提示词列表
+const sortedAndFilteredPrompts = computed(() => {
+  let result = [...filteredPrompts.value]
+  
+  // 根据排序选项排序
+  switch (activeSortOption.value) {
+    case 'hot':
+      // 按使用次数降序（假设有 usage_count 字段）
+      result.sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0))
+      break
+    case 'monthly':
+      // 本月热门（简化实现：按时间倒序）
+      const thisMonth = new Date()
+      const monthAgo = new Date(thisMonth.getTime() - 30 * 24 * 60 * 60 * 1000)
+      result.sort((a, b) => {
+        const aInMonth = new Date(a.created_at || '') > monthAgo ? 1 : 0
+        const bInMonth = new Date(b.created_at || '') > monthAgo ? 1 : 0
+        return bInMonth - aInMonth || (b.usage_count || 0) - (a.usage_count || 0)
+      })
+      break
+    case 'featured':
+      // 精选（标记为 is_featured 的优先）
+      result.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0))
+      break
+    case 'search':
+      // 搜索相关度排序（如果有搜索关键词，按匹配度排序）
+      if (promptSearchKeyword.value.trim()) {
+        const keyword = promptSearchKeyword.value.toLowerCase()
+        result.sort((a, b) => {
+          const aScore = calculateRelevanceScore(a, keyword)
+          const bScore = calculateRelevanceScore(b, keyword)
+          return bScore - aScore
+        })
+      }
+      break
+    case 'latest':
+    default:
+      // 默认按时间倒序
+      result.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      break
+  }
+  
+  return result
+})
+
+// 计算搜索相关度得分
+const calculateRelevanceScore = (prompt: PromptItem, keyword: string): number => {
+  let score = 0
+  
+  // 名称完全匹配
+  if (prompt.name.toLowerCase().includes(keyword)) score += 10
+  
+  // 分类匹配
+  if (prompt.category && prompt.category.toLowerCase().includes(keyword)) score += 5
+  
+  // 内容匹配
+  if (prompt.content && prompt.content.toLowerCase().includes(keyword)) score += 3
+  
+  // 名称开头匹配加分更多
+  if (prompt.name.toLowerCase().startsWith(keyword)) score += 5
+  
+  return score
+}
 
 const startDrag = (e: MouseEvent) => {
   if (!categoryTabsRef.value) return
@@ -1191,9 +2005,47 @@ const isLoadingPinnedPrompts = ref(false)
 // 预览弹窗状态
 const previewDialogVisible = ref(false)
 const previewContent = ref('')
+const currentConversationMessages = ref<HistoryMessage[]>([])
+
+// 追问对话状态
+const followUpDialogVisible = ref(false)
+const followUpMessages = ref<HistoryMessage[]>([])
+const followUpUserInput = ref('')
+const followUpGenerating = ref(false)
+const followUpMessagesContainer = ref<HTMLElement | null>(null)
+const followUpHistoryExpanded = ref(false)
+const followUpSelectedModelId = ref<number | string>('')
 
 // 字段值存储
 const fieldValues = ref<Record<string, string>>({})
+
+// 动态字段全屏编辑相关状态
+const fieldFullscreenDialogVisible = ref(false)
+const fieldFullscreenContent = ref('')
+const fieldFullscreenFieldName = ref('')
+const fieldFullscreenFieldLabel = ref('')
+
+const openFieldFullscreenEditor = (fieldName: string, fieldLabel: string) => {
+  fieldFullscreenFieldName.value = fieldName
+  fieldFullscreenFieldLabel.value = fieldLabel
+  fieldFullscreenContent.value = fieldValues.value[fieldName] || ''
+  fieldFullscreenDialogVisible.value = true
+}
+
+const saveFieldFullscreenEditor = () => {
+  fieldValues.value[fieldFullscreenFieldName.value] = fieldFullscreenContent.value
+  fieldFullscreenDialogVisible.value = false
+  fieldFullscreenFieldName.value = ''
+  fieldFullscreenFieldLabel.value = ''
+  fieldFullscreenContent.value = ''
+}
+
+const cancelFieldFullscreenEditor = () => {
+  fieldFullscreenDialogVisible.value = false
+  fieldFullscreenFieldName.value = ''
+  fieldFullscreenFieldLabel.value = ''
+  fieldFullscreenContent.value = ''
+}
 
 // 提示词编辑相关状态
 const promptEditDialogVisible = ref(false)
@@ -1210,6 +2062,7 @@ const fieldsConfig = ref<Array<{
   label: string;
   type: 'text' | 'textarea' | 'select';
   options: string[];
+  optionLabels?: string[];
   optionsText: string;
   description: string;
 }>>([])
@@ -1227,6 +2080,48 @@ const hasUserEditedFixedPrompt = ref(false)
 const generatorManagerVisible = ref(false)
 const selectedGenerator = ref<Partial<GeneratorItem> | null>(null)
 const isNewGenerator = ref(false)
+const iconPickerExpanded = ref(false)
+
+// 图标映射表：将图标名称映射到 Element Plus 图标组件
+const iconMap: Record<string, any> = {
+  MagicStick,
+  Document,
+  EditPen,
+  Reading,
+  Tickets,
+  Lightning,
+  Cpu,
+  CollectionTag,
+  User,
+  OfficeBuilding,
+  Star,
+  Sunny,
+  Moon,
+  Picture,
+  Timer,
+  TrophyBase,
+  Medal,
+  Coin,
+  DataLine,
+  TrendCharts,
+  Promotion,
+  Clock,
+  Brush,
+  Setting,
+  Grid
+}
+
+const getIconComponent = (iconName: string) => {
+  return iconMap[iconName] || MagicStick
+}
+
+// 可选择的图标列表（用于图标选择器）
+const availableIcons = computed(() => {
+  return Object.keys(iconMap).map(name => ({
+    name,
+    component: iconMap[name]
+  }))
+})
 
 // 计算属性
 const selectedPromptInfo = computed(() => {
@@ -1234,7 +2129,7 @@ const selectedPromptInfo = computed(() => {
 })
 
 const allFields = computed(() => {
-  const fields: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }> = []
+  const fields: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }> = []
   pinnedPrompts.value.filter(p => p.enabled).forEach(prompt => {
     if (prompt.fields) {
       prompt.fields.forEach(field => {
@@ -1251,8 +2146,34 @@ const hasAnyFields = computed(() => {
   return allFields.value.length > 0
 })
 
+// 生成器与卡包的映射关系
+const GENERATOR_TO_CATEGORY_MAP: Record<string, string> = {
+  '脑洞生成器': '脑洞',
+  '书名生成器': '书名',
+  '简介生成器': '简介',
+  '大纲生成器': '大纲',
+  '细纲生成器': '细纲',
+  '黄金开篇生成器': '黄金开篇',
+  '金手指生成器': '金手指',
+  '名字生成器': '名字',
+  '人设生成器': '人设',
+  '世界观生成器': '世界观'
+}
+
 const promptCategories = computed(() => {
   const categories = new Set<string>()
+  
+  // 如果当前打开了生成器，使用用户选择的卡包（支持1-2个）
+  if (currentGenerator.value && selectedGeneratorCardPacks.value.length > 0) {
+    const selectedPacks = selectedGeneratorCardPacks.value.filter(pack =>
+      prompts.value.some(p => p.category === pack)
+    )
+    if (selectedPacks.length > 0) {
+      return selectedPacks
+    }
+  }
+  
+  // 否则显示所有卡包
   prompts.value.forEach(p => {
     if (p.category) {
       categories.add(p.category)
@@ -1264,7 +2185,10 @@ const promptCategories = computed(() => {
 const filteredPrompts = computed(() => {
   let result = prompts.value
   
-  if (selectedPromptCategory.value !== 'all' && selectedPromptCategory.value !== '全部') {
+  // 如果当前打开了生成器且选择了卡包，只显示对应卡包的提示词
+  if (currentGenerator.value && selectedGeneratorCardPacks.value.length > 0) {
+    result = result.filter(p => selectedGeneratorCardPacks.value.includes(p.category))
+  } else if (selectedPromptCategory.value !== 'all' && selectedPromptCategory.value !== '全部') {
     result = result.filter(p => p.category === selectedPromptCategory.value)
   }
   
@@ -1280,14 +2204,29 @@ const filteredPrompts = computed(() => {
   return result
 })
 
+const promptSelectDialogTitle = computed(() => {
+  const base = currentGenerator.value?.name || '选择提示词'
+  if (currentGenerator.value && selectedGeneratorCardPacks.value.length > 0) {
+    const packNames = selectedGeneratorCardPacks.value.join('+')
+    return `${base} · ${packNames}卡包`
+  }
+  return base
+})
+
 const additionalInfoLength = computed(() => additionalInfo.value.length)
+
+const currentTemplateDescription = computed(() => {
+  if (!selectedTemplateId.value) return ''
+  const target = pinnedPrompts.value.find(p => p.id === selectedTemplateId.value)
+  return target?.description || ''
+})
 
 const selectedBook = computed(() => {
   return books.value.find(book => book.id === selectedBookId.value) || null
 })
 
-const selectedChapter = computed(() => {
-  return availableChapters.value.find(chapter => chapter.id === selectedChapterId.value) || null
+const selectedChapters = computed(() => {
+  return availableChapters.value.filter(chapter => selectedChapterIds.value.includes(chapter.id))
 })
 
 const selectedMemo = computed(() => {
@@ -1318,14 +2257,14 @@ const relatedContextItems = computed<RelatedContent[]>(() => {
     })
   }
 
-  if (selectedChapter.value) {
+  selectedChapters.value.forEach(chapter => {
     items.push({
       type: 'chapter',
-      id: selectedChapter.value.id,
-      title: selectedChapter.value.title,
-      content: selectedChapter.value.content
+      id: chapter.id,
+      title: chapter.title,
+      content: chapter.content
     })
-  }
+  })
 
   if (selectedMemo.value) {
     items.push({
@@ -1360,8 +2299,15 @@ const hasRelatedContext = computed(() => relatedContextItems.value.length > 0)
 const canGenerate = computed(() => {
   if (!selectedModel.value) return false
 
-  const hasPromptFoundation = Boolean(editableFixedPrompt.value.trim()) || pinnedPrompts.value.some(p => p.enabled)
-  if (!hasPromptFoundation) return false
+  // 自定义模式：检查自定义提示词内容
+  if (promptTabMode.value === 'custom') {
+    const hasCustomPrompt = customPromptContent.value.trim() !== ''
+    if (!hasCustomPrompt) return false
+  } else {
+    // 模板选择模式：检查固定提示词或已启用的模板
+    const hasPromptFoundation = Boolean(editableFixedPrompt.value.trim()) || pinnedPrompts.value.some(p => p.enabled)
+    if (!hasPromptFoundation) return false
+  }
 
   const hasAdditionalContent = additionalInfo.value.trim() !== '' || hasRelatedContext.value
 
@@ -1391,7 +2337,7 @@ const isPromptPinned = (promptId: number) => {
   return pinnedPrompts.value.some(p => p.id === promptId)
 }
 
-const togglePromptPin = (prompt: { id: number; name: string; category: string; content: string; fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; description: string; required: boolean }> }) => {
+const togglePromptPin = (prompt: { id: number; name: string; category: string; content: string; fields?: Array<{ name: string; label: string; type: 'text' | 'textarea' | 'select'; options: string[]; optionLabels?: string[]; description: string; required: boolean }> }) => {
   const index = pinnedPrompts.value.findIndex(p => p.id === prompt.id)
   if (index > -1) {
     pinnedPrompts.value.splice(index, 1)
@@ -1404,6 +2350,13 @@ const removePinnedPrompt = (promptId: number) => {
   const index = pinnedPrompts.value.findIndex(p => p.id === promptId)
   if (index > -1) {
     pinnedPrompts.value.splice(index, 1)
+  }
+}
+
+const togglePinnedPrompt = (promptId: number) => {
+  const target = pinnedPrompts.value.find(p => p.id === promptId)
+  if (target) {
+    target.enabled = !target.enabled
   }
 }
 
@@ -1476,6 +2429,49 @@ const loadPinnedPromptsFromStorage = (generatorId: number) => {
   return []
 }
 
+const getGeneratorCardPacksKey = (generatorId: number) => {
+  return `generator_card_packs_${generatorId}`
+}
+
+const saveGeneratorCardPacksToStorage = () => {
+  if (currentGenerator.value) {
+    const key = getGeneratorCardPacksKey(currentGenerator.value.id)
+    localStorage.setItem(key, JSON.stringify(selectedGeneratorCardPacks.value))
+  }
+}
+
+const loadGeneratorCardPacksFromStorage = (generatorId: number): string[] => {
+  const key = getGeneratorCardPacksKey(generatorId)
+  const saved = localStorage.getItem(key)
+  if (saved) {
+    try {
+      return JSON.parse(saved)
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+const onCardPackSelectionChange = (value: string[]) => {
+  if (value.length > 2) {
+    selectedGeneratorCardPacks.value = value.slice(0, 2)
+    return
+  }
+  saveGeneratorCardPacksToStorage()
+  selectedPromptCategory.value = 'all'
+}
+
+const availableCardPacks = computed(() => {
+  const packs = new Set<string>()
+  prompts.value.forEach(p => {
+    if (p.category) {
+      packs.add(p.category)
+    }
+  })
+  return Array.from(packs)
+})
+
 const getFormStateKey = (generatorId: number) => {
   return `generator_form_state_${generatorId}`
 }
@@ -1488,7 +2484,7 @@ const saveFormStateToStorage = () => {
       inputParams: inputParams.value,
       additionalInfo: additionalInfo.value,
       selectedBookId: selectedBookId.value,
-      selectedChapterId: selectedChapterId.value,
+      selectedChapterIds: selectedChapterIds.value,
       selectedMemoId: selectedMemoId.value,
       selectedCharacterIds: selectedCharacterIds.value,
       fieldValues: fieldValues.value,
@@ -1560,6 +2556,15 @@ const buildSelectedPromptContent = () => {
 
 const buildSystemPrompt = () => {
   const fixedContent = editableFixedPrompt.value.trim()
+
+  // 自定义模式：使用用户输入的自定义提示词
+  if (promptTabMode.value === 'custom' && customPromptContent.value.trim()) {
+    return [fixedContent, customPromptContent.value.trim()]
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
+  // 模板选择模式：使用选中的模板
   const selectedContent = buildSelectedPromptContent()
 
   return [fixedContent, selectedContent ? `\n${selectedContent}` : '']
@@ -1642,7 +2647,7 @@ const fetchBookContext = async (bookId: number) => {
 
 const resetRelatedSelections = () => {
   selectedBookId.value = null
-  selectedChapterId.value = null
+  selectedChapterIds.value = []
   selectedMemoId.value = null
   selectedCharacterIds.value = []
   availableChapters.value = []
@@ -1675,13 +2680,22 @@ const openGenerator = (generator: GeneratorItem) => {
   isLoadingPinnedPrompts.value = true
   pinnedPrompts.value = loadPinnedPromptsFromStorage(generator.id)
 
+  const savedCardPacks = loadGeneratorCardPacksFromStorage(generator.id)
+  if (savedCardPacks.length > 0) {
+    selectedGeneratorCardPacks.value = savedCardPacks
+  } else {
+    const mappedCategory = GENERATOR_TO_CATEGORY_MAP[generator.name]
+    selectedGeneratorCardPacks.value = mappedCategory ? [mappedCategory] : []
+  }
+
   const savedFormState = loadFormStateFromStorage(generator.id)
   if (savedFormState) {
-    selectedModel.value = savedFormState.selectedModel || getDefaultModelId()
+    const savedModelId = savedFormState.selectedModel
+    selectedModel.value = (savedModelId && models.value.some(m => m.id === savedModelId)) ? savedModelId : getDefaultModelId()
     inputParams.value = savedFormState.inputParams || ''
     additionalInfo.value = savedFormState.additionalInfo || ''
     selectedBookId.value = savedFormState.selectedBookId
-    selectedChapterId.value = savedFormState.selectedChapterId
+    selectedChapterIds.value = savedFormState.selectedChapterIds || []
     selectedMemoId.value = savedFormState.selectedMemoId
     selectedCharacterIds.value = savedFormState.selectedCharacterIds || []
     fieldValues.value = savedFormState.fieldValues || {}
@@ -1839,6 +2853,10 @@ watch(pinnedPrompts, (newVal, oldVal) => {
   }
 }, { deep: true })
 
+watch(selectedGeneratorCardPacks, () => {
+  saveGeneratorCardPacksToStorage()
+}, { deep: true })
+
 watch(editableFixedPrompt, (newVal, oldVal) => {
   if (newVal && newVal !== oldVal && !hasUserEditedFixedPrompt.value) {
     hasUserEditedFixedPrompt.value = true
@@ -1848,7 +2866,7 @@ watch(editableFixedPrompt, (newVal, oldVal) => {
 watch(selectedBookId, async (newBookId, oldBookId) => {
   if (newBookId === oldBookId) return
 
-  selectedChapterId.value = null
+  selectedChapterIds.value = []
   selectedCharacterIds.value = []
   availableChapters.value = []
   availableCharacters.value = []
@@ -1972,7 +2990,8 @@ const generateContent = async () => {
         fieldValues: { ...fieldValues.value },
         relatedContext: relatedContent.map(item => ({
           type: item.type,
-          title: item.title
+          title: item.title,
+          content: item.content
         })),
         messages: [
           {
@@ -1996,6 +3015,7 @@ const generateContent = async () => {
       }
       
       saveHistoryRecord(historyRecord)
+      currentConversationMessages.value = historyRecord.messages
     } else {
       ElMessage.error('生成内容为空')
     }
@@ -2027,6 +3047,133 @@ const copyContent = () => {
 const copyFixedPrompt = () => {
   navigator.clipboard.writeText(fixedPromptContent.value)
   ElMessage.success('提示词已复制到剪贴板')
+}
+
+// 追问对话相关
+const openFollowUp = () => {
+  if (!currentConversationMessages.value.length) {
+    ElMessage.warning('没有可追问的对话内容')
+    return
+  }
+  followUpMessages.value = [...currentConversationMessages.value]
+  followUpUserInput.value = ''
+  followUpGenerating.value = false
+  followUpHistoryExpanded.value = false
+  followUpSelectedModelId.value = selectedModel.value
+  followUpDialogVisible.value = true
+
+  nextTick(() => {
+    scrollFollowUpToBottom()
+  })
+}
+
+const scrollFollowUpToBottom = () => {
+  if (followUpMessagesContainer.value) {
+    followUpMessagesContainer.value.scrollTop = followUpMessagesContainer.value.scrollHeight
+  }
+}
+
+const sendFollowUpMessage = async () => {
+  if (!followUpUserInput.value.trim() || followUpGenerating.value) return
+
+  const userMessage: HistoryMessage = {
+    role: 'user',
+    content: followUpUserInput.value.trim(),
+    timestamp: Date.now()
+  }
+
+  followUpMessages.value.push(userMessage)
+  followUpHistoryExpanded.value = true
+  const currentInput = followUpUserInput.value
+  followUpUserInput.value = ''
+  followUpGenerating.value = true
+
+  nextTick(() => {
+    scrollFollowUpToBottom()
+  })
+
+  try {
+    const selectedModelData = models.value.find(m => m.id === followUpSelectedModelId.value)
+    if (!selectedModelData) {
+      ElMessage.error('请选择模型')
+      followUpGenerating.value = false
+      return
+    }
+
+    const validRoles = ['system', 'user', 'assistant']
+    const messages = followUpMessages.value
+      .filter(msg => validRoles.includes(msg.role))
+      .map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages,
+        configId: selectedModelData.id
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('请求失败')
+    }
+
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    let assistantMessage = ''
+
+    const assistantMsg: HistoryMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now()
+    }
+    followUpMessages.value.push(assistantMsg)
+    const reactiveAssistantMsg = followUpMessages.value[followUpMessages.value.length - 1]
+
+    while (reader) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const chunk = decoder.decode(value)
+      const lines = chunk.split('\n')
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') continue
+
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.content) {
+              assistantMessage += parsed.content
+              reactiveAssistantMsg.content = assistantMessage
+              nextTick(() => {
+                scrollFollowUpToBottom()
+              })
+            } else if (parsed.error) {
+              throw new Error(parsed.error)
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue
+            throw e
+          }
+        }
+      }
+    }
+
+    ElMessage.success('对话完成')
+  } catch (error: any) {
+    ElMessage.error(error.message || '发送失败')
+    followUpMessages.value.pop()
+    followUpMessages.value.pop()
+  } finally {
+    followUpGenerating.value = false
+  }
 }
 
 // 保存提示词修改
@@ -2149,7 +3296,6 @@ const saveGenerator = async () => {
   
   try {
     if (isNewGenerator.value) {
-      // 创建新的自定义生成器
       const res = await generatorAPI.create({
         name: selectedGenerator.value.name,
         description: selectedGenerator.value.description,
@@ -2159,9 +3305,35 @@ const saveGenerator = async () => {
         order_num: selectedGenerator.value.order_num || 0
       })
       if (res.success) {
+        const generatorName = selectedGenerator.value.name
+        const generatorCorePrompt = selectedGenerator.value.core_prompt || ''
+        
+        try {
+          const promptRes = await promptAPI.create({
+            name: `${generatorName}默认提示词`,
+            category: generatorName,
+            content: generatorCorePrompt,
+            description: `${generatorName}生成器的默认提示词模板`
+          })
+          if (promptRes?.data) {
+            prompts.value.unshift({
+              id: promptRes.data.id || Date.now(),
+              name: `${generatorName}默认提示词`,
+              category: generatorName,
+              content: generatorCorePrompt,
+              description: `${generatorName}生成器的默认提示词模板`,
+              author: '系统',
+              version: 'v1.0',
+              created_at: new Date().toISOString(),
+              usage_count: 0
+            })
+          }
+        } catch (promptError) {
+          console.warn('创建默认提示词失败:', promptError)
+        }
+        
         ElMessage.success('创建成功')
         await fetchGenerators()
-        // 更新本地列表
         const defaults = loadDefaultGenerators()
         allGenerators.value = [...defaults, ...customGenerators.value.map(g => ({ ...g, isDefault: false }))]
         selectedGenerator.value = null
@@ -2247,8 +3419,35 @@ const deleteGenerator = async (gen: GeneratorItem) => {
   }
 }
 
+const moveGeneratorUp = (index: number) => {
+  if (index <= 0) return
+  const generators = [...allGenerators.value]
+  const item = generators[index]
+  generators[index] = generators[index - 1]
+  generators[index - 1] = item
+  generators.forEach((g, i) => { g.order_num = i })
+  allGenerators.value = generators
+  saveGeneratorsOrder()
+}
+
+const moveGeneratorDown = (index: number) => {
+  if (index >= allGenerators.value.length - 1) return
+  const generators = [...allGenerators.value]
+  const item = generators[index]
+  generators[index] = generators[index + 1]
+  generators[index + 1] = item
+  generators.forEach((g, i) => { g.order_num = i })
+  allGenerators.value = generators
+  saveGeneratorsOrder()
+}
+
+const saveGeneratorsOrder = () => {
+  const defaults = allGenerators.value.filter(g => g.isDefault)
+  saveDefaultGenerators(defaults as GeneratorItem[])
+}
+
 const createDefaultGenerators = (): GeneratorItem[] =>
-  defaultGeneratorConfigs.map(g => ({ ...g, isDefault: true }))
+  defaultGeneratorConfigs.map((g, i) => ({ ...g, isDefault: true, order_num: i }))
 
 // 从localStorage加载默认生成器配置
 const loadDefaultGenerators = () => {
@@ -2299,11 +3498,11 @@ onMounted(async () => {
   } catch (error) {
     // 使用默认数据
     prompts.value = [
-      { id: 1, name: '角色设定生成', category: '角色', content: '' },
-      { id: 2, name: '剧情大纲生成', category: '剧情', content: '' },
-      { id: 3, name: '对话润色', category: '对话', content: '' },
-      { id: 4, name: '场景描写', category: '场景', content: '' },
-      { id: 5, name: '情节转折', category: '剧情', content: '' }
+      { id: 1, name: '角色设定生成', category: '角色', content: '', author: '系统', version: 'v1.0', description: '用于生成角色设定的提示词' },
+      { id: 2, name: '剧情大纲生成', category: '剧情', content: '', author: '系统', version: 'v1.0', description: '用于生成剧情大纲的提示词' },
+      { id: 3, name: '对话润色', category: '对话', content: '', author: '系统', version: 'v1.0', description: '用于润色对话内容的提示词' },
+      { id: 4, name: '场景描写', category: '场景', content: '', author: '系统', version: 'v1.0', description: '用于生成场景描写的提示词' },
+      { id: 5, name: '情节转折', category: '剧情', content: '', author: '系统', version: 'v1.0', description: '用于生成情节转折的提示词' }
     ]
   }
   
@@ -2380,33 +3579,55 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 <style>
 .creative-page {
-  padding: 24px;
+  padding: 40px;
+  background: #f8fafc;
+  min-height: 100%;
+  position: relative;
+}
+
+.creative-page::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(8, 198, 190, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(5, 150, 145, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 32px;
+  margin-bottom: 48px;
+  position: relative;
+  z-index: 1;
 }
 
 .header-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .page-header h1 {
-  font-size: 28px;
-  font-weight: 600;
-  color: #303133;
+  font-size: 36px;
+  font-weight: 800;
+  color: #0f172a;
   margin: 0;
+  letter-spacing: -1px;
 }
 
 .subtitle {
-  color: #909399;
-  font-size: 14px;
+  color: #64748b;
+  font-size: 15px;
   margin: 0;
+  font-weight: 400;
+  letter-spacing: 0.3px;
 }
 
 .generators-grid {
@@ -2414,6 +3635,8 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 1200px) {
@@ -2422,137 +3645,178 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .generators-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 480px) {
   .generators-grid {
     grid-template-columns: 1fr;
   }
+
+  .creative-page {
+    padding: 24px 16px;
+  }
+}
+
+/* === 生成器卡片 - 皮肤令牌（参考 v2-card 风格） === */
+.generators-grid {
+  /* 表面 */
+  --gc-card-bg: #fff;
+  --gc-card-bg-soft: #fafbfc;
+  --gc-card-border: rgb(229, 231, 235);
+  --gc-card-border-hover: rgba(24, 160, 88, 0.32);
+  --gc-card-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.06), 0 3px 6px 0 rgba(0, 0, 0, 0.04);
+  --gc-card-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 8px 20px 0 rgba(0, 0, 0, 0.06);
+  --gc-card-radius: 14px;
+  --gc-card-padding-y: 18px;
+  --gc-card-padding-x: 14px;
+  --gc-card-gap: 12px;
+  --gc-card-min-height: 132px;
+  /* 文字 */
+  --gc-title-color: rgb(31, 34, 37);
+  --gc-meta-color: rgb(102, 102, 102);
+  --gc-accent: #18a058;
+  --gc-accent-soft: rgba(24, 160, 88, 0.12);
+  /* NEW 标签 */
+  --gc-new-bg-from: #ef4444;
+  --gc-new-bg-to: #dc2626;
+  --gc-new-text: #ffffff;
+  --gc-new-shadow: 0 2px 8px rgba(239, 68, 68, 0.22);
+  /* 水印 / 箭头 */
+  --gc-watermark-color: rgba(24, 160, 88, 0.08);
+  --gc-watermark-color-hover: rgba(24, 160, 88, 0.16);
+  --gc-arrow-color: rgba(0, 0, 0, 0.32);
+  --gc-arrow-color-hover: #fff;
+  --gc-arrow-bg-hover: var(--gc-accent);
+  /* 动画曲线 */
+  --gc-bezier: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .generator-card {
-  background: linear-gradient(135deg, rgba(8, 198, 190, 0.05) 0%, rgba(5, 150, 145, 0.08) 100%);
-  border-radius: 16px;
-  padding: 20px;
+  background: var(--gc-card-bg);
+  border-radius: var(--gc-card-radius);
+  padding: var(--gc-card-padding-y) var(--gc-card-padding-x);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: var(--gc-card-gap);
+  min-height: var(--gc-card-min-height);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 2px solid rgba(8, 198, 190, 0.2);
-  box-shadow: 0 4px 20px rgba(8, 198, 190, 0.1);
+  transition: all 0.25s var(--gc-bezier);
+  border: 1px solid var(--gc-card-border);
+  box-shadow: var(--gc-card-shadow);
   position: relative;
   overflow: hidden;
-  aspect-ratio: 1;
-}
-
-.generator-card .card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #059691;
-  text-shadow: 0 1px 2px rgba(8, 198, 190, 0.2);
-  text-align: center;
-  position: relative;
-  z-index: 1;
-}
-
-.generator-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 14px;
-  padding: 2px;
-  background: linear-gradient(135deg, #08c6be, #059691, #08c6be);
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.generator-card:hover::before {
-  opacity: 1;
-}
-
-.generator-card::after {
-  content: '';
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 80px;
-  height: 80px;
-  background: radial-gradient(circle, rgba(8, 198, 190, 0.15) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.generator-card:hover::after {
-  opacity: 1;
 }
 
 .generator-card:hover {
-  transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 12px 40px rgba(8, 198, 190, 0.25);
-  border-color: rgba(8, 198, 190, 0.5);
+  transform: translateY(-2px);
+  box-shadow: var(--gc-card-shadow-hover);
+  border-color: var(--gc-card-border-hover);
 }
 
-.card-icon {
-  width: 90px;
-  height: 90px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #08c6be 0%, #059691 100%);
+.card-content-bottom {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+}
+
+.card-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #fff;
-  box-shadow: 0 4px 20px rgba(8, 198, 190, 0.4);
-  transition: all 0.3s;
-}
-
-.generator-card:hover .card-icon {
-  transform: scale(1.1);
-  box-shadow: 0 8px 32px rgba(8, 198, 190, 0.5);
-}
-
-.card-content {
-  flex: 1;
+  gap: 6px;
   min-width: 0;
+  flex: 1;
+}
+
+.generator-card .card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gc-title-color);
+  text-align: center;
+  line-height: 1.4;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-tag {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--gc-new-bg-from) 0%, var(--gc-new-bg-to) 100%);
+  border: none;
+  color: var(--gc-new-text);
+  box-shadow: var(--gc-new-shadow);
 }
 
 .card-desc {
-  font-size: 13px;
-  color: #5a8a89;
+  font-size: 12px;
+  color: var(--gc-meta-color);
   margin: 0;
   line-height: 1.5;
+  text-align: center;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   box-orient: vertical;
   overflow: hidden;
+  font-weight: 400;
+  letter-spacing: 0.2px;
 }
 
-.card-arrow {
-  color: #5a8a89;
-  transition: all 0.3s;
+/* 角标水印（参考 v2-card 的 v2-watermark） */
+.card-watermark {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gc-watermark-color);
+  pointer-events: none;
+  transition: color 0.25s var(--gc-bezier), transform 0.25s var(--gc-bezier);
 }
 
-.generator-card:hover .card-arrow {
-  color: #08c6be;
-  transform: translateX(4px);
+.generator-card:hover .card-watermark {
+  color: var(--gc-watermark-color-hover);
+  transform: rotate(8deg) scale(1.05);
+}
+
+/* 右下角箭头（参考 v2-card 的 v2-arrow-box） */
+.card-arrow-box {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gc-arrow-color);
+  background: transparent;
+  transition: all 0.25s var(--gc-bezier);
+}
+
+.generator-card:hover .card-arrow-box {
+  color: var(--gc-arrow-color-hover);
+  background: var(--gc-arrow-bg-hover);
 }
 
 /* 弹窗样式 - 使用全局样式 */
@@ -2560,41 +3824,87 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 .generator-dialog-modal .el-dialog {
-  width: min(88vw, 1500px);
-  height: 94vh;
-  max-height: 94vh;
-  margin: 0 auto;
+  width: 1200px;
+  max-width: 90vw;
+  height: 95vh;
+  max-height: 95vh;
+  margin: 0 auto !important;
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(circle at top right, rgba(8, 198, 190, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(248, 253, 253, 0.98) 0%, rgba(239, 248, 247, 0.98) 100%);
-  border: 1px solid rgba(8, 198, 190, 0.2);
-  border-radius: 18px;
+  background: #ffffff;
+  border: none;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 30px 80px rgba(6, 95, 70, 0.18);
+  box-shadow:
+    0 1px 2px -2px rgba(0, 0, 0, 0.08),
+    0 3px 6px 0 rgba(0, 0, 0, 0.06),
+    0 5px 12px 4px rgba(0, 0, 0, 0.04);
+  padding: 0;
 }
 
 .generator-dialog-modal .el-dialog__header {
   flex-shrink: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(242, 251, 250, 0.88) 100%);
-  border-bottom: 1px solid rgba(8, 198, 190, 0.16);
-  padding: 18px 24px;
-  backdrop-filter: blur(12px);
+  background: #ffffff;
+  border-bottom: 1px solid rgb(240, 240, 240);
+  padding: 0;
+  position: relative;
+}
+
+.gen-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  position: relative;
+}
+
+.gen-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(31, 34, 37);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.gen-title-icon {
+  color: #18a058;
+  font-size: 18px;
+}
+
+.gen-dialog-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gen-tutorial-btn {
+  color: #94a3b8 !important;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.gen-tutorial-btn:hover {
+  color: #64748b !important;
+}
+
+.gen-close-btn {
+  color: #94a3b8 !important;
+  margin-left: 4px;
+}
+
+.gen-close-btn:hover {
+  color: #64748b !important;
 }
 
 .generator-dialog-modal .el-dialog__title {
   color: #0f766e;
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 700;
-}
-
-.generator-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #5f7f7b;
-}
-
-.generator-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #0f766e;
 }
 
 .generator-dialog-modal .el-dialog__body {
@@ -2606,10 +3916,59 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 .generator-dialog-modal .el-dialog__footer {
   flex-shrink: 0;
-  border-top: 1px solid rgba(8, 198, 190, 0.14);
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
+  border-top: 1px solid rgb(240, 240, 240);
+  padding: 12px 16px;
+  background: #ffffff;
+}
+
+.gen-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.gen-footer-disclaimer {
+  font-size: 13px;
+  color: #6b8481;
+  letter-spacing: 0.2px;
+}
+
+.gen-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gen-generate-btn {
+  min-width: 110px;
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+  box-shadow: none;
+  font-weight: 400;
+  border-radius: 3px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gen-generate-btn:hover:not(.is-disabled) {
+  background: #36ad6a !important;
+  border-color: #36ad6a !important;
+  color: #ffffff !important;
+}
+
+.gen-generate-btn:active:not(.is-disabled) {
+  background: #0c7a43 !important;
+  border-color: #0c7a43 !important;
+  color: #ffffff !important;
+}
+
+.gen-generate-btn.is-disabled {
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+  opacity: 0.5;
+  box-shadow: none;
 }
 
 .dialog-content {
@@ -2618,123 +3977,432 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   min-height: 0;
 }
 
-.pinned-prompts-area {
-  width: 34%;
-  min-width: 300px;
-  padding: 20px;
-  border-right: 1px solid rgba(8, 198, 190, 0.14);
+/* 左侧模板区 */
+.prompt-template-area {
+  width: 36%;
+  min-width: 320px;
+  padding: 8px;
+  border-right: 1px solid rgb(240, 240, 240);
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba(227, 246, 243, 0.76) 0%, rgba(240, 250, 248, 0.66) 100%);
+  background: #ffffff;
 }
 
-.pinned-header {
+.template-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(8, 198, 190, 0.16);
-  font-weight: 600;
-  color: #0f5d56;
-  font-size: 15px;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(8, 198, 190, 0.14);
+  margin-bottom: 12px;
 }
 
-.pinned-header .el-button {
-  margin-left: auto;
-  background: linear-gradient(135deg, #08c6be 0%, #059691 100%);
-  border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 10px 24px rgba(8, 198, 190, 0.22);
+.template-detail-btn {
+  background: #ffffff !important;
+  border: 1px solid rgb(224, 224, 230) !important;
+  color: rgb(51, 54, 57) !important;
+  font-weight: 400;
+  border-radius: 3px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.pinned-header .el-button:hover {
-  background: linear-gradient(135deg, #09b4ad 0%, #047a75 100%);
-  border-color: transparent;
-  color: #ffffff;
+.template-detail-btn:hover {
+  background: #ffffff !important;
+  border-color: #36ad6a !important;
+  color: #36ad6a !important;
 }
 
-.pinned-list {
+.card-pack-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.template-list {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 8px 0;
 }
 
-.pinned-item {
-  background: rgba(255, 255, 255, 0.76);
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  border: 1px solid rgba(8, 198, 190, 0.14);
-  box-shadow: 0 10px 24px rgba(8, 198, 190, 0.08);
-  transition: all 0.2s;
-}
-
-.pinned-item.disabled {
-  background: rgba(246, 249, 249, 0.82);
-  opacity: 0.72;
-}
-
-.pinned-item.disabled .pinned-item-name {
-  color: #88a09d;
-}
-
-.pinned-item-header {
+.template-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
-.pinned-item-name {
-  font-weight: 600;
-  color: #134e4a;
+.template-item:hover {
+  background: rgb(250, 250, 252);
+}
+
+.template-item.active {
+  background: rgba(24, 160, 88, 0.08);
+}
+
+.template-item-switch {
+  flex-shrink: 0;
+}
+
+.template-item-name {
+  flex: 1;
   font-size: 14px;
+  font-weight: 400;
+  color: rgb(51, 54, 57);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
-.pinned-item-desc {
-  font-size: 12px;
-  color: #5f7f7b;
-  line-height: 1.5;
+.template-item.active .template-item-name {
+  color: #18a058;
+  font-weight: 500;
 }
 
-.remove-icon {
-  margin-left: auto;
+.template-item-remove {
   color: #7f9a96;
   cursor: pointer;
   transition: color 0.2s;
+  flex-shrink: 0;
+  font-size: 14px;
 }
 
-.remove-icon:hover {
-  color: #f87171;
+.template-item-remove:hover {
+  color: #f43f5e;
 }
 
-.empty-pinned {
+.empty-template {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: #7f9a96;
+  color: rgba(118, 124, 130, 1);
 }
 
-.empty-pinned .el-icon {
-  color: #7f9a96;
-}
-
-.empty-pinned p {
+.empty-template p {
   margin-top: 12px;
   font-size: 14px;
-  color: #6b8481;
+  color: rgba(118, 124, 130, 1);
 }
 
-.function-area {
-  width: 66%;
-  padding: 20px;
+.template-footer {
+  padding-top: 8px;
+  border-top: 1px solid rgb(240, 240, 240);
+  margin-top: 4px;
+}
+
+.more-prompt-btn {
+  width: 100%;
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+  font-weight: 400;
+  font-size: 14px;
+  height: 34px;
+  border-radius: 3px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.more-prompt-btn:hover {
+  background: #36ad6a !important;
+  border-color: #36ad6a !important;
+  color: #ffffff !important;
+}
+
+.more-prompt-btn:active {
+  background: #0c7a43 !important;
+  border-color: #0c7a43 !important;
+  color: #ffffff !important;
+}
+
+/* 右侧表单区 */
+.form-area {
+  flex: 1;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   overflow-y: auto;
-  background: linear-gradient(180deg, rgba(252, 255, 255, 0.7) 0%, rgba(244, 251, 250, 0.78) 100%);
+  background: #ffffff;
+}
+
+.form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-block-label {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgb(31, 34, 37);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 0 6px 2px;
+  line-height: 26px;
+  height: 26px;
+}
+
+.form-block-action {
+  font-weight: 400;
+  font-size: 12px;
+  color: #94a3b8 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 2px 6px !important;
+}
+
+.form-block-action:hover {
+  color: #64748b !important;
+  background: transparent !important;
+}
+
+.form-block-label .required-tag {
+  margin-left: 4px;
+  height: 20px;
+  line-height: 18px;
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+.required-mark {
+  color: #d03050;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.prompt-tab-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prompt-tab-group .el-button {
+  font-weight: 400;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgb(224, 224, 230);
+  border-radius: 3px;
+  background: #ffffff;
+  color: rgb(51, 54, 57);
+  height: 28px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.prompt-tab-group .el-button:hover {
+  border-color: #36ad6a;
+  color: #36ad6a;
+}
+
+.prompt-tab-group .el-button.is-active,
+.prompt-tab-group .el-button--primary {
+  background: #18a058 !important;
+  border-color: #18a058 !important;
+  color: #ffffff !important;
+}
+
+.prompt-tab-group .el-button--primary:hover {
+  background: #36ad6a !important;
+  border-color: #36ad6a !important;
+  color: #ffffff !important;
+}
+
+.prompt-template-select {
+  margin-top: 4px;
+}
+
+.custom-prompt-container {
+  margin-top: 4px;
+}
+
+.custom-prompt-container :deep(.el-textarea__inner) {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.custom-prompt-container :deep(.el-textarea__inner:focus) {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.custom-prompt-container :deep(.el-input__count) {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.form-area .el-input__wrapper {
+  background: #ffffff;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0 12px;
+  min-height: 28px;
+}
+
+.form-area .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px #36ad6a inset;
+}
+
+.form-area .el-input__wrapper.is-focus {
+  box-shadow:
+    0 0 0 1px #18a058 inset,
+    0 0 0 2px rgba(24, 160, 88, 0.2);
+}
+
+.form-area .el-textarea__inner {
+  background: #ffffff;
+  border-radius: 3px;
+  color: rgb(51, 54, 57);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 4px 12px;
+  resize: none;
+  border: 1px solid rgb(224, 224, 230);
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-area .el-textarea__inner:hover {
+  border-color: #36ad6a;
+}
+
+.form-area .el-textarea__inner:focus {
+  border-color: #18a058;
+  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.2);
+  outline: none;
+}
+
+.form-area .el-textarea__inner::placeholder {
+  color: rgba(194, 194, 194, 1);
+  font-weight: 400;
+}
+
+.form-area .el-select__wrapper {
+  background: #ffffff !important;
+  border-radius: 3px !important;
+  box-shadow: 0 0 0 1px rgb(224, 224, 230) inset !important;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-height: 28px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.form-area .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px #36ad6a inset !important;
+}
+
+.form-area .el-select__wrapper.is-focused {
+  box-shadow:
+    0 0 0 1px #18a058 inset !important,
+    0 0 0 2px rgba(24, 160, 88, 0.2) !important;
+}
+
+.form-tip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 2px;
+  color: #5f7f7b;
+}
+
+.form-tip-orange {
+  color: #ea7c2c;
+  font-weight: 500;
+}
+
+.form-tip-text {
+  color: inherit;
+}
+
+.form-tip-content {
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.form-tip-link {
+  color: #18a058;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.form-tip-link:hover {
+  color: #36ad6a;
+  text-decoration: underline;
+}
+
+.form-tip-link-strong {
+  color: #18a058;
+  font-weight: 500;
+}
+
+.field-description {
+  font-size: 13px;
+  color: rgba(118, 124, 130, 1);
+  margin-top: -2px;
+}
+
+.input-container {
+  position: relative;
+  width: 100%;
+}
+
+.input-container .fullscreen-btn {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(8, 198, 190, 0.3);
+  color: #08c6be;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.input-container .fullscreen-btn:hover {
+  background: #08c6be;
+  color: #fff;
+  border-color: #08c6be;
+  transform: scale(1.05);
+}
+
+.fullscreen-editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fullscreen-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  font-size: 12px;
+  color: #7f9a96;
+}
+
+.fullscreen-editor-footer .char-count {
+  color: #08c6be;
+  font-weight: 500;
 }
 
 @media (max-width: 1100px) {
@@ -2748,19 +4416,19 @@ const viewHistoryDetail = (record: HistoryRecord) => {
     flex-direction: column;
   }
 
-  .pinned-prompts-area,
-  .function-area {
+  .prompt-template-area,
+  .form-area {
     width: 100%;
     min-width: 0;
   }
 
-  .pinned-prompts-area {
+  .prompt-template-area {
     max-height: 32%;
     border-right: none;
-    border-bottom: 1px solid rgba(8, 198, 190, 0.14);
+    border-bottom: 1px solid rgba(8, 198, 190, 0.16);
   }
 
-  .function-area {
+  .form-area {
     flex: 1;
   }
 }
@@ -2768,22 +4436,17 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 .selection-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(8, 198, 190, 0.12);
-  border-radius: 14px;
-  box-shadow: 0 12px 30px rgba(8, 198, 190, 0.05);
-  backdrop-filter: blur(8px);
+  gap: 8px;
 }
 
 .section-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-weight: 600;
   color: #134e4a;
   font-size: 14px;
+  margin-bottom: 2px;
 }
 
 .section-meta {
@@ -2796,13 +4459,13 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 .fields-input-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .field-input-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .field-label {
@@ -2838,8 +4501,8 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 .context-tip {
-  font-size: 12px;
-  color: #62807c;
+  font-size: 13px;
+  color: rgba(118, 124, 130, 1);
   line-height: 1.5;
 }
 
@@ -3055,16 +4718,17 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 /* 固定提示词弹窗样式 */
+/* 固定提示词弹窗 - 内容 */
 .fixed-prompt-dialog-content {
   padding: 10px 0;
 }
 
 .fixed-prompt-dialog-content :deep(.el-textarea__inner) {
-  background-color: #2a2a2a;
-  color: #ffffff;
+  background-color: var(--fp-bg-soft);
+  color: var(--fp-text-color);
   font-family: 'Courier New', monospace;
-  line-height: 1.6;
-  border-color: #4a4a4a;
+  line-height: var(--fp-line-height);
+  border-color: var(--fp-border-color);
 }
 
 .form-item {
@@ -3109,58 +4773,87 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   color: #ffffff;
 }
 
-/* 生成器管理弹窗样式 */
+/* 生成器管理弹窗样式 - 现代极简风格 */
 .generator-manager-dialog-modal .el-dialog {
-  background: #1a1a1a;
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.03),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    0 12px 32px rgba(0, 0, 0, 0.08),
+    0 32px 64px rgba(0, 0, 0, 0.06);
 }
 
 .generator-manager-dialog-modal .el-dialog__header {
-  background: #1a1a1a;
-  border-bottom: 1px solid #333333;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
 }
 
 .generator-manager-dialog-modal .el-dialog__title {
-  color: #ffffff;
+  color: #111827;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.generator-manager-dialog-modal .el-dialog__headerbtn {
+  top: 16px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.generator-manager-dialog-modal .el-dialog__headerbtn:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .generator-manager-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #9ca3af;
+  color: #6b7280;
+  font-size: 16px;
 }
 
 .generator-manager-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #ffffff;
+  color: #111827;
 }
 
 .generator-manager-dialog-modal .el-dialog__body {
   padding: 0;
-  background: #1a1a1a;
+  background: #ffffff;
 }
 
 .generator-manager-content {
   display: flex;
-  height: 500px;
+  height: 520px;
 }
 
+/* 左侧列表面板 */
 .generator-list-panel {
-  width: 280px;
-  border-right: 1px solid #333333;
+  width: 300px;
+  border-right: 1px solid #f0f0f0;
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
+  background: #fafafa;
 }
 
 .generator-list-panel .panel-header {
-  padding: 16px;
-  border-bottom: 1px solid #333333;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: #fafafa;
 }
 
 .panel-title {
   font-weight: 600;
-  color: #ffffff;
-  font-size: 15px;
+  color: #111827;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
 }
 
 .generator-list {
@@ -3169,36 +4862,61 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   padding: 8px;
 }
 
+.generator-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.generator-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.generator-list::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+.generator-list::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
+
 .generator-item {
   display: flex;
   align-items: center;
-  padding: 12px;
+  padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 4px;
+  transition: all 0.15s ease;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
 }
 
 .generator-item:hover {
-  background-color: #2a2a2a;
+  background-color: #f3f4f6;
 }
 
 .generator-item.active {
-  background-color: rgba(74, 222, 128, 0.15);
-  border: 1px solid #4ade80;
+  background-color: #ffffff;
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .generator-item-icon {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1a1a1a;
+  color: #ffffff;
   margin-right: 12px;
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(20, 184, 166, 0.25);
+}
+
+.generator-item-icon .el-icon {
+  color: #ffffff !important;
+  opacity: 1 !important;
 }
 
 .generator-item-info {
@@ -3209,26 +4927,23 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 .generator-item-name {
   display: block;
   font-weight: 500;
-  color: #ffffff;
-  font-size: 14px;
+  color: #111827;
+  font-size: 13px;
   margin-bottom: 2px;
+  letter-spacing: -0.01em;
 }
 
 .generator-item-desc {
   display: block;
   font-size: 12px;
-  color: #9ca3af;
+  color: #6b7280;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.4;
 }
 
 .generator-item-actions {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.generator-item:hover .generator-item-actions {
   opacity: 1;
 }
 
@@ -3238,36 +4953,50 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: #4a4a4a;
+  color: #9ca3af;
 }
 
 .empty-list .el-icon {
-  color: #4a4a4a;
+  color: #d1d5db;
 }
 
 .empty-list p {
   margin-top: 12px;
-  font-size: 14px;
-  color: #6b7280;
+  font-size: 13px;
+  color: #9ca3af;
 }
 
 .empty-list .hint {
   font-size: 12px;
   margin-top: 4px;
-  color: #6b7280;
+  color: #d1d5db;
 }
 
+/* 右侧详情面板 */
 .generator-detail-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #1a1a1a;
+  background-color: #ffffff;
 }
 
 .detail-content {
   padding: 24px;
   flex: 1;
   overflow-y: auto;
+}
+
+.detail-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.detail-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.detail-content::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 4px;
 }
 
 .detail-section {
@@ -3277,18 +5006,46 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 .detail-label {
   display: block;
   font-weight: 500;
-  color: #ffffff;
-  font-size: 14px;
+  color: #374151;
+  font-size: 13px;
   margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.collapsible-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+  transition: color 0.15s;
+}
+
+.collapsible-label:hover {
+  color: #14b8a6;
+}
+
+.collapse-arrow {
+  transition: transform 0.2s ease;
+  font-size: 14px;
+}
+
+.collapse-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.icon-picker-grid {
+  margin-top: 8px;
 }
 
 .detail-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
   margin-top: 24px;
   padding-top: 16px;
-  border-top: 1px solid #333333;
+  border-top: 1px solid #f0f0f0;
 }
 
 .empty-detail {
@@ -3297,194 +5054,864 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #4a4a4a;
+  color: #d1d5db;
 }
 
 .empty-detail .el-icon {
-  color: #4a4a4a;
+  color: #e5e7eb;
 }
 
 .empty-detail p {
   margin-top: 12px;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-/* 提示词选择弹窗样式 */
-.prompt-select-dialog-modal .el-dialog {
-  background: #1a1a1a;
-}
-
-.prompt-select-dialog-modal .el-dialog__header {
-  background: #1a1a1a;
-  border-bottom: 1px solid #333333;
-}
-
-.prompt-select-dialog-modal .el-dialog__title {
-  color: #ffffff;
-}
-
-.prompt-select-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  font-size: 13px;
   color: #9ca3af;
 }
 
-.prompt-select-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #ffffff;
+/* 图标选择器 */
+.icon-picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
 }
 
+.icon-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 4px;
+}
+
+.icon-picker-item:hover {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.03);
+  transform: translateY(-1px);
+}
+
+.icon-picker-item.selected {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.06);
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.12);
+}
+
+.icon-picker-item .el-icon {
+  color: #6b7280;
+}
+
+.icon-picker-item.selected .el-icon {
+  color: #14b8a6;
+}
+
+.icon-picker-name {
+  font-size: 10px;
+  color: #9ca3af;
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-picker-item.selected .icon-picker-name {
+  color: #14b8a6;
+  font-weight: 500;
+}
+
+/* 生成器列表排序按钮 */
+.generator-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 1;
+}
+
+.generator-item-actions .el-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.generator-item-actions .el-button .el-icon {
+  font-size: 14px;
+}
+
+/* 上移/下移按钮 */
+.generator-item-actions .el-button--primary.link {
+  color: #9ca3af !important;
+}
+
+.generator-item-actions .el-button--primary.link:hover {
+  color: #14b8a6 !important;
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.generator-item-actions .el-button--primary.link .el-icon {
+  color: #9ca3af !important;
+}
+
+.generator-item-actions .el-button--primary.link:hover .el-icon {
+  color: #14b8a6 !important;
+}
+
+/* 删除按钮 */
+.generator-item-actions .el-button--danger.link {
+  color: #9ca3af !important;
+}
+
+.generator-item-actions .el-button--danger.link:hover {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.generator-item-actions .el-button--danger.link .el-icon {
+  color: #9ca3af !important;
+}
+
+.generator-item-actions .el-button--danger.link:hover .el-icon {
+  color: #ef4444 !important;
+}
+
+/* 禁用状态 */
+.generator-item-actions .el-button.is-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: transparent;
+  border-color: transparent;
+}
+
+.generator-item-actions .el-button.is-disabled .el-icon {
+  color: #d1d5db !important;
+}
+
+.generator-item-actions .el-button.is-disabled:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* === 提示词选择弹窗 - 皮肤令牌（参考 Naive UI n-card 风格） === */
+.prompt-select-dialog-modal {
+  /* 表面 / 文字 */
+  --ps-bg: #fff;
+  --ps-bg-embedded: rgb(250, 250, 252);
+  --ps-bg-soft: #fafafa;
+  --ps-text-color: rgb(51, 54, 57);
+  --ps-text-color-secondary: rgb(102, 102, 102);
+  --ps-text-color-tertiary: rgba(0, 0, 0, 0.42);
+  --ps-title-color: rgb(31, 34, 37);
+  --ps-meta-color: rgb(102, 102, 102);
+  /* 边框 / 分割线 */
+  --ps-border-color: rgb(239, 239, 245);
+  --ps-border-color-soft: rgba(0, 0, 0, 0.06);
+  --ps-divider: #e5e7eb;
+  /* 阴影 */
+  --ps-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.08), 0 3px 6px 0 rgba(0, 0, 0, 0.06), 0 5px 12px 4px rgba(0, 0, 0, 0.04);
+  --ps-shadow-card-hover: 0 2px 8px -2px rgba(0, 0, 0, 0.08), 0 4px 12px 0 rgba(0, 0, 0, 0.04);
+  --ps-shadow-focus: 0 0 0 2px rgba(24, 160, 88, 0.16);
+  /* 圆角 */
+  --ps-radius-dialog: 20px;
+  --ps-radius-card: 12px;
+  --ps-radius-input: 8px;
+  --ps-radius-chip: 999px;
+  /* 主色 */
+  --ps-accent: #18a058;
+  --ps-accent-hover: #36ad6a;
+  --ps-accent-soft-bg: rgba(24, 160, 88, 0.08);
+  --ps-accent-soft-bg-hover: rgba(24, 160, 88, 0.14);
+  --ps-accent-border: rgba(24, 160, 88, 0.24);
+  /* 危险色 */
+  --ps-danger: #f43f5e;
+  --ps-danger-soft-bg: rgba(244, 63, 94, 0.06);
+  --ps-danger-border: rgba(244, 63, 94, 0.32);
+  /* 字号 / 间距 / 曲线 */
+  --ps-pad-y: 12px;
+  --ps-pad-x: 16px;
+  --ps-pad-content: 20px;
+  --ps-font-size: 14px;
+  --ps-font-size-sm: 13px;
+  --ps-font-size-xs: 12px;
+  --ps-title-size: 16px;
+  --ps-title-font-weight: 500;
+  --ps-line-height: 1.6;
+  --ps-bezier: cubic-bezier(0.4, 0, 0.2, 1);
+  /* 卡片 */
+  --ps-card-bg: #fff;
+  --ps-card-bg-hover: #fff;
+  --ps-card-border: rgb(239, 239, 245);
+  --ps-card-border-hover: rgba(24, 160, 88, 0.32);
+  /* 关闭按钮 */
+  --ps-close-size: 22px;
+  --ps-close-color: rgba(102, 102, 102, 1);
+  --ps-close-hover-bg: rgba(0, 0, 0, 0.09);
+  /* 滚动条 */
+  --ps-scroll-thumb: rgba(0, 0, 0, 0.18);
+  --ps-scroll-thumb-hover: rgba(0, 0, 0, 0.28);
+  /* 标签 / 装饰 */
+  --ps-tag-bg-soft: rgba(0, 0, 0, 0.04);
+  --ps-tag-bg-featured: rgba(251, 146, 60, 0.12);
+  --ps-tag-color-featured: #ea580c;
+  --ps-tag-border-featured: rgba(251, 146, 60, 0.32);
+  --ps-fire-color: #f97316;
+  --ps-crown-color: #fbbf24;
+}
+
+/* 弹窗容器 */
+.prompt-select-dialog-modal .el-dialog {
+  width: 800px;
+  max-width: 95vw;
+  height: 85vh;
+  max-height: 85vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--ps-bg);
+  border: 1px solid var(--ps-border-color);
+  border-radius: var(--ps-radius-dialog);
+  overflow: hidden;
+  box-shadow: var(--ps-shadow);
+  padding: 0;
+  animation: psDialogEnter 0.3s var(--ps-bezier);
+}
+
+@keyframes psDialogEnter {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* 头部 */
+.prompt-select-dialog-modal .el-dialog__header {
+  background: var(--ps-bg);
+  border-bottom: 1px solid var(--ps-border-color);
+  padding: 0;
+}
+
+.ps-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ps-pad-y) var(--ps-pad-x);
+}
+
+.ps-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ps-title-color);
+  font-size: var(--ps-title-size);
+  font-weight: var(--ps-title-font-weight);
+}
+
+.ps-title-icon { color: var(--ps-accent); font-size: 18px; }
+
+.ps-close-btn {
+  width: var(--ps-close-size);
+  height: var(--ps-close-size);
+  border-radius: 3px;
+  color: var(--ps-close-color) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s var(--ps-bezier);
+}
+.ps-close-btn:hover {
+  background: var(--ps-close-hover-bg);
+  color: var(--ps-close-color) !important;
+}
+
+/* Body */
 .prompt-select-dialog-modal .el-dialog__body {
-  padding: 16px 20px;
-  background: #1a1a1a;
+  padding: 0;
+  background: var(--ps-bg);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .prompt-select-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  height: 100%;
+  min-height: 0;
 }
 
-.search-input {
-  width: 100%;
-}
-
-.search-input .el-input__wrapper {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  box-shadow: none;
-}
-
-.search-input .el-input__inner {
-  color: #ffffff;
-}
-
-.search-input .el-input__inner::placeholder {
-  color: #6b7280;
-}
-
-.category-tabs {
-  width: 100%;
-  background: #2a2a2a;
-  border: 1px solid #4a4a4a;
-  border-radius: 8px;
-  padding: 6px 10px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #4a4a4a #2a2a2a;
-}
-
-.category-tabs::-webkit-scrollbar {
-  height: 6px;
-}
-
-.category-tabs::-webkit-scrollbar-track {
-  background: #2a2a2a;
-  border-radius: 3px;
-}
-
-.category-tabs::-webkit-scrollbar-thumb {
-  background: #4a4a4a;
-  border-radius: 3px;
-}
-
-.category-tabs::-webkit-scrollbar-thumb:hover {
-  background: #5a5a5a;
-}
-
-.category-tabs-wrapper {
+/* 顶部标签导航 */
+.tab-navigation {
   display: flex;
-  gap: 4px;
+  gap: 24px;
+  padding: 14px var(--ps-pad-x) 4px;
+  background: transparent;
+  border-bottom: 1px solid var(--ps-border-color);
+  align-items: center;
+}
+
+.tab-item {
+  position: relative;
+  padding: 6px 4px 10px;
+  font-size: var(--ps-font-size);
+  font-weight: 500;
+  color: var(--ps-text-color-secondary);
+  cursor: pointer;
+  transition: color 0.2s var(--ps-bezier);
+  letter-spacing: 0.2px;
+}
+.tab-item:hover { color: var(--ps-title-color); }
+.tab-item.active { color: var(--ps-accent); font-weight: 600; }
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 2px;
+  background: var(--ps-accent);
+  border-radius: 2px;
+}
+
+/* 搜索区 */
+.search-section {
+  width: 100%;
+  padding: 12px var(--ps-pad-x);
+  background: transparent;
+  border-bottom: 1px solid var(--ps-border-color);
+}
+
+.search-box { display: flex; gap: 10px; align-items: center; }
+.search-input-field { flex: 1; }
+
+.search-input-field .el-input__wrapper {
+  background: var(--ps-bg-soft);
+  border: 1px solid var(--ps-border-color-soft);
+  box-shadow: none;
+  border-radius: var(--ps-radius-input);
+  transition: all 0.2s var(--ps-bezier);
+  padding: 2px 12px;
+  height: 36px;
+}
+.search-input-field .el-input__wrapper:hover {
+  border-color: var(--ps-accent-border);
+  background: var(--ps-bg);
+}
+.search-input-field .el-input__wrapper.is-focus {
+  border-color: var(--ps-accent);
+  background: var(--ps-bg);
+  box-shadow: var(--ps-shadow-focus);
+}
+.search-input-field .el-input__inner {
+  color: var(--ps-text-color);
+  font-weight: 400;
+  font-size: var(--ps-font-size-sm);
+}
+.search-input-field .el-input__inner::placeholder { color: var(--ps-text-color-tertiary); }
+
+.search-btn {
+  padding: 0 18px;
+  height: 36px;
+  background: var(--ps-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--ps-radius-input);
+  font-size: var(--ps-font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.2s var(--ps-bezier);
+}
+.search-btn:hover { background: var(--ps-accent-hover); }
+
+/* 分类筛选 */
+.filter-section {
+  background: transparent;
+  border-radius: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--ps-border-color);
+}
+.filter-section:hover { border-color: var(--ps-border-color); box-shadow: none; }
+
+.filter-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--ps-pad-x) 6px;
+  cursor: pointer;
+  transition: color 0.2s var(--ps-bezier);
   user-select: none;
-  cursor: grab;
+  background: transparent;
+  font-size: var(--ps-font-size-sm);
+  font-weight: 500;
+  color: var(--ps-title-color);
+}
+.filter-header:hover { color: var(--ps-accent); }
+.filter-header span { flex: 1; font-size: var(--ps-font-size-sm); font-weight: 500; color: inherit; }
+.filter-arrow { transition: transform 0.2s var(--ps-bezier); color: var(--ps-text-color-tertiary); font-size: 12px; }
+.filter-arrow.expanded { transform: rotate(180deg); color: var(--ps-accent); }
+
+.category-dropdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px var(--ps-pad-x) 14px;
+  border-top: 1px dashed var(--ps-border-color);
+  max-height: 160px;
+  overflow-y: auto;
+  animation: dropdownSlide 0.2s var(--ps-bezier);
+  background: var(--ps-bg-soft);
 }
 
-.category-tabs-wrapper:active {
-  cursor: grabbing;
+@keyframes dropdownSlide {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.category-tab {
-  flex-shrink: 0;
-  padding: 6px 14px;
+.dropdown-item {
+  padding: 5px 14px;
+  font-size: var(--ps-font-size-sm);
+  color: var(--ps-text-color-secondary);
+  cursor: pointer;
+  transition: all 0.2s var(--ps-bezier);
+  border: 1px solid var(--ps-border-color);
+  background: var(--ps-bg);
+  border-radius: var(--ps-radius-chip);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dropdown-item:hover {
+  background: var(--ps-accent-soft-bg);
+  color: var(--ps-accent);
+  border-color: var(--ps-accent-border);
+}
+.dropdown-item.selected {
+  background: var(--ps-accent-soft-bg);
+  color: var(--ps-accent);
+  font-weight: 600;
+  border-color: var(--ps-accent);
+}
+
+.selected-tags { display: flex; align-items: center; gap: 6px; padding: 6px var(--ps-pad-x); background: var(--ps-bg); }
+.tag-label { font-size: 11px; color: var(--ps-text-color-tertiary); font-weight: 500; }
+
+/* 排序选项栏 */
+.sort-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px var(--ps-pad-x);
+  background: transparent;
+  border-bottom: 1px solid var(--ps-border-color);
+}
+.sort-label { display: none; }
+.sort-options { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.sort-btn {
+  padding: 4px 12px;
   background: transparent;
   border: none;
-  border-radius: 4px;
-  color: #9ca3af;
-  font-size: 13px;
+  color: var(--ps-text-color-secondary);
+  font-size: var(--ps-font-size-sm);
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.2s var(--ps-bezier);
+  position: relative;
+}
+.sort-btn:hover { color: var(--ps-title-color); }
+.sort-btn.active { color: var(--ps-accent); font-weight: 600; }
+.sort-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 12px; right: 12px; bottom: -8px;
+  height: 2px;
+  background: var(--ps-accent);
+  border-radius: 2px;
+}
+
+/* 卡片列表 */
+.prompt-select-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px var(--ps-pad-x);
+  gap: 0;
+  background: var(--ps-bg-embedded);
+}
+
+.prompt-select-list::-webkit-scrollbar { width: 6px; }
+.prompt-select-list::-webkit-scrollbar-track { background: transparent; }
+.prompt-select-list::-webkit-scrollbar-thumb { background: var(--ps-scroll-thumb); border-radius: 3px; }
+.prompt-select-list::-webkit-scrollbar-thumb:hover { background: var(--ps-scroll-thumb-hover); }
+
+/* 卡片 */
+.prompt-card-item {
+  display: flex;
+  flex-direction: column;
+  background: var(--ps-card-bg);
+  border: 1px solid var(--ps-card-border);
+  border-radius: var(--ps-radius-card);
+  padding: 14px 16px;
+  transition: all 0.2s var(--ps-bezier);
+  margin-bottom: 12px;
+  position: relative;
+  gap: 10px;
+}
+.prompt-card-item:last-child { margin-bottom: 0; }
+.prompt-card-item::before { display: none; }
+.prompt-card-item:hover {
+  border-color: var(--ps-card-border-hover);
+  background: var(--ps-card-bg-hover);
+  box-shadow: var(--ps-shadow-card-hover);
+}
+.prompt-card-item.selected {
+  border-color: var(--ps-accent);
+  background: var(--ps-accent-soft-bg);
+  box-shadow: none;
+}
+.prompt-card-item.selected::before { display: none; }
+
+.card-main {
+  flex: 1;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.card-top-row { display: flex; align-items: center; gap: 10px; position: relative; }
+
+.author-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+  background: var(--ps-accent);
+}
+
+.card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.card-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+.card-tags {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-top: 6px;
+  padding-left: 46px;
+}
+.card-category-tag {
+  background: var(--ps-accent-soft-bg) !important;
+  border-color: var(--ps-accent-border) !important;
+  color: var(--ps-accent) !important;
+  font-size: 10px;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 18px;
+}
+.card-version-tag {
+  background: var(--ps-tag-bg-soft) !important;
+  border-color: var(--ps-border-color-soft) !important;
+  color: var(--ps-text-color-secondary) !important;
+  font-size: 10px;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 18px;
+}
+
+.card-title {
+  font-size: var(--ps-font-size);
+  font-weight: 600;
+  color: var(--ps-title-color);
+  line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  max-width: calc(100% - 90px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.category-tab:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-}
-
-.category-tab.active {
-  background: rgba(74, 222, 128, 0.2);
-  color: #4ade80;
-}
-
-.prompt-select-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.prompt-select-item {
+.card-meta-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
+  flex-wrap: wrap;
+  padding-left: 46px;
+}
+.author-name { font-size: var(--ps-font-size-xs); color: var(--ps-meta-color); display: flex; align-items: center; gap: 4px; }
+.author-stats { display: flex; align-items: center; gap: 8px; }
+.stat-item { display: flex; align-items: center; gap: 3px; font-size: var(--ps-font-size-xs); color: var(--ps-meta-color); font-weight: 500; }
+.stat-icon { width: 13px; height: 13px; }
+.fire-icon { color: var(--ps-fire-color); }
+
+.card-featured-tag {
+  background: var(--ps-tag-bg-featured) !important;
+  border-color: var(--ps-tag-border-featured) !important;
+  color: var(--ps-tag-color-featured) !important;
+  font-size: 10px !important;
+  padding: 0 6px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+  font-weight: 600 !important;
+}
+.author-crown { color: var(--ps-crown-color); font-size: 12px; }
+.card-date { font-size: var(--ps-font-size-xs); color: var(--ps-text-color-tertiary); }
+
+.card-content { margin-top: 0; }
+.card-desc {
+  font-size: 12.5px;
+  color: var(--ps-meta-color);
+  line-height: var(--ps-line-height);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  padding-left: 46px;
 }
 
-.prompt-select-item:hover {
-  background-color: #2a2a2a;
-}
-
-.prompt-select-item.selected {
-  background-color: rgba(74, 222, 128, 0.15);
-  border-color: #4ade80;
-}
-
-.prompt-select-info {
-  flex: 1;
+/* 卡片操作按钮 */
+.card-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: transparent;
+  border-left: none;
   min-width: 0;
 }
 
-.prompt-select-name {
-  font-weight: 600;
-  color: #ffffff;
-  font-size: 14px;
-  margin-bottom: 4px;
+.action-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--ps-danger-border);
+  border-radius: var(--ps-radius-chip);
+  font-size: var(--ps-font-size-xs);
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.2s var(--ps-bezier);
+  white-space: nowrap;
+  background: var(--ps-danger-soft-bg);
+  color: var(--ps-danger);
+}
+.action-btn:hover {
+  background: var(--ps-danger);
+  color: #fff;
+  border-color: var(--ps-danger);
+  transform: none;
+  box-shadow: none;
+}
+.action-btn--add {
+  border-color: var(--ps-accent-border);
+  background: var(--ps-accent-soft-bg);
+  color: var(--ps-accent);
+}
+.action-btn--add:hover {
+  background: var(--ps-accent);
+  color: #fff;
+  border-color: var(--ps-accent);
+  box-shadow: none;
 }
 
-.prompt-select-desc {
-  font-size: 12px;
-  color: #9ca3af;
-  line-height: 1.5;
-}
-
+/* 空状态 */
 .empty-prompts {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 150px;
-  color: #4a4a4a;
+  height: 200px;
+  color: var(--ps-text-color-tertiary);
+  background: transparent;
+  border-radius: var(--ps-radius-card);
+  margin: 8px;
+}
+.empty-prompts .el-icon { color: var(--ps-text-color-tertiary); }
+.empty-prompts p { margin-top: 12px; font-size: var(--ps-font-size-sm); color: var(--ps-meta-color); font-weight: 500; }
+.empty-hint { margin-top: 6px !important; font-size: var(--ps-font-size-xs) !important; color: var(--ps-text-color-tertiary) !important; font-weight: 400 !important; }
+
+/* 创建提示词区域 */
+.create-prompt-section {
+  padding: 14px;
+  background: var(--ps-bg);
+}
+.create-prompt-form { max-width: 100%; margin: 0; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; margin-bottom: 14px; }
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: var(--ps-font-size-xs);
+  font-weight: 500;
+  color: var(--ps-title-color);
+  margin-bottom: 6px;
+}
+.form-group .el-input__wrapper,
+.form-group .el-textarea__inner {
+  background: var(--ps-bg-soft);
+  border: 1px solid var(--ps-border-color-soft);
+  border-radius: 6px;
+  transition: all 0.15s var(--ps-bezier);
+}
+.form-group .el-input__wrapper:hover,
+.form-group .el-textarea__inner:hover {
+  border-color: var(--ps-accent-border);
+  background: var(--ps-bg);
+}
+.form-group .el-input__wrapper.is-focus,
+.form-group .el-textarea__inner:focus {
+  border-color: var(--ps-accent);
+  background: var(--ps-bg);
+  box-shadow: var(--ps-shadow-focus);
 }
 
-.empty-prompts .el-icon {
-  color: #4a4a4a;
+.fields-config {
+  background: var(--ps-bg-soft);
+  border: 1px solid var(--ps-border-color-soft);
+  border-radius: 6px;
+  padding: 10px;
+}
+.field-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 6px;
+  background: var(--ps-bg);
+  border-radius: 4px;
+  border: 1px solid var(--ps-border-color-soft);
+}
+.field-item:last-child { margin-bottom: 0; }
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ps-border-color-soft);
+  margin-top: 16px;
+}
+.form-actions .el-button {
+  padding: 8px 16px;
+  font-size: var(--ps-font-size-sm);
+  border-radius: 5px;
 }
 
-.empty-prompts p {
-  margin-top: 12px;
-  font-size: 14px;
-  color: #6b7280;
+/* 创建提示词区域 - 紧凑风格 */
+.create-prompt-section {
+  padding: 14px;
+  background: #ffffff;
+}
+
+.create-prompt-form {
+  max-width: 100%;
+  margin: 0;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row .form-group {
+  flex: 1;
+  margin-bottom: 14px;
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.form-group .el-input__wrapper,
+.form-group .el-textarea__inner {
+  background: #fafafa;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.form-group .el-input__wrapper:hover,
+.form-group .el-textarea__inner:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: #ffffff;
+}
+
+.form-group .el-input__wrapper.is-focus,
+.form-group .el-textarea__inner:focus {
+  border-color: #22c55e;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+}
+
+.fields-config {
+  background: #fafafa;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.field-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 6px;
+  background: #ffffff;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.field-item:last-child {
+  margin-bottom: 0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  margin-top: 16px;
+}
+
+.form-actions .el-button {
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 5px;
 }
 
 /* 预览弹窗样式 */
@@ -3538,13 +5965,280 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
+}
+
+/* 追问对话弹窗 */
+.followup-dialog :deep(.el-dialog) {
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.followup-dialog :deep(.el-dialog__header) {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 16px 16px 0 0;
+  margin-right: 0;
+}
+
+.followup-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.followup-dialog-header .header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.followup-dialog-header .header-title .el-icon {
+  color: #08c6be;
+  font-size: 20px;
+}
+
+.followup-dialog-header .model-select {
+  width: 180px;
+}
+
+.followup-dialog :deep(.el-dialog__body) {
+  padding: 0;
+  background: #ffffff;
+}
+
+.followup-dialog-content {
+  display: flex;
+  flex-direction: column;
+  height: 550px;
+}
+
+.followup-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: #f0f2f5;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.followup-messages .history-collapsed-hint {
+  text-align: center;
+  padding: 12px 0;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.followup-messages .history-collapsed-hint::before,
+.followup-messages .history-collapsed-hint::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #e5e7eb, transparent);
+}
+
+.followup-messages .history-collapsed-hint::before {
+  left: 0;
+}
+
+.followup-messages .history-collapsed-hint::after {
+  right: 0;
+}
+
+.followup-messages .expand-btn {
+  font-size: 13px;
+  color: #08c6be;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: rgba(8, 198, 190, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 1;
+}
+
+.followup-messages .expand-btn:hover {
+  color: #059691;
+  background: rgba(8, 198, 190, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(8, 198, 190, 0.2);
+}
+
+.followup-message-bubble {
+  border-radius: 16px;
+  padding: 16px 20px;
+  max-width: 85%;
+  animation: followupMessageSlideIn 0.3s ease;
+}
+
+.followup-message-bubble.user {
+  background: #e3f2fd;
+  border: 1px solid #bbdefb;
+  margin-left: auto;
+}
+
+.followup-message-bubble.assistant {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.followup-message-bubble.system {
+  background: #f3e5f5;
+  border: 1px solid #e1bee7;
+  width: 100%;
+  max-width: 100%;
+}
+
+.followup-message-bubble.history-message {
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.followup-message-bubble.history-message:hover {
+  opacity: 1;
+}
+
+.followup-message-sender {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.followup-message-sender .sender-icon {
+  font-size: 16px;
+}
+
+.followup-message-sender .sender-name {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.followup-message-content {
+  color: #374151;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.followup-input-area {
+  padding: 16px 24px;
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.followup-input {
+  flex: 1;
+}
+
+.followup-input :deep(.el-textarea__inner) {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.followup-input :deep(.el-textarea__inner:focus) {
+  border-color: #08c6be;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(8, 198, 190, 0.1);
+}
+
+.followup-input-actions {
+  display: flex;
+  align-items: center;
+}
+
+.followup-input-actions .send-btn {
+  background: linear-gradient(135deg, #08c6be 0%, #059691 100%);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.followup-input-actions .send-btn:hover {
+  background: linear-gradient(135deg, #09b4ad 0%, #047a75 100%);
+}
+
+@keyframes followupMessageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.followup-messages .message-slide-enter-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.followup-messages .message-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.followup-messages .message-slide-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.followup-messages .message-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.followup-messages .typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.followup-messages .typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #08c6be;
+  animation: followupTyping 1.4s infinite ease-in-out;
+}
+
+.followup-messages .typing-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.followup-messages .typing-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes followupTyping {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* Element Plus 浅色主题覆盖 - 生成器弹窗 */
 .generator-dialog-modal .el-input__wrapper {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(8, 198, 190, 0.14);
-  box-shadow: 0 6px 18px rgba(8, 198, 190, 0.04);
+  box-shadow: none;
+  border-radius: 6px;
 }
 
 .generator-dialog-modal .el-input__inner {
@@ -3559,7 +6253,8 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(8, 198, 190, 0.14);
   color: #18453f;
-  box-shadow: 0 6px 18px rgba(8, 198, 190, 0.04);
+  box-shadow: none;
+  border-radius: 6px;
 }
 
 .generator-dialog-modal .el-textarea__inner::placeholder {
@@ -3572,12 +6267,13 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 .generator-dialog-modal .el-input__wrapper:focus-within {
   border-color: #08c6be;
-  box-shadow: 0 0 0 3px rgba(8, 198, 190, 0.12);
+  box-shadow: 0 0 0 2px rgba(8, 198, 190, 0.1);
 }
 
 .generator-dialog-modal .el-select .el-input__wrapper {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(8, 198, 190, 0.14);
+  border-radius: 6px;
 }
 
 .generator-dialog-modal .el-select-dropdown {
@@ -3607,7 +6303,8 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   background: linear-gradient(135deg, #08c6be 0%, #059691 100%);
   border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 12px 24px rgba(8, 198, 190, 0.18);
+  box-shadow: 0 8px 16px rgba(8, 198, 190, 0.15);
+  border-radius: 6px;
 }
 
 .generator-dialog-modal .el-button--primary:hover {
@@ -3660,143 +6357,230 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   color: #0f766e;
 }
 
-/* 生成器管理弹窗 */
+.generator-dialog-modal .form-area::-webkit-scrollbar,
+.generator-dialog-modal .template-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.generator-dialog-modal .form-area::-webkit-scrollbar-track,
+.generator-dialog-modal .template-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.generator-dialog-modal .form-area::-webkit-scrollbar-thumb,
+.generator-dialog-modal .template-list::-webkit-scrollbar-thumb {
+  background: rgba(8, 198, 190, 0.2);
+  border-radius: 3px;
+}
+
+.generator-dialog-modal .form-area::-webkit-scrollbar-thumb:hover,
+.generator-dialog-modal .template-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(8, 198, 190, 0.35);
+}
+
+:root[data-theme='dark'] .form-area::-webkit-scrollbar-thumb,
+:root[data-theme='dark'] .template-list::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.22);
+}
+
+:root[data-theme='dark'] .form-area::-webkit-scrollbar-thumb:hover,
+:root[data-theme='dark'] .template-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.4);
+}
+
+/* 生成器管理弹窗 - Element Plus 组件样式 */
 .generator-manager-dialog-modal .el-input__wrapper {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
   box-shadow: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: all 0.15s;
+}
+
+.generator-manager-dialog-modal .el-input__wrapper:hover {
+  border-color: #d1d5db;
 }
 
 .generator-manager-dialog-modal .el-input__inner {
-  color: #ffffff;
+  color: #111827;
+  font-size: 14px;
 }
 
 .generator-manager-dialog-modal .el-input__inner::placeholder {
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 .generator-manager-dialog-modal .el-textarea__inner {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  color: #ffffff;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  color: #111827;
+  border-radius: 8px;
+  font-size: 14px;
+  padding: 10px 12px;
+  transition: all 0.15s;
+}
+
+.generator-manager-dialog-modal .el-textarea__inner:hover {
+  border-color: #d1d5db;
 }
 
 .generator-manager-dialog-modal .el-textarea__inner::placeholder {
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 .generator-manager-dialog-modal .el-textarea__inner:focus {
-  border-color: #4ade80;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.08);
 }
 
 .generator-manager-dialog-modal .el-input__wrapper:focus-within {
-  border-color: #4ade80;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.08);
+  background: #ffffff;
 }
 
 .generator-manager-dialog-modal .el-select .el-input__wrapper {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
 }
 
 .generator-manager-dialog-modal .el-select-dropdown {
-  background: #2a2a2a;
-  border-color: #333333;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  padding: 6px;
 }
 
 .generator-manager-dialog-modal .el-select-dropdown__item {
-  color: #ffffff;
+  color: #374151;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
 }
 
 .generator-manager-dialog-modal .el-select-dropdown__item:hover {
-  background: #333333;
+  background: #f3f4f6;
 }
 
 .generator-manager-dialog-modal .el-select-dropdown__item.selected {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
+  background: rgba(20, 184, 166, 0.08);
+  color: #0d9488;
+  font-weight: 500;
 }
 
 .generator-manager-dialog-modal .el-switch.is-checked .el-switch__core {
-  background-color: #4ade80;
-  border-color: #4ade80;
+  background-color: #14b8a6;
+  border-color: #14b8a6;
 }
 
 .generator-manager-dialog-modal .el-button--primary {
-  background: #4ade80;
-  border-color: #4ade80;
-  color: #1a1a1a;
+  background: #14b8a6;
+  border-color: #14b8a6;
+  color: #ffffff;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.15s;
 }
 
 .generator-manager-dialog-modal .el-button--primary:hover {
-  background: #22c55e;
-  border-color: #22c55e;
+  background: #0d9488;
+  border-color: #0d9488;
 }
 
 .generator-manager-dialog-modal .el-button--primary.is-disabled {
-  background: #4a4a4a;
-  border-color: #4a4a4a;
-  color: #6b7280;
+  background: #e5e7eb;
+  border-color: #e5e7eb;
+  color: #9ca3af;
 }
 
 .generator-manager-dialog-modal .el-button--default {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  color: #ffffff;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.15s;
 }
 
 .generator-manager-dialog-modal .el-button--default:hover {
-  background: #333333;
-  border-color: #6b7280;
+  background: #f9fafb;
+  border-color: #d1d5db;
 }
 
 .generator-manager-dialog-modal .el-button--danger {
-  background: #f87171;
-  border-color: #f87171;
-  color: #1a1a1a;
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+  border-radius: 8px;
+  font-weight: 500;
 }
 
 .generator-manager-dialog-modal .el-button--danger:hover {
-  background: #ef4444;
-  border-color: #ef4444;
+  background: #dc2626;
+  border-color: #dc2626;
 }
 
 .generator-manager-dialog-modal .el-tag--info {
-  background: rgba(107, 114, 128, 0.2);
-  border-color: #6b7280;
-  color: #9ca3af;
+  background: rgba(20, 184, 166, 0.06);
+  border-color: rgba(20, 184, 166, 0.15);
+  color: #0d9488;
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 .generator-manager-dialog-modal .el-icon {
-  color: #9ca3af;
+  color: #6b7280;
 }
 
 .generator-manager-dialog-modal .el-icon:hover {
-  color: #ffffff;
+  color: #111827;
 }
 
 /* 提示词选择弹窗 */
 .prompt-select-dialog-modal .el-input__wrapper {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
+  background: #fafafa;
+  border-color: rgba(0, 0, 0, 0.08);
   box-shadow: none;
 }
 
+.prompt-select-dialog-modal .el-input__wrapper:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.prompt-select-dialog-modal .el-input__wrapper.is-focus {
+  border-color: #08c6be;
+  box-shadow: 0 0 0 2px rgba(8, 198, 190, 0.1);
+}
+
 .prompt-select-dialog-modal .el-input__inner {
-  color: #ffffff;
+  color: #134e4a;
 }
 
 .prompt-select-dialog-modal .el-input__inner::placeholder {
-  color: #6b7280;
+  color: #a3a3a3;
 }
 
 .prompt-select-dialog-modal .el-textarea__inner {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  color: #ffffff;
+  background: #fafafa;
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #134e4a;
+}
+
+.prompt-select-dialog-modal .el-textarea__inner:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.prompt-select-dialog-modal .el-textarea__inner:focus {
+  border-color: #08c6be;
+  box-shadow: 0 0 0 2px rgba(8, 198, 190, 0.1);
 }
 
 .prompt-select-dialog-modal .el-textarea__inner::placeholder {
-  color: #6b7280;
+  color: #a3a3a3;
 }
 
 .prompt-select-dialog-modal .el-button--primary {
@@ -3979,89 +6763,122 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   border-color: #6b7280;
 }
 
-/* 固定提示词查看弹窗 */
+/* === 固定提示词查看弹窗 - 皮肤令牌 === */
+.fixed-prompt-dialog-modal {
+  /* 表面 / 文字 */
+  --fp-bg: #fff;
+  --fp-bg-soft: #fafafa;
+  --fp-text-color: rgb(31, 34, 37);
+  --fp-text-color-muted: rgb(102, 102, 102);
+  --fp-placeholder-color: #9ca3af;
+  /* 边框 / 阴影 / 圆角 */
+  --fp-border-color: rgb(229, 231, 235);
+  --fp-border-color-hover: #d1d5db;
+  --fp-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.08), 0 3px 6px 0 rgba(0, 0, 0, 0.06), 0 5px 12px 4px rgba(0, 0, 0, 0.04);
+  --fp-radius: 14px;
+  /* 主色（绿色，与功能语义一致：复制即执行） */
+  --fp-accent: #22c55e;
+  --fp-accent-hover: #16a34a;
+  --fp-accent-text: #ffffff;
+  /* 危险 / 次要按钮 */
+  --fp-btn-default-bg: #fff;
+  --fp-btn-default-border: rgb(229, 231, 235);
+  --fp-btn-default-text: rgb(51, 54, 57);
+  --fp-btn-default-hover-bg: #f9fafb;
+  --fp-btn-default-hover-border: #d1d5db;
+  /* 文本域 */
+  --fp-textarea-bg: #fafafa;
+  --fp-textarea-border: rgb(229, 231, 235);
+  --fp-textarea-color: rgb(31, 34, 37);
+  --fp-line-height: 1.6;
+  /* 关闭 */
+  --fp-close-color: rgb(102, 102, 102);
+  --fp-close-hover-color: rgb(31, 34, 37);
+}
+
 .fixed-prompt-dialog-modal .el-dialog {
-  background: #1a1a1a;
+  background: var(--fp-bg);
+  border: 1px solid var(--fp-border-color);
+  border-radius: var(--fp-radius);
+  box-shadow: var(--fp-shadow);
+  overflow: hidden;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__header {
-  background: #1a1a1a;
-  border-bottom: 1px solid #333333;
+  background: var(--fp-bg);
+  border-bottom: 1px solid var(--fp-border-color);
+  padding: 14px 20px;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__title {
-  color: #ffffff;
+  color: var(--fp-text-color);
+  font-weight: 500;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__headerbtn .el-dialog__close {
-  color: #9ca3af;
+  color: var(--fp-close-color);
 }
-
 .fixed-prompt-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
-  color: #ffffff;
+  color: var(--fp-close-hover-color);
 }
 
 .fixed-prompt-dialog-modal .el-dialog__body {
-  background: #1a1a1a;
+  background: var(--fp-bg);
+  padding: 16px 20px;
 }
 
 .fixed-prompt-dialog-modal .el-dialog__footer {
-  background: #1a1a1a;
-  border-top: 1px solid #333333;
+  background: var(--fp-bg);
+  border-top: 1px solid var(--fp-border-color);
+  padding: 12px 20px;
 }
 
-.fixed-prompt-dialog-modal .el-input__wrapper {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
+.fixed-prompt-dialog-modal .el-input__wrapper,
+.fixed-prompt-dialog-modal .el-textarea__inner {
+  background: var(--fp-textarea-bg);
+  border-color: var(--fp-textarea-border);
+  color: var(--fp-textarea-color);
   box-shadow: none;
 }
 
-.fixed-prompt-dialog-modal .el-input__inner {
-  color: #ffffff;
-}
-
-.fixed-prompt-dialog-modal .el-input__inner::placeholder {
-  color: #6b7280;
-}
-
 .fixed-prompt-dialog-modal .el-textarea__inner {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  color: #ffffff;
+  font-family: 'Courier New', monospace;
+  line-height: var(--fp-line-height);
 }
 
+.fixed-prompt-dialog-modal .el-input__inner {
+  color: var(--fp-textarea-color);
+}
+
+.fixed-prompt-dialog-modal .el-input__inner::placeholder,
 .fixed-prompt-dialog-modal .el-textarea__inner::placeholder {
-  color: #6b7280;
+  color: var(--fp-placeholder-color);
 }
 
-.fixed-prompt-dialog-modal .el-textarea__inner:focus {
-  border-color: #4ade80;
-}
-
+.fixed-prompt-dialog-modal .el-textarea__inner:focus,
 .fixed-prompt-dialog-modal .el-input__wrapper:focus-within {
-  border-color: #4ade80;
+  border-color: var(--fp-accent);
 }
 
 .fixed-prompt-dialog-modal .el-button--primary {
-  background: #4ade80;
-  border-color: #4ade80;
-  color: #1a1a1a;
+  background: var(--fp-accent);
+  border-color: var(--fp-accent);
+  color: var(--fp-accent-text);
 }
-
 .fixed-prompt-dialog-modal .el-button--primary:hover {
-  background: #22c55e;
-  border-color: #22c55e;
+  background: var(--fp-accent-hover);
+  border-color: var(--fp-accent-hover);
 }
 
 .fixed-prompt-dialog-modal .el-button--default {
-  background: #2a2a2a;
-  border-color: #4a4a4a;
-  color: #ffffff;
+  background: var(--fp-btn-default-bg);
+  border-color: var(--fp-btn-default-border);
+  color: var(--fp-btn-default-text);
 }
-
 .fixed-prompt-dialog-modal .el-button--default:hover {
-  background: #333333;
-  border-color: #6b7280;
+  background: var(--fp-btn-default-hover-bg);
+  border-color: var(--fp-btn-default-hover-border);
+  color: var(--fp-btn-default-text);
 }
 
 /* Alert组件深色主题 */
@@ -4574,5 +7391,1399 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 
 .message-bubble.system .message-content {
   color: #1f2937;
+}
+
+/* 暗色主题适配 */
+:root[data-theme='dark'] .message-bubble.user {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.8) 0%, rgba(118, 75, 162, 0.8) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+:root[data-theme='dark'] .message-bubble.assistant {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .message-bubble.system {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .message-bubble.assistant .sender-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .message-bubble.system .sender-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .message-bubble.assistant .message-content {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .message-bubble.system .message-content {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .page-header h1 {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .subtitle {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .pinned-item {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(94, 234, 212, 0.2);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .pinned-item.disabled {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+:root[data-theme='dark'] .pinned-item.disabled .pinned-item-name {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .pinned-item-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .pinned-item-desc {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .remove-icon {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .remove-icon:hover {
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .empty-pinned {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-pinned .el-icon {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-pinned p {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .selection-section {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(94, 234, 212, 0.2);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .section-header {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .section-meta {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .field-label {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .field-description {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .input-container .fullscreen-btn {
+  background: rgba(31, 41, 55, 0.9);
+  border-color: rgba(94, 234, 212, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .input-container .fullscreen-btn:hover {
+  background: #5eead4;
+  color: #0f172a;
+  border-color: #5eead4;
+}
+
+:root[data-theme='dark'] .fullscreen-editor-footer {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .fullscreen-editor-footer .char-count {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .context-tip {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+:root[data-theme='dark'] .fixed-prompt-hint {
+  background: rgba(94, 234, 212, 0.12);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .pinned-prompts-area {
+  border-right-color: rgba(94, 234, 212, 0.2);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.76) 0%, rgba(15, 23, 42, 0.66) 100%);
+}
+
+:root[data-theme='dark'] .pinned-header {
+  border-bottom-color: rgba(94, 234, 212, 0.2);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .pinned-header .el-button {
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .pinned-header .el-button:hover {
+  background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%);
+}
+
+:root[data-theme='dark'] .function-area {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.78) 100%);
+}
+
+:root[data-theme='dark'] .creative-page {
+  background: #0a0c10;
+}
+
+:root[data-theme='dark'] .creative-page::before {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(8, 198, 190, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(5, 150, 145, 0.02) 0%, transparent 50%);
+}
+
+:root[data-theme='dark'] .page-header h1 {
+  color: #ffffff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .subtitle {
+  color: #64748b;
+}
+
+/* === 生成器卡片 - 深色皮肤令牌覆盖 === */
+:root[data-theme='dark'] .generators-grid {
+  --gc-card-bg: rgb(24, 24, 28);
+  --gc-card-bg-soft: rgb(30, 30, 36);
+  --gc-card-border: rgba(255, 255, 255, 0.08);
+  --gc-card-border-hover: rgba(54, 173, 106, 0.4);
+  --gc-card-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.5), 0 3px 6px 0 rgba(0, 0, 0, 0.4);
+  --gc-card-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 8px 20px 0 rgba(0, 0, 0, 0.32);
+  --gc-title-color: rgba(255, 255, 255, 0.92);
+  --gc-meta-color: rgba(255, 255, 255, 0.52);
+  --gc-accent: #36ad6a;
+  --gc-accent-soft: rgba(54, 173, 106, 0.18);
+  --gc-new-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+  --gc-watermark-color: rgba(255, 255, 255, 0.05);
+  --gc-watermark-color-hover: rgba(54, 173, 106, 0.32);
+  --gc-arrow-color: rgba(255, 255, 255, 0.42);
+  --gc-arrow-color-hover: #0f172a;
+  --gc-arrow-bg-hover: var(--gc-accent);
+}
+
+:root[data-theme='dark'] .card-icon {
+  background: linear-gradient(135deg, #08c6be 0%, #059691 100%);
+  box-shadow:
+    0 6px 20px rgba(8, 198, 190, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+:root[data-theme='dark'] .generator-card:hover .card-icon {
+  box-shadow:
+    0 10px 28px rgba(8, 198, 190, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+:root[data-theme='dark'] .card-desc {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .new-tag {
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+}
+
+:root[data-theme='dark'] .generator-item:hover {
+  background-color: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .generator-item.active {
+  background-color: rgba(94, 234, 212, 0.16);
+  border-color: rgba(94, 234, 212, 0.45);
+}
+
+:root[data-theme='dark'] .generator-item-icon {
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
+}
+
+:root[data-theme='dark'] .generator-item-icon .el-icon {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme='dark'] .panel-title {
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .generator-item-name {
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .generator-item-desc {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button.is-disabled {
+  opacity: 0.4;
+  background: transparent;
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button.is-disabled .el-icon {
+  color: #475569 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button.is-disabled:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .empty-list {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-list .el-icon {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-list p {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-list .hint {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-detail {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .empty-detail .el-icon {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog {
+  background: #1e293b;
+  box-shadow:
+    0 1px 2px -2px rgba(0, 0, 0, 0.5),
+    0 3px 6px 0 rgba(0, 0, 0, 0.4),
+    0 5px 12px 4px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog__header {
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .gen-dialog-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .gen-title-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .gen-tutorial-btn {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+:root[data-theme='dark'] .gen-tutorial-btn:hover {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .gen-close-btn {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+:root[data-theme='dark'] .gen-close-btn:hover {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog__title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-dialog__footer {
+  background: #1e293b;
+  border-top-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .gen-footer-disclaimer {
+  color: rgba(203, 213, 225, 0.85);
+}
+
+:root[data-theme='dark'] .prompt-template-area {
+  background: rgba(15, 23, 42, 0.45);
+  border-right-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .template-header {
+  border-bottom-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .template-detail-btn {
+  background: #1e293b !important;
+  border-color: rgba(94, 234, 212, 0.22) !important;
+  color: #cbd5e1 !important;
+}
+
+:root[data-theme='dark'] .template-detail-btn:hover {
+  background: rgba(94, 234, 212, 0.12) !important;
+  border-color: #5eead4 !important;
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .template-item {
+  background: transparent;
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .template-item:hover {
+  background: rgba(94, 234, 212, 0.06);
+}
+
+:root[data-theme='dark'] .template-item.active {
+  background: rgba(94, 234, 212, 0.16);
+}
+
+:root[data-theme='dark'] .template-item-name {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .template-item.active .template-item-name {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .template-item-remove {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .template-item-remove:hover {
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .empty-template {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .empty-template p {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .template-footer {
+  border-top-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .more-prompt-btn {
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%) !important;
+  border-color: transparent !important;
+  color: #0f172a !important;
+  box-shadow: 0 8px 20px rgba(45, 212, 191, 0.35);
+}
+
+:root[data-theme='dark'] .more-prompt-btn:hover {
+  background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%) !important;
+  box-shadow: 0 10px 24px rgba(45, 212, 191, 0.45);
+}
+
+:root[data-theme='dark'] .form-area {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .form-block-label {
+  color: #f3f4f6 !important;
+}
+
+:root[data-theme='dark'] .form-area .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.18) inset;
+}
+
+:root[data-theme='dark'] .form-area .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.32) inset;
+}
+
+:root[data-theme='dark'] .form-area .el-input__wrapper.is-focus {
+  box-shadow:
+    0 0 0 1px #5eead4 inset,
+    0 0 0 2px rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner {
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner:focus {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .form-area .el-textarea__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .form-area .el-select__wrapper {
+  background: rgba(15, 23, 42, 0.6) !important;
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.18) inset !important;
+}
+
+:root[data-theme='dark'] .form-area .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.32) inset !important;
+}
+
+:root[data-theme='dark'] .form-area .el-select__wrapper.is-focused {
+  box-shadow:
+    0 0 0 1px #5eead4 inset !important,
+    0 0 0 2px rgba(94, 234, 212, 0.2) !important;
+}
+
+:root[data-theme='dark'] .form-block-action {
+  color: #5eead4 !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .form-block-action:hover {
+  color: #2dd4bf !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .required-mark {
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .form-tip {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .form-tip-orange {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .form-tip-link {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .form-tip-link:hover {
+  color: #2dd4bf;
+}
+
+:root[data-theme='dark'] .form-tip-link-strong {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .field-description {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .gen-generate-btn.is-disabled {
+  background: #5eead4 !important;
+  border-color: #5eead4 !important;
+  color: #0f172a !important;
+  opacity: 0.45;
+}
+
+:root[data-theme='dark'] .prompt-tab-group .el-button {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .prompt-tab-group .el-button:hover {
+  border-color: #5eead4;
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog {
+  background: #1e293b;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(94, 234, 212, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    0 40px 80px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__header {
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-dialog__body {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__wrapper:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__inner {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner:focus {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.12);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__wrapper:focus-within {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.12);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown {
+  background: #1e293b;
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__item {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__item:hover {
+  background: rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__item.selected {
+  background: rgba(94, 234, 212, 0.18);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-tag--info {
+  background: rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.25);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-icon {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-icon:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-button--default {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(94, 234, 212, 0.22);
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-button--default:hover {
+  background: rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.4);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-input__wrapper:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-input__inner {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-input__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner:hover {
+  border-color: rgba(94, 234, 212, 0.32);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner::placeholder {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-textarea__inner:focus {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-input__wrapper:focus-within {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.18);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-select .el-input__wrapper {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown {
+  background: #1e293b;
+  border-color: rgba(94, 234, 212, 0.18);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown__item {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown__item:hover {
+  background: rgba(94, 234, 212, 0.08);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-select-dropdown__item.selected {
+  background: rgba(94, 234, 212, 0.18);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-switch.is-checked .el-switch__core {
+  background-color: #5eead4;
+  border-color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-button--primary {
+  background: #5eead4;
+  border-color: #5eead4;
+  color: #0f172a;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-button--primary:hover {
+  background: #2dd4bf;
+  border-color: #2dd4bf;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-button--primary.is-disabled {
+  background: rgba(94, 234, 212, 0.18);
+  border-color: rgba(94, 234, 212, 0.12);
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-button--default {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(94, 234, 212, 0.22);
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-button--default:hover {
+  background: rgba(94, 234, 212, 0.1);
+  border-color: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-button--danger {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-button--danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-tag--info {
+  background: rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.25);
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-icon {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-manager-dialog-modal .el-icon:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-detail-panel .detail-label {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .collapsible-label:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-detail-panel .empty-detail,
+:root[data-theme='dark'] .generator-detail-panel .empty-detail .el-icon {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-detail-panel .empty-detail p {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-list-panel {
+  border-right-color: rgba(94, 234, 212, 0.18);
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .generator-list-panel .panel-header {
+  border-bottom-color: rgba(94, 234, 212, 0.18);
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .generator-list-panel .panel-title {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .generator-list {
+  padding: 6px;
+}
+
+:root[data-theme='dark'] .generator-list::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.25);
+}
+
+:root[data-theme='dark'] .generator-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .generator-item:hover {
+  background-color: rgba(94, 234, 212, 0.08);
+}
+
+:root[data-theme='dark'] .generator-item.active {
+  background-color: rgba(94, 234, 212, 0.16);
+  border-color: rgba(94, 234, 212, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .generator-item-icon {
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
+  box-shadow: 0 2px 8px rgba(45, 212, 191, 0.3);
+}
+
+:root[data-theme='dark'] .generator-item-icon .el-icon {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme='dark'] .generator-item-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .generator-item-desc {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--primary.link {
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--primary.link:hover {
+  color: #5eead4 !important;
+  background: rgba(94, 234, 212, 0.08);
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--primary.link .el-icon {
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--primary.link:hover .el-icon {
+  color: #5eead4 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--danger.link {
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--danger.link:hover {
+  color: #f87171 !important;
+  background: rgba(248, 113, 113, 0.08);
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--danger.link .el-icon {
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button--danger.link:hover .el-icon {
+  color: #f87171 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button.is-disabled {
+  opacity: 0.35;
+  background: transparent;
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button.is-disabled .el-icon {
+  color: #475569 !important;
+}
+
+:root[data-theme='dark'] .generator-item-actions .el-button.is-disabled:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .empty-list {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .empty-list .el-icon {
+  color: #475569;
+}
+
+:root[data-theme='dark'] .empty-list p {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .generator-detail-panel {
+  background-color: #1e293b;
+}
+
+:root[data-theme='dark'] .detail-content::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.25);
+}
+
+:root[data-theme='dark'] .detail-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.4);
+}
+
+:root[data-theme='dark'] .detail-actions {
+  border-top-color: rgba(94, 234, 212, 0.18);
+}
+
+:root[data-theme='dark'] .icon-picker-item {
+  border-color: rgba(94, 234, 212, 0.18);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+:root[data-theme='dark'] .icon-picker-item:hover {
+  border-color: #5eead4;
+  background: rgba(94, 234, 212, 0.08);
+}
+
+:root[data-theme='dark'] .icon-picker-item.selected {
+  border-color: #5eead4;
+  background: rgba(94, 234, 212, 0.12);
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .icon-picker-item .el-icon {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .icon-picker-item.selected .el-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .icon-picker-name {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .icon-picker-item.selected .icon-picker-name {
+  color: #5eead4;
+}
+
+/* 提示词选择弹窗 - 深色皮肤令牌覆盖 */
+:root[data-theme='dark'] .prompt-select-dialog-modal {
+  --ps-bg: #1e293b;
+  --ps-bg-embedded: #1e293b;
+  --ps-bg-soft: #334155;
+  --ps-text-color: rgba(255, 255, 255, 0.88);
+  --ps-text-color-secondary: rgba(203, 213, 225, 0.7);
+  --ps-text-color-tertiary: rgba(148, 163, 184, 0.7);
+  --ps-title-color: #f3f4f6;
+  --ps-meta-color: rgba(148, 163, 184, 0.8);
+  --ps-border-color: rgba(94, 234, 212, 0.18);
+  --ps-border-color-soft: rgba(94, 234, 212, 0.12);
+  --ps-divider: rgba(94, 234, 212, 0.18);
+  --ps-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.5), 0 3px 6px 0 rgba(0, 0, 0, 0.4), 0 5px 12px 4px rgba(0, 0, 0, 0.32);
+  --ps-shadow-card-hover: 0 2px 8px -2px rgba(0, 0, 0, 0.5), 0 4px 12px 0 rgba(0, 0, 0, 0.32);
+  --ps-shadow-focus: 0 0 0 2px rgba(94, 234, 212, 0.28);
+  --ps-accent: #5eead4;
+  --ps-accent-hover: #2dd4bf;
+  --ps-accent-soft-bg: rgba(94, 234, 212, 0.14);
+  --ps-accent-soft-bg-hover: rgba(94, 234, 212, 0.22);
+  --ps-accent-border: rgba(94, 234, 212, 0.32);
+  --ps-danger: #f87171;
+  --ps-danger-soft-bg: rgba(248, 113, 113, 0.12);
+  --ps-danger-border: rgba(248, 113, 113, 0.32);
+  --ps-card-bg: #1e293b;
+  --ps-card-bg-hover: #334155;
+  --ps-card-border: rgba(94, 234, 212, 0.18);
+  --ps-card-border-hover: rgba(94, 234, 212, 0.4);
+  --ps-close-color: rgba(203, 213, 225, 0.7);
+  --ps-close-hover-bg: rgba(94, 234, 212, 0.12);
+  --ps-scroll-thumb: rgba(94, 234, 212, 0.25);
+  --ps-scroll-thumb-hover: rgba(94, 234, 212, 0.4);
+  --ps-tag-bg-soft: rgba(94, 234, 212, 0.12);
+  --ps-tag-bg-featured: rgba(251, 146, 60, 0.18);
+  --ps-tag-color-featured: #fdba74;
+  --ps-tag-border-featured: rgba(251, 146, 60, 0.4);
+  --ps-fire-color: #fb923c;
+  --ps-crown-color: #fcd34d;
+}
+
+:root[data-theme='dark'] .preview-dialog-modal .el-dialog {
+  background: #1e293b;
+  border: 1px solid rgba(94, 234, 212, 0.3);
+}
+
+:root[data-theme='dark'] .preview-dialog-modal .el-dialog__header {
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .preview-dialog-modal .el-dialog__title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .preview-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .preview-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .preview-dialog-modal .el-dialog__body {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .preview-dialog-header {
+  border-bottom-color: rgba(94, 234, 212, 0.2);
+  background: rgba(30, 41, 59, 0.8);
+}
+
+:root[data-theme='dark'] .preview-scrollbar {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .prompt-edit-dialog-modal .el-dialog {
+  background: #1e293b;
+  border: 1px solid rgba(94, 234, 212, 0.3);
+}
+
+:root[data-theme='dark'] .prompt-edit-dialog-modal .el-dialog__header {
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .prompt-edit-dialog-modal .el-dialog__title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .prompt-edit-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .prompt-edit-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .prompt-edit-dialog-modal .el-dialog__body {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .prompt-edit-dialog-modal .el-dialog__footer {
+  background: #1e293b;
+  border-top-color: rgba(94, 234, 212, 0.2);
+}
+
+/* === 固定提示词查看弹窗 - 深色皮肤令牌覆盖 === */
+:root[data-theme='dark'] .fixed-prompt-dialog-modal {
+  --fp-bg: #1e293b;
+  --fp-bg-soft: rgba(15, 23, 42, 0.6);
+  --fp-text-color: #f3f4f6;
+  --fp-text-color-muted: rgba(203, 213, 225, 0.7);
+  --fp-placeholder-color: #64748b;
+  --fp-border-color: rgba(94, 234, 212, 0.18);
+  --fp-border-color-hover: rgba(94, 234, 212, 0.32);
+  --fp-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.5), 0 3px 6px 0 rgba(0, 0, 0, 0.4), 0 5px 12px 4px rgba(0, 0, 0, 0.32);
+  --fp-accent: #5eead4;
+  --fp-accent-hover: #2dd4bf;
+  --fp-accent-text: #0f172a;
+  --fp-btn-default-bg: rgba(30, 41, 59, 0.7);
+  --fp-btn-default-border: rgba(94, 234, 212, 0.22);
+  --fp-btn-default-text: #cbd5e1;
+  --fp-btn-default-hover-bg: rgba(94, 234, 212, 0.12);
+  --fp-btn-default-hover-border: rgba(94, 234, 212, 0.4);
+  --fp-textarea-bg: rgba(15, 23, 42, 0.6);
+  --fp-textarea-border: rgba(94, 234, 212, 0.18);
+  --fp-textarea-color: #e2e8f0;
+  --fp-close-color: rgba(203, 213, 225, 0.7);
+  --fp-close-hover-color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-dialog-modal .el-dialog {
+  background: #1e293b;
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .history-dialog-modal .el-dialog__header {
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .history-dialog-modal .el-dialog__title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .history-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-dialog-modal .el-dialog__body {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .history-dialog-modal .el-dialog__footer {
+  border-top-color: rgba(94, 234, 212, 0.2);
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .history-detail-dialog-modal .el-dialog {
+  background: #1e293b;
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .history-detail-dialog-modal .el-dialog__header {
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .history-detail-dialog-modal .el-dialog__title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-detail-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .history-detail-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-detail-dialog-modal .el-dialog__body {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .history-detail-dialog-modal .el-dialog__footer {
+  border-top-color: rgba(94, 234, 212, 0.2);
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .history-detail-content {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .history-item-card {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .history-item-card::before {
+  background: #5eead4;
+}
+
+:root[data-theme='dark'] .history-item-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-icon-wrapper {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(94, 234, 212, 0.3);
+}
+
+:root[data-theme='dark'] .generator-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .generator-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .generator-time {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .prompt-count-tag {
+  border-color: rgba(94, 234, 212, 0.3);
+  color: #9ca3af;
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .history-item-actions {
+  border-top-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .view-detail-btn {
+  background: #2dd4bf;
+  color: #0f172a;
+}
+
+:root[data-theme='dark'] .view-detail-btn:hover {
+  background: #5eead4;
+  box-shadow: 0 4px 12px rgba(45, 212, 191, 0.35);
+}
+
+:root[data-theme='dark'] .delete-btn {
+  background: rgba(244, 63, 94, 0.15);
+}
+
+:root[data-theme='dark'] .history-header {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .followup-dialog-modal .el-dialog {
+  background: #1e293b;
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme='dark'] .followup-dialog-modal .el-dialog__header {
+  background: #1e293b;
+  border-bottom-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .followup-dialog-modal .el-dialog__title {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .followup-dialog-modal .el-dialog__headerbtn .el-dialog__close {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .followup-dialog-modal .el-dialog__headerbtn .el-dialog__close:hover {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .followup-dialog-modal .el-dialog__body {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .followup-dialog-header {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .followup-messages {
+  background: #111827;
+}
+
+:root[data-theme='dark'] .followup-message-bubble.assistant {
+  background: #1e293b;
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .followup-message-bubble.user {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: rgba(14, 165, 233, 0.3);
+}
+
+:root[data-theme='dark'] .followup-message-bubble.system {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+:root[data-theme='dark'] .followup-message-content {
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .followup-input-area {
+  background: #1e293b;
+  border-top-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .followup-input :deep(.el-textarea__inner) {
+  background: #0f172a;
+  border-color: rgba(94, 234, 212, 0.2);
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .followup-input :deep(.el-textarea__inner:focus) {
+  border-color: #5eead4;
+  box-shadow: 0 2px 8px rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .followup-input :deep(.el-textarea__inner::placeholder) {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .header-icon {
+  color: #5eead4;
+}
+
+:root[data-theme='dark'] .history-count {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .clear-all-btn {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: #f43f5e;
+  color: #f43f5e;
+}
+
+:root[data-theme='dark'] .clear-all-btn:hover:not(:disabled) {
+  background: #f43f5e;
+}
+
+/* ── 生成器弹窗：暗色主题可见性强化 ─────────────────── */
+:root[data-theme='dark'] .form-block-label {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+:root[data-theme='dark'] .form-block-action {
+  color: #5eead4 !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .form-block-action:hover {
+  color: #2dd4bf !important;
+  background: transparent !important;
+}
+
+:root[data-theme='dark'] .context-preview-item {
+  background: rgba(94, 234, 212, 0.08);
+  border-color: rgba(94, 234, 212, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:root[data-theme='dark'] .gen-footer-disclaimer {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select__placeholder,
+:root[data-theme='dark'] .generator-dialog-modal .el-select__placeholder.is-transparent {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-input__inner,
+:root[data-theme='dark'] .generator-dialog-modal .el-select__selected-item,
+:root[data-theme='dark'] .generator-dialog-modal .el-textarea__inner {
+  color: rgba(255, 255, 255, 0.92);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.92);
+}
+
+:root[data-theme='dark'] .form-area .el-input__inner,
+:root[data-theme='dark'] .form-area .el-select__placeholder,
+:root[data-theme='dark'] .form-area .el-select__selected-item,
+:root[data-theme='dark'] .form-area .el-textarea__inner {
+  color: rgba(255, 255, 255, 0.92);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.92);
+}
+
+:root[data-theme='dark'] .form-area .el-input__inner::placeholder,
+:root[data-theme='dark'] .form-area .el-textarea__inner::placeholder {
+  color: #64748b;
+  -webkit-text-fill-color: #64748b;
+}
+
+:root[data-theme='dark'] .model-name,
+:root[data-theme='dark'] .model-option .model-name {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* ── Select 下拉弹出层：暗色主题补全（popper 全链路） ── */
+:root[data-theme='dark'] .generator-dialog-modal .el-select__wrapper {
+  background-color: rgba(15, 23, 42, 0.6);
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.18) inset;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.32) inset;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px #5eead4 inset;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-popper.is-light,
+:root[data-theme='dark'] .generator-dialog-modal .el-popper.is-light.el-select__popper,
+:root[data-theme='dark'] .generator-dialog-modal .el-select__popper {
+  background: #1e293b !important;
+  border: 1px solid rgba(94, 234, 212, 0.18) !important;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown__wrap {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown .el-scrollbar__view,
+:root[data-theme='dark'] .generator-dialog-modal .el-select-dropdown .el-scrollbar__bar {
+  background: transparent;
 }
 </style>

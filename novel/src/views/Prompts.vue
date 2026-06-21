@@ -1,90 +1,12 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
-  <div class="prompts-container" :style="promptSkinCssVars">
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+  <div class="prompts-container">
     <div class="header">
       <div class="header-main">
         <h2>提示词管理</h2>
-        <div class="skin-toolbar">
-          <span class="skin-toolbar-label">模板 / 样式</span>
-          <el-select
-            v-model="selectedPromptSkinId"
-            size="small"
-            class="skin-select"
-            placeholder="选择皮肤"
-          >
-            <el-option-group label="内置皮肤">
-              <el-option
-                v-for="skin in builtInPromptSkins"
-                :key="skin.id"
-                :label="skin.name"
-                :value="skin.id"
-              />
-            </el-option-group>
-            <el-option-group v-if="customPromptSkins.length > 0" label="导入皮肤">
-              <el-option
-                v-for="skin in customPromptSkins"
-                :key="skin.id"
-                :label="skin.name"
-                :value="skin.id"
-              />
-            </el-option-group>
-          </el-select>
-          <el-dropdown trigger="click" @command="handlePromptSkinCommand">
-            <el-button size="small" class="skin-config-btn">
-              皮肤配置
-              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="exportCurrent">
-                  <el-icon><Download /></el-icon>
-                  导出当前皮肤
-                </el-dropdown-item>
-                <el-dropdown-item command="exportAll">
-                  <el-icon><FolderOpened /></el-icon>
-                  导出全部皮肤
-                </el-dropdown-item>
-                <el-dropdown-item divided command="import">
-                  <el-icon><Upload /></el-icon>
-                  导入皮肤配置
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <input
-            ref="promptSkinInputRef"
-            type="file"
-            accept=".json"
-            class="hidden-input"
-            @change="handlePromptSkinFileChange"
-          />
-        </div>
       </div>
       <div class="header-actions">
-        <el-button-group class="size-selector">
-          <el-button 
-            :type="cardSize === 'small' ? 'primary' : ''" 
-            size="small"
-            @click="cardSize = 'small'"
-          >
-            小
-          </el-button>
-          <el-button 
-            :type="cardSize === 'medium' ? 'primary' : ''" 
-            size="small"
-            @click="cardSize = 'medium'"
-          >
-            中
-          </el-button>
-          <el-button 
-            :type="cardSize === 'large' ? 'primary' : ''" 
-            size="small"
-            @click="cardSize = 'large'"
-          >
-            大
-          </el-button>
-        </el-button-group>
         <el-dropdown trigger="click" @command="handleExportCommand">
-          <el-button type="warning">
+          <el-button class="btn-export" plain>
             <el-icon><Download /></el-icon>
             导出
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -107,7 +29,7 @@
           </template>
         </el-dropdown>
         <el-dropdown trigger="click" @command="handleImportCommand">
-          <el-button type="info">
+          <el-button class="btn-import" plain>
             <el-icon><Upload /></el-icon>
             导入
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -133,206 +55,305 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button type="success" @click="openCategoryDialog">
+        <el-button class="btn-create-pack" @click="openCategoryDialog">
           <el-icon><FolderAdd /></el-icon>
           创建卡包
         </el-button>
-        <el-button type="primary" @click="handleCreate">
+        <el-button class="btn-create-prompt" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           创建提示词
         </el-button>
       </div>
     </div>
 
-    <!-- 卡包区域 - 在上 -->
-    <div class="section-title">
-      <el-icon><FolderOpened /></el-icon>
-      <span>卡包</span>
-    </div>
-    <div class="packs-wrapper">
-      <div
-        v-for="category in categoryList"
-        :key="category.name"
-        class="card-pack-vertical"
-        :class="[cardSize, { 'drag-over': isDragging && draggedPrompt?.category !== category.name }]"
-        @dragover.prevent="onDragOver"
-        @drop.prevent="onDrop(category.name, $event)"
-      >
-        <!-- 卡片列表区域 -->
-        <div 
-          class="cards-scroll-area"
-        >
-          <div
-            v-for="prompt in category.prompts"
-            :key="prompt.id"
-            class="pack-card"
-            :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }, { encrypted: prompt.card_type === 'encrypted' }]"
-            draggable="true"
-            @dragstart="onDragStart(prompt, $event)"
-            @dragend="onDragEnd"
-            @click="handleEdit(prompt)"
-          >
-            <div class="pack-card-header">
-              <el-icon class="pack-card-drag-handle"><Rank /></el-icon>
-              <span class="pack-card-name">{{ prompt.name }}</span>
-              <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-card-lock"><Lock /></el-icon>
+    <!-- 顶端 Tab 切换：卡包 / 独立卡片 -->
+    <div class="main-tabs-wrapper">
+      <el-tabs v-model="activeMainTab" class="main-tabs">
+        <el-tab-pane name="pack">
+          <template #label>
+            <span class="main-tab-label">
+              <el-icon><FolderOpened /></el-icon>
+              <span>卡包</span>
+              <span class="main-tab-count">{{ totalPackCards }}</span>
+            </span>
+          </template>
+          <div class="tab-toolbar">
+            <div class="pack-view-toggle">
+              <button
+                class="pack-view-btn"
+                :class="{ active: packViewMode === 'grid' }"
+                @click="packViewMode = 'grid'"
+                title="网格视图"
+              >
+                <el-icon><Grid /></el-icon>
+              </button>
+              <button
+                class="pack-view-btn"
+                :class="{ active: packViewMode === 'list' }"
+                @click="packViewMode = 'list'"
+                title="列表视图"
+              >
+                <el-icon><List /></el-icon>
+              </button>
             </div>
-            <div class="pack-card-content">
-              <el-tag size="small" :type="getTagType(prompt.category)" class="pack-card-tag">
-                {{ prompt.category }}
-              </el-tag>
-              <div class="pack-card-preview">
-                <template v-if="prompt.card_type === 'encrypted'">
-                  <el-icon><Lock /></el-icon> 内容已加密
-                </template>
-                <template v-else>
-                  {{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}
-                </template>
+          </div>
+          <div class="packs-wrapper" :class="packViewMode">
+            <div
+              v-for="category in categoryList"
+              :key="category.name"
+              class="pack-info-card"
+              :class="{ 'drag-over': isDragging && draggedPrompt?.category !== category.name }"
+              @dragover.prevent="onDragOver"
+              @drop.prevent="onDrop(category.name, $event)"
+            >
+              <div class="pack-info-clickable" @click="goToPackDetail(category.name)">
+                <div class="pack-info-icon">
+                  <el-icon><FolderOpened /></el-icon>
+                </div>
+                <div class="pack-info-body">
+                  <div class="pack-info-name">{{ category.name }}</div>
+                  <div class="pack-info-meta">
+                    <span class="pack-info-count">{{ category.prompts.length }} 张卡片</span>
+                  </div>
+                </div>
+              </div>
+              <div class="pack-info-spacer"></div>
+              <div class="pack-info-actions" @click.stop>
+                <el-dropdown trigger="click" @command="(cmd: string) => handlePackAction(cmd, category.name, category.prompts.length)">
+                  <el-button class="pack-action-btn" size="small" circle>
+                    <el-icon><MoreFilled /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="add">
+                        <el-icon><Plus /></el-icon>
+                        添加卡片
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="category.prompts.length > 0" command="preview">
+                        <el-icon><View /></el-icon>
+                        预览卡包
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="category.prompts.length > 0 && !DEFAULT_CATEGORIES.includes(category.name)" command="batchDelete">
+                        <el-icon><Delete /></el-icon>
+                        批量删除
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="!DEFAULT_CATEGORIES.includes(category.name)" command="deletePack" divided>
+                        <el-icon style="color: #f56c6c;"><Delete /></el-icon>
+                        <span style="color: #f56c6c;">删除卡包</span>
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </div>
             </div>
-            <div class="pack-card-footer">
-              <span class="pack-card-time">{{ formatDate(prompt.created_at) }}</span>
-              <div class="pack-card-actions" @click.stop>
-                <el-button type="primary" link size="small" @click="handleEdit(prompt)">
-                  <el-icon><Edit /></el-icon>
-                </el-button>
-                <el-button type="primary" link size="small" @click="handlePreview(prompt)">
-                  <el-icon><View /></el-icon>
-                </el-button>
-                <el-button type="danger" link size="small" @click="handleDelete(prompt)">
+          </div>
+        </el-tab-pane>
+        <el-tab-pane name="standalone">
+          <template #label>
+            <span class="main-tab-label">
+              <el-icon><Document /></el-icon>
+              <span>独立卡片</span>
+              <span class="main-tab-count">{{ uncategorizedPrompts.length + bookAnalysisUncategorizedPrompts.length }}</span>
+            </span>
+          </template>
+          <div class="tab-toolbar">
+            <div class="section-actions" v-if="combinedUncategorizedPrompts.length > 0">
+              <el-tooltip content="批量删除" placement="top" :show-after="300">
+                <el-button class="section-action-btn" size="small" circle @click="openStandaloneBatchDeleteDialog">
                   <el-icon><Delete /></el-icon>
                 </el-button>
+              </el-tooltip>
+            </div>
+          </div>
+          <div
+            v-if="combinedUncategorizedPrompts.length > 0"
+            class="standalone-cards-area"
+            :class="[cardSize, { 'drag-over': isDragging }]"
+            @dragover.prevent="onDragOver"
+            @drop.prevent="onDrop('未分类', $event)"
+          >
+            <div class="standalone-cards-grid">
+              <div
+                v-for="prompt in combinedUncategorizedPrompts"
+                :key="prompt.id"
+                class="standalone-card"
+                :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }, { encrypted: prompt.card_type === 'encrypted' }]"
+                draggable="true"
+                @dragstart="onDragStart(prompt, $event)"
+                @dragend="onDragEnd"
+                @click="handleEdit(prompt)"
+              >
+                <div class="standalone-card-header">
+                  <el-icon class="card-drag-handle"><Rank /></el-icon>
+                  <span class="standalone-card-name">{{ prompt.name }}</span>
+                  <el-icon v-if="prompt.card_type === 'encrypted'" class="standalone-card-lock"><Lock /></el-icon>
+                </div>
+                <div class="standalone-card-content">
+                  <el-tag v-if="prompt.category === '拆书-未分类'" size="small" type="warning" class="standalone-card-tag">
+                    拆书
+                  </el-tag>
+                  <el-tag v-else size="small" :type="getTagType(prompt.category)" class="standalone-card-tag">
+                    {{ prompt.category }}
+                  </el-tag>
+                  <div class="standalone-card-preview">
+                    <template v-if="prompt.card_type === 'encrypted'">
+                      <el-icon><Lock /></el-icon> 内容已加密
+                    </template>
+                    <template v-else>
+                      {{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}
+                    </template>
+                  </div>
+                </div>
+                <div class="standalone-card-footer">
+                  <span class="standalone-card-time">{{ formatDate(prompt.created_at) }}</span>
+                  <div class="standalone-card-actions" @click.stop>
+                    <el-button type="primary" link size="small" @click="handleEdit(prompt)">
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+                    <el-button type="primary" link size="small" @click="handlePreview(prompt)">
+                      <el-icon><View /></el-icon>
+                    </el-button>
+                    <el-button type="danger" link size="small" @click="handleDelete(prompt)">
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          
-          <!-- 空卡包提示 -->
-          <div v-if="category.prompts.length === 0" class="empty-pack-hint" @click="handleCreateInCategory(category.name)">
+          <div
+            v-else
+            class="empty-standalone-hint"
+            :class="{ 'drag-over': isDragging }"
+            @click="handleCreate"
+            @dragover.prevent="onDragOver"
+            @drop.prevent="onDrop('未分类', $event)"
+          >
             <el-icon><Plus /></el-icon>
-            <span>点击添加卡片</span>
+            <span>暂无独立卡片，点击创建或拖拽卡片到此处</span>
           </div>
-        </div>
-
-        <!-- 卡包底部操作 -->
-        <div class="pack-footer-vertical">
-          <div class="pack-footer-info">
-            <el-icon class="pack-footer-icon"><FolderOpened /></el-icon>
-            <span class="pack-footer-name">{{ category.name }}</span>
-            <span class="pack-footer-count">{{ category.prompts.length }}</span>
-          </div>
-          <div class="pack-footer-actions">
-            <el-button
-              type="primary"
-              link
-              size="small"
-              @click="handleCreateInCategory(category.name)"
-            >
-              <el-icon><Plus /></el-icon>
-              添加
-            </el-button>
-            <el-tooltip content="预览卡包内容" placement="top" :show-after="150">
-              <el-button
-                v-if="category.prompts.length > 0"
-                type="primary"
-                size="small"
-                circle
-                @click="openPackPreviewDialog(category.name)"
+        </el-tab-pane>
+        <el-tab-pane name="bookAnalysis">
+          <template #label>
+            <span class="main-tab-label">
+              <el-icon><Reading /></el-icon>
+              <span>拆书提示词</span>
+              <span class="main-tab-count">{{ totalBookAnalysisCards }}</span>
+            </span>
+          </template>
+          <div class="tab-toolbar">
+            <div class="pack-view-toggle">
+              <button
+                class="pack-view-btn"
+                :class="{ active: packViewMode === 'grid' }"
+                @click="packViewMode = 'grid'"
+                title="网格视图"
               >
-                <el-icon><View /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-tooltip content="批量删除" placement="top" :show-after="150">
-              <el-button
-                v-if="category.prompts.length > 0 && !DEFAULT_CATEGORIES.includes(category.name)"
-                type="danger"
-                size="small"
-                circle
-                @click="openBatchDeleteDialog(category.name)"
+                <el-icon><Grid /></el-icon>
+              </button>
+              <button
+                class="pack-view-btn"
+                :class="{ active: packViewMode === 'list' }"
+                @click="packViewMode = 'list'"
+                title="列表视图"
               >
-                <el-icon><Delete /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-button
-              v-if="!DEFAULT_CATEGORIES.includes(category.name)"
-              type="danger"
-              link
-              size="small"
-              @click="handleDeleteCategory(category.name)"
-            >
-              <el-icon><Delete /></el-icon>
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 独立卡片区域 - 在下 -->
-    <div class="section-title" style="margin-top: 32px;">
-      <el-icon><Document /></el-icon>
-      <span>独立卡片</span>
-      <span class="section-count">{{ uncategorizedPrompts.length }}</span>
-    </div>
-    <div 
-      v-if="uncategorizedPrompts.length > 0"
-      class="standalone-cards-area"
-      :class="[cardSize, { 'drag-over': isDragging }]"
-      @dragover.prevent="onDragOver"
-      @drop.prevent="onDrop('未分类', $event)"
-    >
-      <div class="standalone-cards-grid">
-        <div
-          v-for="prompt in uncategorizedPrompts"
-          :key="prompt.id"
-          class="standalone-card"
-          :class="[cardSize, { dragging: isDragging && draggedPrompt?.id === prompt.id }, { encrypted: prompt.card_type === 'encrypted' }]"
-          draggable="true"
-          @dragstart="onDragStart(prompt, $event)"
-          @dragend="onDragEnd"
-          @click="handleEdit(prompt)"
-        >
-          <div class="standalone-card-header">
-            <el-icon class="card-drag-handle"><Rank /></el-icon>
-            <span class="standalone-card-name">{{ prompt.name }}</span>
-            <el-icon v-if="prompt.card_type === 'encrypted'" class="standalone-card-lock"><Lock /></el-icon>
-          </div>
-          <div class="standalone-card-content">
-            <el-tag size="small" :type="getTagType(prompt.category)" class="standalone-card-tag">
-              {{ prompt.category }}
-            </el-tag>
-            <div class="standalone-card-preview">
-              <template v-if="prompt.card_type === 'encrypted'">
-                <el-icon><Lock /></el-icon> 内容已加密
-              </template>
-              <template v-else>
-                {{ prompt.content.slice(0, 40) }}{{ prompt.content.length > 40 ? '...' : '' }}
-              </template>
+                <el-icon><List /></el-icon>
+              </button>
             </div>
-          </div>
-          <div class="standalone-card-footer">
-            <span class="standalone-card-time">{{ formatDate(prompt.created_at) }}</span>
-            <div class="standalone-card-actions" @click.stop>
-              <el-button type="primary" link size="small" @click="handleEdit(prompt)">
-                <el-icon><Edit /></el-icon>
+            <div class="tab-toolbar-right">
+              <el-dropdown trigger="click" @command="handleBookAnalysisExportCommand">
+                <el-button class="btn-export" size="small">
+                  <el-icon><Download /></el-icon>
+                  导出
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="fullBackup">完整备份（全部导出）</el-dropdown-item>
+                    <el-dropdown-item command="pack">导出拆书卡包</el-dropdown-item>
+                    <el-dropdown-item command="standalone">导出拆书独立卡片</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-dropdown trigger="click" @command="handleBookAnalysisImportCommand">
+                <el-button class="btn-import" size="small">
+                  <el-icon><Upload /></el-icon>
+                  导入
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="pack">导入拆书卡包</el-dropdown-item>
+                    <el-dropdown-item command="standalone">导入拆书独立卡片</el-dropdown-item>
+                    <el-dropdown-item command="legacyBackup">导入旧版完整备份</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button class="btn-create-pack" size="small" @click="openBookAnalysisCategoryDialog">
+                <el-icon><FolderAdd /></el-icon>
+                创建拆书卡包
               </el-button>
-              <el-button type="primary" link size="small" @click="handlePreview(prompt)">
-                <el-icon><View /></el-icon>
-              </el-button>
-              <el-button type="danger" link size="small" @click="handleDelete(prompt)">
-                <el-icon><Delete /></el-icon>
+              <el-button class="btn-create-prompt" size="small" @click="handleCreateBookAnalysisPrompt()">
+                <el-icon><Plus /></el-icon>
+                创建拆书提示词
               </el-button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-    <div v-else class="empty-standalone-hint" 
-      :class="{ 'drag-over': isDragging }"
-      @click="handleCreate"
-      @dragover.prevent="onDragOver"
-      @drop.prevent="onDrop('未分类', $event)"
-    >
-      <el-icon><Plus /></el-icon>
-      <span>暂无独立卡片，点击创建或拖拽卡片到此处</span>
+          <!-- 拆书卡包列表 -->
+          <div class="packs-wrapper" :class="packViewMode">
+            <div
+              v-for="category in bookAnalysisCategoryList"
+              :key="category.name"
+              class="pack-info-card"
+              :class="{ 'drag-over': isDragging && draggedPrompt?.category !== category.name }"
+              @dragover.prevent="onDragOver"
+              @drop.prevent="onBookAnalysisDrop(category.name, $event)"
+            >
+              <div class="pack-info-clickable" @click="goToPackDetail(category.name)">
+                <div class="pack-info-icon">
+                  <el-icon><Reading /></el-icon>
+                </div>
+                <div class="pack-info-body">
+                  <div class="pack-info-name">{{ category.name.replace(BOOK_ANALYSIS_PREFIX, '') }}</div>
+                  <div class="pack-info-meta">
+                    <span class="pack-info-count">{{ category.prompts.length }} 张卡片</span>
+                  </div>
+                </div>
+              </div>
+              <div class="pack-info-spacer"></div>
+              <div class="pack-info-actions" @click.stop>
+                <el-dropdown trigger="click" @command="(cmd: string) => handleBookAnalysisPackAction(cmd, category.name, category.prompts.length)">
+                  <el-button class="pack-action-btn" size="small" circle>
+                    <el-icon><MoreFilled /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="add">
+                        <el-icon><Plus /></el-icon>
+                        添加卡片
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="category.prompts.length > 0" command="preview">
+                        <el-icon><View /></el-icon>
+                        预览卡包
+                      </el-dropdown-item>
+                      <el-dropdown-item command="deletePack" divided>
+                        <el-icon style="color: #f56c6c;"><Delete /></el-icon>
+                        <span style="color: #f56c6c;">删除卡包</span>
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="bookAnalysisCategoryList.length === 0"
+            class="empty-standalone-hint"
+            @click="handleCreateBookAnalysisPrompt()"
+          >
+            <el-icon><Plus /></el-icon>
+            <span>暂无拆书提示词，点击创建或导入拆书卡包</span>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
 
     <!-- 创建/编辑卡包对话框 -->
@@ -341,6 +362,7 @@
       title="创建卡包"
       width="400px"
       :close-on-click-modal="false"
+      append-to-body
     >
       <el-form :model="categoryForm" label-width="80px">
         <el-form-item label="卡包名称" required>
@@ -353,6 +375,262 @@
       </template>
     </el-dialog>
 
+    <!-- 创建拆书卡包对话框 -->
+    <el-dialog
+      v-model="bookAnalysisCategoryDialogVisible"
+      title="创建拆书卡包"
+      width="400px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <el-form :model="bookAnalysisCategoryForm" label-width="80px">
+        <el-form-item label="卡包名称" required>
+          <el-input v-model="bookAnalysisCategoryForm.name" placeholder="请输入卡包名称（自动加拆书-前缀）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="bookAnalysisCategoryDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateBookAnalysisCategory">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导出拆书卡包弹窗 -->
+    <el-dialog
+      v-model="exportBookAnalysisPackDialogVisible"
+      title="导出拆书卡包"
+      width="600px"
+      :close-on-click-modal="false"
+      class="export-dialog"
+      append-to-body
+    >
+      <div class="export-dialog-header">
+        <h4>请选择要导出的拆书卡包</h4>
+        <p>选择需要导出的拆书卡包，导出的文件将包含卡包内的所有卡片。</p>
+      </div>
+      <div class="export-dialog-content">
+        <el-checkbox-group v-model="selectedExportBookAnalysisPacks">
+          <div v-for="category in bookAnalysisCategoryList" :key="category.name" class="export-checkbox-item">
+            <el-checkbox :label="category.name">
+              <div class="export-item-info">
+                <span class="export-item-name">{{ category.name.replace(BOOK_ANALYSIS_PREFIX, '') }}</span>
+                <span class="export-item-count">{{ category.prompts.length }} 张卡片</span>
+              </div>
+            </el-checkbox>
+          </div>
+        </el-checkbox-group>
+        <el-empty v-if="bookAnalysisCategoryList.length === 0" description="暂无拆书卡包可导出" />
+      </div>
+      <template #footer>
+        <el-button @click="exportBookAnalysisPackDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="selectedExportBookAnalysisPacks.length === 0" @click="executeExportBookAnalysisPack">
+          导出卡包
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导出拆书独立卡片弹窗 -->
+    <el-dialog
+      v-model="exportBookAnalysisStandaloneDialogVisible"
+      title="导出拆书独立卡片"
+      width="800px"
+      :close-on-click-modal="false"
+      class="export-dialog"
+      append-to-body
+    >
+      <div class="export-dialog-header">
+        <h4>请选择要导出的拆书独立卡片</h4>
+        <p>勾选需要导出的卡片，然后点击导出按钮。导出的文件为JSON格式。</p>
+      </div>
+      <div class="export-dialog-content">
+        <el-checkbox-group v-model="selectedExportBookAnalysisCards">
+          <div v-for="prompt in bookAnalysisUncategorizedPrompts" :key="prompt.id" class="export-checkbox-item">
+            <el-checkbox :label="prompt.id">
+              <div class="export-item-info">
+                <span class="export-item-name">{{ prompt.name }}</span>
+                <span class="export-item-preview">{{ prompt.content.slice(0, 30) }}...</span>
+              </div>
+            </el-checkbox>
+          </div>
+        </el-checkbox-group>
+        <el-empty v-if="bookAnalysisUncategorizedPrompts.length === 0" description="暂无拆书独立卡片可导出" />
+      </div>
+      <template #footer>
+        <el-button @click="exportBookAnalysisStandaloneDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="selectedExportBookAnalysisCards.length === 0" @click="executeExportBookAnalysisStandalone">
+          导出 ({{ selectedExportBookAnalysisCards.length }})
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导入拆书卡包弹窗 -->
+    <el-dialog
+      v-model="importBookAnalysisPackDialogVisible"
+      title="导入拆书卡包"
+      width="600px"
+      :close-on-click-modal="false"
+      class="import-dialog"
+      append-to-body
+    >
+      <div class="import-dialog-header">
+        <h4>导入拆书卡包文件</h4>
+        <p>导入的卡包将自动添加"拆书-"前缀，方便在拆书库中使用。</p>
+      </div>
+      <div class="import-dialog-content">
+        <el-upload
+          drag
+          action="#"
+          accept=".json"
+          :auto-upload="false"
+          :show-file-list="false"
+          :on-change="handleImportBookAnalysisPackFileChange"
+        >
+          <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+          <div class="el-upload__text">将卡包文件拖到此处，或<em>点击上传</em></div>
+          <template #tip>
+            <div class="el-upload__tip">仅支持 .json 格式的导出文件</div>
+          </template>
+        </el-upload>
+        <div v-if="importBookAnalysisPackPreview" class="import-preview">
+          <div class="import-preview-header">
+            <span>预览导入内容</span>
+            <span class="import-preview-count">{{ importBookAnalysisPackPreview.prompts.length }} 张卡片</span>
+          </div>
+          <div class="import-preview-pack-name">
+            卡包名称：<strong>{{ importBookAnalysisPackPreview.packName }}</strong>
+            <span class="import-preview-prefix-hint">→ 导入后变为：{{ BOOK_ANALYSIS_PREFIX }}{{ importBookAnalysisPackPreview.packName }}</span>
+          </div>
+          <div class="import-preview-cards">
+            <div v-for="(card, index) in importBookAnalysisPackPreview.prompts.slice(0, 5)" :key="index" class="import-preview-card">
+              <span class="import-preview-card-name">{{ card.name }}</span>
+              <span class="import-preview-card-content">{{ card.content.slice(0, 40) }}...</span>
+            </div>
+            <div v-if="importBookAnalysisPackPreview.prompts.length > 5" class="import-preview-more">
+              还有 {{ importBookAnalysisPackPreview.prompts.length - 5 }} 张卡片...
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="importBookAnalysisPackDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!importBookAnalysisPackPreview" @click="executeImportBookAnalysisPack">
+          导入卡包
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导入拆书独立卡片弹窗 -->
+    <el-dialog
+      v-model="importBookAnalysisStandaloneDialogVisible"
+      title="导入拆书独立卡片"
+      width="800px"
+      :close-on-click-modal="false"
+      class="import-dialog"
+      append-to-body
+    >
+      <div class="import-dialog-header">
+        <h4>导入拆书独立卡片文件</h4>
+        <p>导入的卡片将归类为"拆书-未分类"，方便在拆书库中使用。</p>
+      </div>
+      <div class="import-dialog-content">
+        <el-upload
+          drag
+          action="#"
+          accept=".json"
+          :auto-upload="false"
+          :show-file-list="false"
+          :on-change="handleImportBookAnalysisStandaloneFileChange"
+        >
+          <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+          <div class="el-upload__text">将卡片文件拖到此处，或<em>点击上传</em></div>
+          <template #tip>
+            <div class="el-upload__tip">仅支持 .json 格式的导出文件</div>
+          </template>
+        </el-upload>
+        <div v-if="importBookAnalysisStandalonePreview.length > 0" class="import-preview">
+          <div class="import-preview-header">
+            <span>预览导入内容 ({{ importBookAnalysisStandalonePreview.length }} 张卡片)</span>
+            <el-checkbox v-model="selectAllImportBookAnalysisCards" @change="handleSelectAllImportBookAnalysisCards">全选</el-checkbox>
+          </div>
+          <el-checkbox-group v-model="selectedImportBookAnalysisCards" class="import-preview-cards-list">
+            <div v-for="card in importBookAnalysisStandalonePreview" :key="card.name" class="import-preview-card-item">
+              <el-checkbox :label="card.name">
+                <div class="import-preview-card-info">
+                  <span class="import-preview-card-name">{{ card.name }}</span>
+                  <span class="import-preview-card-content">{{ card.content.slice(0, 50) }}...</span>
+                </div>
+              </el-checkbox>
+            </div>
+          </el-checkbox-group>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="importBookAnalysisStandaloneDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="selectedImportBookAnalysisCards.length === 0" @click="executeImportBookAnalysisStandalone">
+          导入 ({{ selectedImportBookAnalysisCards.length }})
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导入旧版完整备份弹窗 -->
+    <el-dialog
+      v-model="importBookAnalysisLegacyDialogVisible"
+      title="导入旧版拆书库完整备份"
+      width="600px"
+      :close-on-click-modal="false"
+      class="import-dialog"
+      append-to-body
+    >
+      <div class="import-dialog-header">
+        <h4>导入旧版拆书库的完整备份文件</h4>
+        <p>支持导入旧版拆书库导出的完整备份JSON文件，导入后自动转换为拆书卡包/独立卡片。</p>
+      </div>
+      <div class="import-dialog-content">
+        <el-upload
+          drag
+          action="#"
+          accept=".json"
+          :auto-upload="false"
+          :show-file-list="false"
+          :on-change="handleImportBookAnalysisLegacyFileChange"
+        >
+          <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+          <div class="el-upload__text">将备份文件拖到此处，或<em>点击上传</em></div>
+          <template #tip>
+            <div class="el-upload__tip">支持旧版拆书库导出的完整备份JSON文件</div>
+          </template>
+        </el-upload>
+        <div v-if="importBookAnalysisLegacyPreview" class="import-preview">
+          <div class="import-preview-header">
+            <span>预览导入内容</span>
+          </div>
+          <div class="import-preview-stats">
+            <div class="import-preview-stat-item">
+              <el-icon><FolderOpened /></el-icon>
+              <span>卡包数量：{{ importBookAnalysisLegacyPreview.packCount }}</span>
+            </div>
+            <div class="import-preview-stat-item">
+              <el-icon><Document /></el-icon>
+              <span>提示词总数：{{ importBookAnalysisLegacyPreview.totalPrompts }}</span>
+            </div>
+          </div>
+          <div class="import-preview-categories">
+            <div v-for="cat in importBookAnalysisLegacyPreview.categories.slice(0, 5)" :key="cat" class="import-preview-category-tag">
+              {{ cat }}
+            </div>
+            <div v-if="importBookAnalysisLegacyPreview.categories.length > 5" class="import-preview-more-categories">
+              还有 {{ importBookAnalysisLegacyPreview.categories.length - 5 }} 个分类...
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="importBookAnalysisLegacyDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!importBookAnalysisLegacyPreview" @click="executeImportBookAnalysisLegacy">
+          导入并转换
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 导出独立卡片弹窗 -->
     <el-dialog
       v-model="exportStandaloneDialogVisible"
@@ -360,6 +638,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="export-dialog"
+      append-to-body
     >
       <div class="export-standalone-content">
         <div class="export-hint">
@@ -377,12 +656,12 @@
             v-model="selectAllStandalone" 
             @change="handleSelectAllStandalone"
           >
-            全选 ({{ selectedStandaloneCards.length }}/{{ uncategorizedPrompts.length }})
+            全选 ({{ selectedStandaloneCards.length }}/{{ combinedUncategorizedPrompts.length }})
           </el-checkbox>
         </div>
-        <div v-if="uncategorizedPrompts.length > 0" class="export-cards-grid">
+        <div v-if="combinedUncategorizedPrompts.length > 0" class="export-cards-grid">
           <div
-            v-for="prompt in uncategorizedPrompts"
+            v-for="prompt in combinedUncategorizedPrompts"
             :key="prompt.id"
             class="export-card-item"
             :class="{ selected: selectedStandaloneCards.includes(prompt.id) }"
@@ -394,7 +673,10 @@
               @change="toggleStandaloneCard(prompt.id)"
             />
             <div class="export-card-content">
-              <div class="export-card-name">{{ prompt.name }}</div>
+              <div class="export-card-name">
+                {{ prompt.name }}
+                <el-tag v-if="prompt.category === '拆书-未分类'" size="small" type="warning" style="margin-left: 6px;">拆书</el-tag>
+              </div>
               <div class="export-card-preview">
                 <template v-if="prompt.card_type === 'encrypted'">
                   <el-icon><Lock /></el-icon> 已加密
@@ -429,6 +711,7 @@
       width="600px"
       :close-on-click-modal="false"
       class="export-dialog"
+      append-to-body
     >
       <div class="export-pack-content">
         <div class="export-hint">
@@ -481,6 +764,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="import-dialog"
+      append-to-body
     >
       <div class="import-content">
         <div class="import-upload">
@@ -558,6 +842,7 @@
       width="600px"
       :close-on-click-modal="false"
       class="import-dialog"
+      append-to-body
     >
       <div class="import-content">
         <div class="import-upload">
@@ -611,6 +896,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="batch-delete-dialog"
+      append-to-body
     >
       <div class="batch-delete-content">
         <div class="batch-delete-hint">
@@ -673,6 +959,128 @@
       </template>
     </el-dialog>
 
+    <!-- 移动卡片到其他卡包对话框 -->
+    <el-dialog
+      v-model="movePromptDialogVisible"
+      title="移动到其他卡包"
+      width="500px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <div class="move-prompt-content">
+        <div class="move-prompt-hint">
+          <el-alert
+            title="选择目标卡包"
+            type="info"
+            :closable="false"
+            show-icon
+          >
+            将卡片"{{ movePromptData?.name }}"移动到以下卡包：
+          </el-alert>
+        </div>
+        <div class="move-prompt-options">
+          <el-radio-group v-model="moveTargetCategory" class="move-prompt-radio-group">
+            <el-radio 
+              v-for="category in categoryList" 
+              :key="category.name" 
+              :label="category.name"
+              :disabled="category.name === movePromptData?.category"
+              class="move-prompt-radio-item"
+            >
+              <div class="move-prompt-category-info">
+                <el-icon><FolderOpened /></el-icon>
+                <span>{{ category.name }}</span>
+                <el-tag size="small" type="info">{{ category.prompts.length }} 张</el-tag>
+              </div>
+            </el-radio>
+          </el-radio-group>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="movePromptDialogVisible = false">取消</el-button>
+        <el-button 
+          type="primary" 
+          :disabled="!moveTargetCategory || moveTargetCategory === movePromptData?.category"
+          @click="executeMovePrompt"
+        >
+          移动
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 独立卡片批量删除对话框 -->
+    <el-dialog
+      v-model="standaloneBatchDeleteDialogVisible"
+      title="批量删除独立卡片"
+      width="800px"
+      :close-on-click-modal="false"
+      class="batch-delete-dialog"
+      append-to-body
+    >
+      <div class="batch-delete-content">
+        <div class="batch-delete-hint">
+          <el-alert
+            title="正在删除独立卡片"
+            type="warning"
+            :closable="false"
+            show-icon
+          >
+            勾选需要删除的独立卡片，然后点击删除按钮。此操作不可恢复。
+          </el-alert>
+        </div>
+        <div class="batch-delete-select-all">
+          <el-checkbox 
+            v-model="selectAllStandaloneBatchDelete" 
+            @change="handleSelectAllStandaloneBatchDelete"
+          >
+            全选 ({{ selectedStandaloneBatchDeleteCards.length }}/{{ combinedUncategorizedPrompts.length }})
+          </el-checkbox>
+        </div>
+        <div v-if="combinedUncategorizedPrompts.length > 0" class="batch-delete-cards-grid">
+          <div
+            v-for="prompt in combinedUncategorizedPrompts"
+            :key="prompt.id"
+            class="batch-delete-card-item"
+            :class="{ selected: selectedStandaloneBatchDeleteCards.includes(prompt.id) }"
+            @click="toggleStandaloneBatchDeleteCard(prompt.id)"
+          >
+            <el-checkbox 
+              :model-value="selectedStandaloneBatchDeleteCards.includes(prompt.id)"
+              @click.stop
+              @change="toggleStandaloneBatchDeleteCard(prompt.id)"
+            />
+            <div class="batch-delete-card-content">
+              <div class="batch-delete-card-name">
+                {{ prompt.name }}
+                <el-tag v-if="prompt.category === '拆书-未分类'" size="small" type="warning" style="margin-left: 6px;">拆书</el-tag>
+              </div>
+              <div class="batch-delete-card-preview">
+                <template v-if="prompt.card_type === 'encrypted'">
+                  <el-icon><Lock /></el-icon> 已加密
+                </template>
+                <template v-else>
+                  {{ prompt.content.slice(0, 30) }}{{ prompt.content.length > 30 ? '...' : '' }}
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="batch-delete-empty">
+          <el-empty description="暂无独立卡片" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="standaloneBatchDeleteDialogVisible = false">取消</el-button>
+        <el-button 
+          type="danger" 
+          :disabled="selectedStandaloneBatchDeleteCards.length === 0"
+          @click="executeStandaloneBatchDelete"
+        >
+          删除 ({{ selectedStandaloneBatchDeleteCards.length }})
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 导入并转换txt/md弹窗 -->
     <el-dialog
       v-model="importConvertDialogVisible"
@@ -680,6 +1088,7 @@
       width="800px"
       :close-on-click-modal="false"
       class="import-dialog"
+      append-to-body
     >
       <div class="import-content">
         <div class="import-upload">
@@ -760,6 +1169,7 @@
       width="600px"
       :close-on-click-modal="false"
       class="import-all-dialog"
+      append-to-body
     >
       <div class="import-all-content">
         <div class="import-all-upload">
@@ -822,65 +1232,49 @@
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑提示词' : '创建提示词'"
-      :width="dialogWidthMap[dialogSize]"
+      width="900px"
       top="6vh"
-      append-to-body
       :close-on-click-modal="false"
-      class="prompt-dialog"
+      destroy-on-close
+      class="pack-edit-dialog"
     >
-      <template #header>
-        <div class="dialog-header">
-          <span>{{ isEdit ? '编辑提示词' : '创建提示词' }}</span>
-          <div class="size-controls">
-            <el-button-group>
-              <el-button 
-                :type="dialogSize === 'small' ? 'primary' : ''" 
-                size="small"
-                @click="dialogSize = 'small'"
-              >
-                小
-              </el-button>
-              <el-button 
-                :type="dialogSize === 'medium' ? 'primary' : ''" 
-                size="small"
-                @click="dialogSize = 'medium'"
-              >
-                中
-              </el-button>
-              <el-button 
-                :type="dialogSize === 'large' ? 'primary' : ''" 
-                size="small"
-                @click="dialogSize = 'large'"
-              >
-                大
-              </el-button>
-            </el-button-group>
-          </div>
-        </div>
-      </template>
-      <div class="dialog-content" :style="{ height: dialogHeightMap[dialogSize] }">
-        <!-- 上方：基本信息和提示词内容 -->
-        <div class="left-panel">
-          <el-form :model="formData" label-width="80px">
+      <div class="pack-edit-layout">
+        <!-- 左侧：表单字段 (2/3) -->
+        <div class="pack-edit-left">
+          <el-form :model="formData" label-position="top" class="pack-edit-form">
             <el-form-item label="名称" required>
-              <el-input v-model="formData.name" placeholder="请输入名称" />
+              <el-input
+                v-model="formData.name"
+                placeholder="请输入名称"
+                maxlength="100"
+                show-word-limit
+              />
             </el-form-item>
-            <el-form-item label="分类名称" required>
+
+            <el-form-item label="分类" required>
               <el-select
                 v-model="formData.category"
                 placeholder="请选择卡包"
-                class="field-input full-width-input"
+                style="width: 100%"
               >
                 <el-option
-                  v-for="category in categoryOptions"
-                  :key="category"
-                  :label="category"
-                  :value="category"
+                  v-for="cat in categoryOptions"
+                  :key="cat"
+                  :label="cat"
+                  :value="cat"
                 />
               </el-select>
             </el-form-item>
+
+            <el-form-item label="作者">
+              <el-input v-model="formData.creator_name" placeholder="请输入作者名，非必填" />
+            </el-form-item>
+
+            <el-form-item label="版本">
+              <el-input v-model="formData.version" placeholder="如 v1.0、v2.1.0，非必填" />
+            </el-form-item>
             <el-form-item label="卡片类型">
-              <div class="card-type-selector">
+              <div class="pack-edit-card-type">
                 <el-radio-group v-model="formData.card_type" @change="handleCardTypeChange">
                   <el-radio value="normal">
                     <el-icon><Document /></el-icon>
@@ -891,7 +1285,7 @@
                     加密卡片
                   </el-radio>
                 </el-radio-group>
-                <div v-if="formData.card_type === 'encrypted'" class="card-type-actions">
+                <div v-if="formData.card_type === 'encrypted'" class="pack-edit-card-type-actions">
                   <el-button
                     v-if="!formData.password"
                     type="warning"
@@ -920,13 +1314,13 @@
                     移除密码
                   </el-button>
                 </div>
-                <div v-if="formData.card_type === 'encrypted' && formData.password" class="card-type-status">
+                <div v-if="formData.card_type === 'encrypted' && formData.password" class="pack-edit-card-type-status">
                   <el-tag type="warning" size="small">
                     <el-icon><Lock /></el-icon>
                     已加密
                   </el-tag>
                 </div>
-                <div v-if="formData.card_type === 'encrypted' && !formData.password" class="card-type-status">
+                <div v-if="formData.card_type === 'encrypted' && !formData.password" class="pack-edit-card-type-status">
                   <el-tag type="info" size="small">未设置密码（保存前需设置密码）</el-tag>
                 </div>
               </div>
@@ -938,213 +1332,129 @@
                 class="description-rich-editor"
               />
             </el-form-item>
-            <el-form-item required>
-              <template #label>
-                <div class="form-item-label-with-guide">
-                  <span>内容</span>
-                  <el-popover
-                    placement="right-start"
-                    :width="360"
-                    trigger="click"
-                    popper-class="prompt-guide-popper"
-                  >
-                    <template #reference>
-                      <el-button size="small" text class="prompt-guide-trigger">
-                        <el-icon><InfoFilled /></el-icon>
-                        模板说明
-                      </el-button>
-                    </template>
-                    <div class="prompt-guide-popover">
-                      <div class="prompt-guide-title">把说明写进模板，把变量留给字段</div>
-                      <p class="prompt-guide-intro">
-                        正文里直接写完整提示词，把需要用户补充的内容写成 <code>${字段名称}</code>。
-                      </p>
-                      <div class="prompt-guide-example">
-                        <span class="prompt-guide-example-label">示例</span>
-                        <p>帮我生成 <code>${数量}</code> 个 <code>${小说类型}</code> 类型、适合 <code>${平台}</code> 平台的小说书名。</p>
-                      </div>
-                      <div class="prompt-guide-tips">
-                        <div class="prompt-guide-tip">
-                          <span class="prompt-guide-tip-index">1</span>
-                          <span>先按正常语气写完整句子，再把可变内容替换成字段。</span>
-                        </div>
-                        <div class="prompt-guide-tip">
-                          <span class="prompt-guide-tip-index">2</span>
-                          <span>长文本内容建议单独成段，避免和短字段混在一句里。</span>
-                        </div>
-                        <div class="prompt-guide-tip">
-                          <span class="prompt-guide-tip-index">3</span>
-                          <span>字段名称尽量直接，比如“数量”“平台”“风格要求”。</span>
-                        </div>
-                      </div>
-                    </div>
-                  </el-popover>
-                </div>
-              </template>
+            <el-form-item label="内容" required>
               <el-input
                 v-model="formData.content"
                 type="textarea"
-                :rows="15"
-                placeholder="请输入提示词内容（作为AI的system层指令）"
+                :rows="12"
+                placeholder="请输入提示词内容（作为AI的system层指令），使用 ${字段名} 引用变量"
+                class="pack-edit-content-input"
               />
             </el-form-item>
-            <div class="panel-header prompt-panel-header">
-              <label class="form-label">字段配置</label>
-              <el-button type="primary" size="small" @click="addField">
-                <el-icon><Plus /></el-icon>
-                添加字段
-              </el-button>
-            </div>
-            <div class="field-config-section">
-              <el-alert
-                title="字段配置说明"
-                type="info"
-                :closable="false"
-                show-icon
-              >
-                <template #default>
-                  <div class="format-description">
-                    <p><strong>⚙️ 配置字段信息</strong></p>
-                    <p>为每个 <code>${字段名称}</code> 设置详细信息，决定用户看到什么样的表单</p>
-                  </div>
-                </template>
-              </el-alert>
-              
-              <div v-if="fieldsConfig.length === 0" class="empty-fields">
-                <p class="empty-hint">暂无字段配置，点击右上角"添加字段"开始配置</p>
+
+            <div class="pack-edit-section">
+              <div class="pack-edit-section-head">
+                <span class="pack-edit-section-title">标签</span>
+                <span class="pack-edit-section-tip">用于卡包内多维度筛选</span>
               </div>
-              
-              <div v-else class="fields-list">
-                <div v-for="(field, index) in fieldsConfig" :key="index" class="field-item">
-                  <div class="field-header">
-                    <div class="field-name-container">
-                      <el-tag 
-                        :type="field.required ? 'danger' : 'info'" 
-                        size="small"
-                        class="required-tag"
-                      >
-                        {{ field.required ? '必选' : '选填' }}
-                      </el-tag>
-                      <el-input
-                        v-model="field.name"
-                        class="field-name-input"
-                        placeholder="字段名称"
-                        @change="updateFieldName(index, field.name)"
-                      />
-                      <el-button
-                        type="primary"
-                        link
-                        size="small"
-                        @click="copyFieldName(field.name)"
-                        title="复制占位符"
-                      >
-                        <el-icon><CopyDocument /></el-icon>
-                      </el-button>
-                    </div>
-                    <div class="field-actions">
-                      <el-switch
-                        v-model="field.required"
-                        active-text="必选"
-                        inactive-text="选填"
-                        :active-action-icon="Check"
-                        :inactive-action-icon="Close"
-                        inline-prompt
-                        style="--el-switch-on-color: #f56c6c; --el-switch-off-color: #909399;"
-                      />
-                      <el-button 
-                        type="primary" 
-                        link 
-                        size="small" 
-                        @click="moveField(index, index - 1)"
-                        :disabled="index === 0"
-                        title="上移"
-                      >
-                        <el-icon><ArrowUp /></el-icon>
-                      </el-button>
-                      <el-button 
-                        type="primary" 
-                        link 
-                        size="small" 
-                        @click="moveField(index, index + 1)"
-                        :disabled="index === fieldsConfig.length - 1"
-                        title="下移"
-                      >
-                        <el-icon><ArrowDown /></el-icon>
-                      </el-button>
-                      <el-button type="danger" link size="small" @click="removeField(index)" title="删除">
-                        <el-icon><Delete /></el-icon>
-                      </el-button>
-                    </div>
-                  </div>
-                  <div class="field-config-form">
-                    <el-input
-                      v-model="field.label"
-                      placeholder="字段显示名称"
-                      class="field-input"
-                    />
-                    <el-select
-                      v-model="field.type"
-                      placeholder="字段类型"
-                      class="field-input"
-                    >
-                      <el-option label="单行文本" value="text" />
-                      <el-option label="多行文本" value="textarea" />
-                      <el-option label="下拉选择" value="select" />
-                    </el-select>
-                    <div v-if="field.type === 'select'" class="field-options">
-                      <label>选项（每行一个）：</label>
-                      <el-input
-                        v-model="field.optionsText"
-                        type="textarea"
-                        :rows="3"
-                        placeholder="请输入选项，每行一个"
-                        @change="updateFieldOptions(index)"
-                        class="field-input"
-                      />
-                    </div>
-                    <el-input
-                      v-model="field.description"
-                      type="textarea"
-                      :rows="2"
-                      placeholder="字段说明"
-                      class="field-input"
-                    />
-                  </div>
-                </div>
+              <div class="pack-edit-tags">
+                <el-tag
+                  v-for="(tag, i) in formSubcategories"
+                  :key="i"
+                  size="small"
+                  closable
+                  class="pack-edit-tag"
+                  @close="removeFormSubcategory(i)"
+                >
+                  {{ tag }}
+                </el-tag>
+                <el-input
+                  v-model="newSubcategory"
+                  size="small"
+                  placeholder="输入后回车添加"
+                  class="pack-edit-tag-input"
+                  @keyup.enter="addFormSubcategory"
+                />
+                <el-button size="small" type="primary" plain @click="addFormSubcategory">
+                  <el-icon><Plus /></el-icon>
+                </el-button>
               </div>
             </div>
-            <el-form-item label="标签" class="prompt-tags-form-item">
-              <div class="subcategory-form">
-                <div class="subcategory-tags-row">
-                  <el-tag
-                    v-for="(subcat, index) in formSubcategories"
-                    :key="index"
-                    closable
-                    size="small"
-                    @close="removeFormSubcategory(index)"
-                    class="subcategory-tag"
-                  >
-                    {{ subcat }}
-                  </el-tag>
-                </div>
-                <div class="subcategory-input-row">
-                  <el-input
-                    v-model="newSubcategory"
-                    placeholder="输入标签后按回车添加"
-                    size="small"
-                    class="subcategory-input"
-                    @keyup.enter="addFormSubcategory"
-                  />
-                  <el-button size="small" type="primary" @click="addFormSubcategory">
-                    <el-icon><Plus /></el-icon>
-                  </el-button>
-                  <el-button size="small" type="success" @click="saveSubcategoriesOnly">
-                    保存
-                  </el-button>
-                </div>
-              </div>
-            </el-form-item>
           </el-form>
+        </div>
+
+        <!-- 右侧：字段配置 (1/3) -->
+        <div class="pack-edit-right">
+          <div class="pack-edit-right-head">
+            <span class="pack-edit-right-title">字段配置</span>
+            <el-button type="primary" size="small" plain @click="addField">
+              <el-icon><Plus /></el-icon>
+              添加
+            </el-button>
+          </div>
+          <div class="pack-edit-right-tip">对应内容里的 <code>${字段名}</code></div>
+          <div class="pack-edit-right-body">
+            <div v-if="fieldsConfig.length === 0" class="pack-edit-empty">暂无字段</div>
+            <div v-else class="pack-edit-fields">
+              <div v-for="(field, index) in fieldsConfig" :key="index" class="pack-edit-field">
+                <div class="pack-edit-field-head">
+                  <el-tag :type="field.required ? 'danger' : 'info'" size="small" effect="light">
+                    {{ field.required ? '必填' : '选填' }}
+                  </el-tag>
+                  <el-input
+                    v-model="field.name"
+                    size="small"
+                    class="pack-edit-field-name"
+                    placeholder="字段名"
+                    @change="updateFieldName(index, field.name)"
+                  />
+                  <el-button size="small" link @click="copyFieldName(field.name)" title="复制">
+                    <el-icon><CopyDocument /></el-icon>
+                  </el-button>
+                  <el-switch
+                    v-model="field.required"
+                    size="small"
+                    inline-prompt
+                    active-text="必"
+                    inactive-text="选"
+                    style="--el-switch-on-color: #f56c6c; --el-switch-off-color: #c0c4cc;"
+                  />
+                  <el-button size="small" type="danger" link @click="removeField(index)" title="删除">
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </div>
+                <div class="pack-edit-field-body">
+                  <el-input v-model="field.label" size="small" placeholder="显示名" />
+                  <el-select v-model="field.type" size="small" placeholder="类型" style="width: 100%">
+                    <el-option label="单行文本" value="text" />
+                    <el-option label="多行文本" value="textarea" />
+                    <el-option label="下拉选择" value="select" />
+                  </el-select>
+                  <el-input
+                    v-model="field.description"
+                    size="small"
+                    placeholder="说明（可选）"
+                  />
+                </div>
+                <div class="pack-edit-field-order">
+                  <el-button size="small" link :disabled="index === 0" @click="moveField(index, index - 1)" title="上移">
+                    <el-icon><ArrowUp /></el-icon>
+                  </el-button>
+                  <el-button size="small" link :disabled="index === fieldsConfig.length - 1" @click="moveField(index, index + 1)" title="下移">
+                    <el-icon><ArrowDown /></el-icon>
+                  </el-button>
+                </div>
+                <div v-if="field.type === 'select'" class="pack-edit-field-options">
+                  <el-input
+                    v-model="field.optionsText"
+                    type="textarea"
+                    :rows="2"
+                    size="small"
+                    placeholder="选项（每行一个）"
+                    @change="updateFieldOptions(index)"
+                  />
+                  <el-input
+                    v-model="field.optionLabelsText"
+                    type="textarea"
+                    :rows="2"
+                    size="small"
+                    placeholder="展示名（可选）"
+                    @change="updateFieldOptionLabels(index)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -1153,52 +1463,63 @@
       </template>
     </el-dialog>
 
-    <transition name="pack-fan-stage">
-      <div v-if="packPreviewVisible" class="pack-fan-stage" @click.self="closePackPreview">
-        <div class="pack-fan-board">
-          <div v-if="packPreviewPrompts.length > 0" class="pack-fan-row">
-            <button
-              v-for="prompt in packPreviewPrompts"
-              :key="prompt.id"
-              type="button"
-              class="pack-fan-card"
-              @click="handlePackPreviewItemClick(prompt)"
-            >
-              <span class="pack-fan-card-inner">
-                <span class="pack-fan-card-face pack-fan-card-back">
-                  <span class="pack-fan-card-back-core">
-                    <span class="pack-fan-card-back-title">{{ packPreviewCategory }}</span>
-                    <span class="pack-fan-card-back-mark">Prompt Deck</span>
-                  </span>
-                </span>
-                <span class="pack-fan-card-face pack-fan-card-front">
-                  <span class="pack-fan-card-front-header">
-                    <el-icon class="pack-fan-card-front-handle"><Rank /></el-icon>
-                    <span class="pack-fan-card-front-name">{{ prompt.name }}</span>
-                    <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-fan-card-front-lock"><Lock /></el-icon>
-                  </span>
-                  <span class="pack-fan-card-front-content">
-                    <el-tag size="small" :type="getTagType(prompt.category)" class="pack-fan-card-front-tag">{{ prompt.category }}</el-tag>
-                    <span class="pack-fan-card-front-preview">
-                      <template v-if="prompt.card_type === 'encrypted'">
+    <Teleport to="body">
+      <transition name="pack-fan-stage">
+        <div v-if="packPreviewVisible" class="pack-fan-stage" @click.self="closePackPreview">
+          <div class="pack-fan-board">
+            <div v-if="packPreviewPrompts.length > 0" class="pack-fan-row">
+              <button
+                v-for="prompt in packPreviewPrompts"
+                :key="prompt.id"
+                type="button"
+                class="pack-fan-card"
+                @click="handlePackPreviewItemClick(prompt)"
+              >
+                <div class="pack-fan-card-head">
+                  <el-icon class="pack-fan-card-head-icon"><Document /></el-icon>
+                  <span class="pack-fan-card-head-name">{{ prompt.name }}</span>
+                  <el-icon v-if="prompt.card_type === 'encrypted'" class="pack-fan-card-head-lock"><Lock /></el-icon>
+                </div>
+                <div class="pack-fan-card-body">
+                  <el-tag size="small" :type="getTagType(prompt.category)" class="pack-fan-card-tag">{{ prompt.category }}</el-tag>
+                  <div class="pack-fan-card-content" :class="{ 'is-empty': !prompt.description }">
+                    <template v-if="prompt.card_type === 'encrypted'">
+                      <span class="pack-fan-card-content-encrypted">
                         <el-icon><Lock /></el-icon> 内容已加密
-                      </template>
-                      <template v-else>
-                        {{ prompt.content.slice(0, 60) }}{{ prompt.content.length > 60 ? '...' : '' }}
-                      </template>
-                    </span>
-                  </span>
-                  <span class="pack-fan-card-front-footer">
-                    <span class="pack-fan-card-front-time">{{ formatDate(prompt.created_at) }}</span>
-                  </span>
-                </span>
-              </span>
-            </button>
+                      </span>
+                    </template>
+                    <template v-else>
+                      {{ prompt.description || '暂无简介' }}
+                    </template>
+                  </div>
+                </div>
+                <div class="pack-fan-card-foot">
+                  <span class="pack-fan-card-foot-time">{{ formatDate(prompt.created_at) }}</span>
+                  <div class="pack-fan-card-actions" @click.stop>
+                    <el-tooltip content="导出卡片" placement="top" :show-after="300">
+                      <el-button class="pack-fan-action-btn" size="small" circle @click="handleExportSinglePrompt(prompt)">
+                        <el-icon><Download /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="移动到其他卡包" placement="top" :show-after="300">
+                      <el-button class="pack-fan-action-btn" size="small" circle @click="openMovePromptDialog(prompt)">
+                        <el-icon><FolderRemove /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="删除" placement="top" :show-after="300">
+                      <el-button class="pack-fan-action-btn pack-fan-action-btn--danger" size="small" circle @click="handlePackPreviewDelete(prompt)">
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                  </div>
+                </div>
+              </button>
+            </div>
+            <el-empty v-else description="该卡包暂无可预览的卡片" />
           </div>
-          <el-empty v-else description="该卡包暂无可预览的卡片" />
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <!-- 预览弹窗 -->
     <el-dialog
@@ -1207,6 +1528,7 @@
       width="50vw"
       destroy-on-close
       class="preview-dialog"
+      append-to-body
     >
       <div class="preview-dialog-content">
         <div class="preview-dialog-header">
@@ -1228,6 +1550,7 @@
       width="400px"
       :close-on-click-modal="false"
       class="password-dialog"
+      append-to-body
     >
       <div class="password-dialog-content">
         <div class="password-dialog-icon">
@@ -1255,6 +1578,7 @@
       width="400px"
       :close-on-click-modal="false"
       class="password-dialog"
+      append-to-body
     >
       <div class="password-dialog-content">
         <div class="password-dialog-icon">
@@ -1286,302 +1610,21 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowUp, ArrowDown, Delete, CopyDocument, FolderAdd, FolderOpened, Edit, Document, Rank, Check, Close, Download, Upload, UploadFilled, View, Switch, InfoFilled, Lock } from '@element-plus/icons-vue'
+import { Plus, ArrowUp, ArrowDown, Delete, CopyDocument, FolderAdd, FolderOpened, FolderRemove, Edit, Document, Rank, Check, Close, Download, Upload, UploadFilled, View, Switch, InfoFilled, Lock, Grid, List, Setting, Reading, MoreFilled } from '@element-plus/icons-vue'
 import { promptAPI } from '@/api'
 import type { Prompt } from '@/types'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import SplitRichTextEditor from '@/components/SplitRichTextEditor.vue'
 
-interface PromptSkinPreset {
-  id: string
-  name: string
-  description: string
-  builtIn?: boolean
-  tokens?: Record<string, string>
-}
-
-const PROMPT_SKIN_STORAGE_KEY = 'prompt_pack_custom_skins'
-const PROMPT_SKIN_SELECTED_KEY = 'prompt_pack_selected_skin'
-
-const promptSkinDefaultTokens: Record<string, string> = {
-  'prompt-pack-shell-top': '#edf5f4',
-  'prompt-pack-shell-mid': '#e5efee',
-  'prompt-pack-shell-bottom': '#dbe8e7',
-  'prompt-pack-shell-radius': '20px',
-  'prompt-pack-shell-border': 'rgba(74, 126, 123, 0.28)',
-  'prompt-pack-shell-shadow': '0 14px 30px rgba(25, 70, 68, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.38)',
-  'prompt-pack-shell-hover-border': 'rgba(40, 111, 108, 0.44)',
-  'prompt-pack-shell-hover-shadow': '0 20px 40px rgba(18, 84, 81, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.46)',
-  'prompt-pack-shell-overlay': 'linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 34%), linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.07) 48%, transparent 70%)',
-  'prompt-pack-drag-bg': 'radial-gradient(circle at top right, rgba(98, 176, 170, 0.22), transparent 38%), radial-gradient(circle at left top, rgba(140, 201, 193, 0.16), transparent 44%), linear-gradient(180deg, #e7f1f0 0%, #ddeceb 100%)',
-  'prompt-pack-drag-border': '#3d8e89',
-  'prompt-pack-drag-shadow': '0 22px 44px rgba(22, 96, 93, 0.18), inset 0 0 0 1px rgba(123, 177, 171, 0.18)',
-  'prompt-pack-header-top': '#c3ddd8',
-  'prompt-pack-header-mid': '#afd2cd',
-  'prompt-pack-header-bottom': '#98c2bc',
-  'prompt-pack-header-border': 'rgba(31, 89, 86, 0.18)',
-  'prompt-pack-header-text': '#154d4b',
-  'prompt-pack-muted-text': '#607d79',
-  'prompt-pack-badge-bg': 'rgba(239, 246, 245, 0.94)',
-  'prompt-pack-badge-border': 'rgba(83, 131, 127, 0.18)',
-  'prompt-pack-badge-text': '#276b67',
-  'prompt-pack-header-align': 'flex-start',
-  'prompt-pack-header-padding': '14px 12px 12px 12px',
-  'prompt-pack-header-overlay': 'radial-gradient(circle at top, rgba(255, 255, 255, 0.16), transparent 42%), linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 64%), linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.09) 48%, transparent 72%)',
-  'prompt-pack-header-left-align': 'flex-start',
-  'prompt-pack-header-left-gap': '6px',
-  'prompt-pack-header-left-padding-top': '12px',
-  'prompt-pack-header-actions-gap': '8px',
-  'prompt-pack-header-actions-align': 'flex-start',
-  'prompt-pack-icon-color': 'var(--pack-header-text)',
-  'prompt-pack-icon-shadow': 'drop-shadow(0 4px 10px rgba(26, 88, 85, 0.14))',
-  'prompt-pack-name-color': 'var(--pack-header-text)',
-  'prompt-pack-name-align': 'left',
-  'prompt-pack-name-shadow': '0 1px 6px rgba(255, 255, 255, 0.16)',
-  'prompt-pack-count-shadow': '0 6px 12px rgba(22, 77, 75, 0.08)',
-  'prompt-pack-action-bg': 'rgba(244, 249, 248, 0.58)',
-  'prompt-pack-action-border': 'rgba(210, 228, 225, 0.88)',
-  'prompt-pack-action-shadow': '0 8px 18px rgba(19, 91, 87, 0.10)',
-  'prompt-pack-action-hover-bg': 'rgba(249, 252, 251, 0.96)',
-  'prompt-pack-action-hover-border': 'rgba(227, 238, 236, 0.96)',
-  'prompt-pack-action-primary': '#1f6f69',
-  'prompt-pack-action-primary-hover': '#145b56',
-  'prompt-pack-action-danger': '#b45366',
-  'prompt-pack-action-danger-hover': '#9f324f',
-  'prompt-pack-scroll-bg': 'linear-gradient(180deg, rgba(227, 238, 236, 0.82) 0%, rgba(239, 245, 244, 0.96) 100%)',
-  'prompt-pack-card-bg': 'linear-gradient(180deg, rgba(246, 250, 249, 0.98) 0%, #eaf2f1 100%)',
-  'prompt-pack-card-radius': '14px',
-  'prompt-pack-card-border': '1px solid rgba(39, 107, 103, 0.14)',
-  'prompt-pack-card-shadow': '0 8px 18px rgba(21, 77, 75, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72)',
-  'prompt-pack-card-hover-border': 'rgba(24, 99, 95, 0.28)',
-  'prompt-pack-card-hover-shadow': '0 14px 26px rgba(18, 84, 81, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.82)',
-  'prompt-pack-card-drag-opacity': '0.56',
-  'prompt-pack-card-drag-scale': '0.97',
-  'prompt-pack-card-header-bg': 'linear-gradient(135deg, rgba(133, 184, 178, 0.2) 0%, rgba(245, 249, 248, 0.94) 100%)',
-  'prompt-pack-card-header-border': 'rgba(39, 107, 103, 0.10)',
-  'prompt-pack-card-handle-color': '#0d9488',
-  'prompt-pack-card-name-color': '#134e4a',
-  'prompt-pack-card-content-gap': '6px',
-  'prompt-pack-card-preview-color': '#5f7f7b',
-  'prompt-pack-card-footer-bg': 'linear-gradient(180deg, rgba(241, 247, 246, 0.96) 0%, rgba(233, 241, 240, 0.98) 100%)',
-  'prompt-pack-card-footer-border': 'rgba(39, 107, 103, 0.10)',
-  'prompt-pack-card-time-color': 'var(--pack-muted-text)',
-  'prompt-pack-empty-border': '1px dashed rgba(94, 234, 212, 0.32)',
-  'prompt-pack-empty-radius': '14px',
-  'prompt-pack-empty-bg': 'linear-gradient(180deg, rgba(236, 254, 255, 0.88) 0%, rgba(255, 255, 255, 0.96) 100%)',
-  'prompt-pack-empty-text': '#7cb9b3',
-  'prompt-pack-empty-hover-border': 'rgba(45, 212, 191, 0.4)',
-  'prompt-pack-empty-hover-bg': 'linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%)',
-  'prompt-pack-empty-hover-text': '#14b8a6',
-  'prompt-pack-footer-bg': 'linear-gradient(180deg, rgba(246, 255, 255, 0.98) 0%, rgba(239, 250, 250, 1) 100%)',
-  'prompt-pack-footer-border': 'rgba(94, 234, 212, 0.2)',
-  'prompt-pack-footer-button-bg': 'rgba(255, 255, 255, 0.62)',
-  'prompt-pack-footer-button-shadow': '0 8px 18px rgba(56, 189, 248, 0.08)',
-  'prompt-pack-footer-primary-color': '#22c7b8',
-  'prompt-pack-footer-primary-border': 'rgba(94, 234, 212, 0.34)',
-  'prompt-pack-footer-primary-hover-bg': 'rgba(236, 254, 255, 0.92)',
-  'prompt-pack-footer-primary-hover-border': 'rgba(94, 234, 212, 0.5)',
-  'prompt-pack-footer-primary-hover-color': '#0f766e',
-  'prompt-pack-footer-danger-color': '#fb8fa3',
-  'prompt-pack-footer-danger-border': 'rgba(251, 113, 133, 0.2)',
-  'prompt-pack-footer-danger-hover-bg': 'rgba(255, 241, 242, 0.95)',
-  'prompt-pack-footer-danger-hover-border': 'rgba(251, 113, 133, 0.34)',
-  'prompt-pack-footer-danger-hover-color': '#f43f5e'
-}
-
-const promptSkinTokenKeys = Object.keys(promptSkinDefaultTokens)
-
-const builtInPromptSkins: PromptSkinPreset[] = [
-  {
-    id: 'modern-glass',
-    name: '新拟态卡包',
-    description: '当前使用的青瓷玻璃感卡包样式。',
-    builtIn: true
-  },
-  {
-    id: 'classic-green',
-    name: '经典绿色',
-    description: '恢复早期绿色卡包的旧版视觉。',
-    builtIn: true,
-    tokens: {
-      'prompt-pack-shell-top': '#f6ffed',
-      'prompt-pack-shell-mid': '#ffffff',
-      'prompt-pack-shell-bottom': '#ffffff',
-      'prompt-pack-shell-radius': '12px',
-      'prompt-pack-shell-border': '#b7eb8f',
-      'prompt-pack-shell-shadow': '0 4px 12px rgba(82, 196, 26, 0.15)',
-      'prompt-pack-shell-hover-border': '#95de64',
-      'prompt-pack-shell-hover-shadow': '0 8px 20px rgba(82, 196, 26, 0.18)',
-      'prompt-pack-shell-overlay': 'linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent 70%)',
-      'prompt-pack-drag-bg': 'linear-gradient(180deg, #d9f7be 0%, #ffffff 100%)',
-      'prompt-pack-drag-border': '#52c41a',
-      'prompt-pack-drag-shadow': '0 10px 24px rgba(82, 196, 26, 0.18)',
-      'prompt-pack-header-top': '#95de64',
-      'prompt-pack-header-mid': '#52c41a',
-      'prompt-pack-header-bottom': '#389e0d',
-      'prompt-pack-header-border': '#b7eb8f',
-      'prompt-pack-header-text': '#ffffff',
-      'prompt-pack-muted-text': '#bfbfbf',
-      'prompt-pack-badge-bg': '#ffffff',
-      'prompt-pack-badge-border': 'transparent',
-      'prompt-pack-badge-text': '#52c41a',
-      'prompt-pack-header-align': 'center',
-      'prompt-pack-header-padding': '12px 8px',
-      'prompt-pack-header-overlay': 'linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent 70%)',
-      'prompt-pack-header-left-align': 'center',
-      'prompt-pack-header-left-gap': '4px',
-      'prompt-pack-header-left-padding-top': '0px',
-      'prompt-pack-header-actions-gap': '6px',
-      'prompt-pack-header-actions-align': 'center',
-      'prompt-pack-icon-color': '#ffffff',
-      'prompt-pack-icon-shadow': 'none',
-      'prompt-pack-name-color': '#ffffff',
-      'prompt-pack-name-align': 'center',
-      'prompt-pack-name-shadow': 'none',
-      'prompt-pack-count-shadow': 'none',
-      'prompt-pack-action-bg': 'rgba(255, 255, 255, 0.9)',
-      'prompt-pack-action-border': 'transparent',
-      'prompt-pack-action-shadow': 'none',
-      'prompt-pack-action-hover-bg': '#ffffff',
-      'prompt-pack-action-hover-border': 'transparent',
-      'prompt-pack-action-primary': '#409eff',
-      'prompt-pack-action-primary-hover': '#66b1ff',
-      'prompt-pack-action-danger': '#ff4d4f',
-      'prompt-pack-action-danger-hover': '#ff7875',
-      'prompt-pack-scroll-bg': 'linear-gradient(180deg, rgba(246, 255, 237, 0.85) 0%, rgba(255, 255, 255, 0.95) 100%)',
-      'prompt-pack-card-bg': '#ffffff',
-      'prompt-pack-card-radius': '8px',
-      'prompt-pack-card-border': '1px solid #e8e8e8',
-      'prompt-pack-card-shadow': '0 1px 4px rgba(0, 0, 0, 0.04)',
-      'prompt-pack-card-hover-border': '#52c41a',
-      'prompt-pack-card-hover-shadow': '0 2px 8px rgba(82, 196, 26, 0.15)',
-      'prompt-pack-card-drag-opacity': '0.5',
-      'prompt-pack-card-drag-scale': '0.95',
-      'prompt-pack-card-header-bg': 'linear-gradient(135deg, #f6ffed 0%, #ffffff 100%)',
-      'prompt-pack-card-header-border': '#f0f0f0',
-      'prompt-pack-card-handle-color': '#52c41a',
-      'prompt-pack-card-name-color': '#262626',
-      'prompt-pack-card-content-gap': '4px',
-      'prompt-pack-card-preview-color': '#8c8c8c',
-      'prompt-pack-card-footer-bg': '#fafafa',
-      'prompt-pack-card-footer-border': '#f0f0f0',
-      'prompt-pack-card-time-color': '#bfbfbf',
-      'prompt-pack-empty-border': '2px dashed #e8e8e8',
-      'prompt-pack-empty-radius': '8px',
-      'prompt-pack-empty-bg': 'transparent',
-      'prompt-pack-empty-text': '#bfbfbf',
-      'prompt-pack-empty-hover-border': '#52c41a',
-      'prompt-pack-empty-hover-bg': '#f6ffed',
-      'prompt-pack-empty-hover-text': '#52c41a',
-      'prompt-pack-footer-bg': '#fafafa',
-      'prompt-pack-footer-border': '#e8e8e8',
-      'prompt-pack-footer-button-bg': 'transparent',
-      'prompt-pack-footer-button-shadow': 'none',
-      'prompt-pack-footer-primary-color': '#409eff',
-      'prompt-pack-footer-primary-border': 'transparent',
-      'prompt-pack-footer-primary-hover-bg': 'rgba(64, 158, 255, 0.08)',
-      'prompt-pack-footer-primary-hover-border': 'transparent',
-      'prompt-pack-footer-primary-hover-color': '#409eff',
-      'prompt-pack-footer-danger-color': '#ff4d4f',
-      'prompt-pack-footer-danger-border': 'transparent',
-      'prompt-pack-footer-danger-hover-bg': 'rgba(255, 77, 79, 0.08)',
-      'prompt-pack-footer-danger-hover-border': 'transparent',
-      'prompt-pack-footer-danger-hover-color': '#ff4d4f'
-    }
-  }
-]
-
-const slugifyPromptSkinName = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'custom-skin'
-
-const createUniquePromptSkinId = (baseId: string, existingIds: Set<string>) => {
-  let nextId = baseId
-  let suffix = 2
-
-  while (existingIds.has(nextId)) {
-    nextId = `${baseId}-${suffix}`
-    suffix += 1
-  }
-
-  return nextId
-}
-
-const normalizePromptSkin = (raw: any, existingIds: Set<string>): PromptSkinPreset | null => {
-  if (!raw || typeof raw !== 'object') return null
-
-  const name = String(raw.name || raw.label || '').trim()
-  if (!name) return null
-
-  const sourceTokens = raw.tokens && typeof raw.tokens === 'object'
-    ? raw.tokens
-    : raw.styles && typeof raw.styles === 'object'
-      ? raw.styles
-      : raw.variables && typeof raw.variables === 'object'
-        ? raw.variables
-        : {}
-
-  const tokens: Record<string, string> = {}
-  promptSkinTokenKeys.forEach((key) => {
-    const value = sourceTokens[key]
-    if (typeof value === 'string' && value.trim()) {
-      tokens[key] = value.trim()
-    }
-  })
-
-  const baseId = slugifyPromptSkinName(String(raw.id || name))
-  const id = createUniquePromptSkinId(baseId, existingIds)
-  existingIds.add(id)
-
-  return {
-    id,
-    name,
-    description: String(raw.description || '').trim() || '导入的模板/样式皮肤配置。',
-    tokens
-  }
-}
-
-const loadPromptCustomSkinsFromStorage = (): PromptSkinPreset[] => {
-  const raw = localStorage.getItem(PROMPT_SKIN_STORAGE_KEY)
-  if (!raw) return []
-
-  try {
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-
-    const existingIds = new Set(builtInPromptSkins.map((skin) => skin.id))
-    return parsed
-      .map((item) => normalizePromptSkin(item, existingIds))
-      .filter((skin): skin is PromptSkinPreset => Boolean(skin))
-  } catch {
-    return []
-  }
-}
-
-const savePromptCustomSkinsToStorage = (skins: PromptSkinPreset[]) => {
-  localStorage.setItem(PROMPT_SKIN_STORAGE_KEY, JSON.stringify(skins))
-}
-
-const loadSelectedPromptSkinFromStorage = () => {
-  return localStorage.getItem(PROMPT_SKIN_SELECTED_KEY) || builtInPromptSkins[0].id
-}
-
-const downloadPromptSkinFile = (filename: string, payload: unknown) => {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const router = useRouter()
+const route = useRoute()
+const goToPackDetail = (categoryName: string) => {
+  router.push({ name: 'PackDetail', params: { name: encodeURIComponent(categoryName) } })
+}
 const prompts = ref<Prompt[]>([])
 const formData = ref({
   id: 0,
@@ -1591,7 +1634,9 @@ const formData = ref({
   category: '默认',
   order_num: 0,
   card_type: 'normal' as 'normal' | 'encrypted',
-  password: null as string | null
+  password: null as string | null,
+  creator_name: '',
+  version: ''
 })
 
 const EXPORT_MAGIC = 'XNP1'
@@ -1621,6 +1666,72 @@ const verifyPassword = async (inputPassword: string, storedHash: string): Promis
   const inputHash = await hashPassword(inputPassword)
   return inputHash === storedHash
 }
+
+const bufferToBase64 = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  bytes.forEach(b => binary += String.fromCharCode(b))
+  return btoa(binary)
+}
+
+const base64ToBuffer = (base64: string): ArrayBuffer => {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+const ENCRYPT_MARKER = 'XNC1:'
+
+const encryptContent = async (plaintext: string, password: string): Promise<string> => {
+  const enc = new TextEncoder()
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey'])
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  )
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext))
+  const combined = new Uint8Array(16 + 12 + ciphertext.byteLength)
+  combined.set(salt, 0)
+  combined.set(iv, 16)
+  combined.set(new Uint8Array(ciphertext), 28)
+  return ENCRYPT_MARKER + bufferToBase64(combined.buffer)
+}
+
+const decryptContent = async (wrapped: string, password: string): Promise<string | null> => {
+  if (!wrapped.startsWith(ENCRYPT_MARKER)) {
+    return wrapped
+  }
+  try {
+    const enc = new TextEncoder()
+    const dec = new TextDecoder()
+    const combined = new Uint8Array(base64ToBuffer(wrapped.slice(ENCRYPT_MARKER.length)))
+    const salt = combined.slice(0, 16)
+    const iv = combined.slice(16, 28)
+    const ciphertext = combined.slice(28)
+    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey'])
+    const key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    )
+    const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
+    return dec.decode(plaintext)
+  } catch {
+    return null
+  }
+}
+
+const currentSessionPassword = ref('')
 
 const passwordDialogVisible = ref(false)
 const passwordDialogMode = ref<'verify' | 'set' | 'change'>('verify')
@@ -1659,12 +1770,18 @@ const saveSubcategoriesOnly = async () => {
   }
   
   try {
+    let contentToSave = formData.value.content
+    if (formData.value.card_type === 'encrypted' && currentSessionPassword.value) {
+      contentToSave = await encryptContent(contentToSave, currentSessionPassword.value)
+    }
     await promptAPI.update(formData.value.id, {
       name: formData.value.name,
       description: formData.value.description,
-      content: formData.value.content,
+      content: contentToSave,
       category: formData.value.category,
       order_num: formData.value.order_num,
+      creator_name: formData.value.creator_name,
+      version: formData.value.version,
       fields: fieldsConfig.value,
       subcategories: formSubcategories.value,
       card_type: formData.value.card_type || 'normal',
@@ -1702,6 +1819,20 @@ const selectAllImportStandalone = ref(false)
 const importPackDialogVisible = ref(false)
 const importPackPreview = ref<{ packName: string; prompts: Prompt[] } | null>(null)
 
+// 拆书导入导出相关状态
+const exportBookAnalysisPackDialogVisible = ref(false)
+const selectedExportBookAnalysisPacks = ref<string[]>([])
+const exportBookAnalysisStandaloneDialogVisible = ref(false)
+const selectedExportBookAnalysisCards = ref<number[]>([])
+const importBookAnalysisPackDialogVisible = ref(false)
+const importBookAnalysisPackPreview = ref<{ packName: string; prompts: Prompt[] } | null>(null)
+const importBookAnalysisStandaloneDialogVisible = ref(false)
+const importBookAnalysisStandalonePreview = ref<Prompt[]>([])
+const selectedImportBookAnalysisCards = ref<string[]>([])
+const selectAllImportBookAnalysisCards = ref(false)
+const importBookAnalysisLegacyDialogVisible = ref(false)
+const importBookAnalysisLegacyPreview = ref<{ packCount: number; totalPrompts: number; categories: string[]; prompts: any[] } | null>(null)
+
 // 批量删除相关状态
 const batchDeleteDialogVisible = ref(false)
 const currentCategory = ref<string>('')
@@ -1709,6 +1840,16 @@ const selectedBatchDeleteCards = ref<number[]>([])
 const selectAllBatchDelete = ref(false)
 const packPreviewVisible = ref(false)
 const packPreviewCategory = ref('')
+
+// 移动卡片相关状态
+const movePromptDialogVisible = ref(false)
+const movePromptData = ref<Prompt | null>(null)
+const moveTargetCategory = ref('')
+
+// 独立卡片批量删除相关状态
+const standaloneBatchDeleteDialogVisible = ref(false)
+const selectedStandaloneBatchDeleteCards = ref<number[]>([])
+const selectAllStandaloneBatchDelete = ref(false)
 
 // 导入转换 txt/md 相关状态
 const importConvertDialogVisible = ref(false)
@@ -1731,24 +1872,8 @@ const importAllUploadRef = ref<any>()
 
 // 卡片尺寸状态
 const cardSize = ref<'small' | 'medium' | 'large'>('medium')
-const promptSkinInputRef = ref<HTMLInputElement | null>(null)
-const customPromptSkins = ref<PromptSkinPreset[]>(loadPromptCustomSkinsFromStorage())
-const selectedPromptSkinId = ref(loadSelectedPromptSkinFromStorage())
-
-const allPromptSkins = computed(() => [...builtInPromptSkins, ...customPromptSkins.value])
-const selectedPromptSkin = computed(() => {
-  return allPromptSkins.value.find((skin) => skin.id === selectedPromptSkinId.value) ?? builtInPromptSkins[0]
-})
-const promptSkinCssVars = computed(() => {
-  const mergedTokens = {
-    ...promptSkinDefaultTokens,
-    ...(selectedPromptSkin.value?.tokens || {})
-  }
-
-  return Object.fromEntries(
-    Object.entries(mergedTokens).map(([key, value]) => [`--${key}`, value])
-  )
-})
+const packViewMode = ref<'grid' | 'list'>('grid')
+const activeMainTab = ref<'pack' | 'standalone' | 'bookAnalysis'>('pack')
 
 // 从localStorage加载卡包列表
 const loadCategoriesFromStorage = (): string[] => {
@@ -1762,7 +1887,7 @@ const saveCategoriesToStorage = (categories: string[]) => {
 }
 
 // 卡包列表（从localStorage加载）
-const DEFAULT_CATEGORIES = ['默认', '写作要求', '写作风格']
+const DEFAULT_CATEGORIES = ['默认', '写作要求', '写作风格', '续写', '脑洞', '书名', '简介', '大纲', '细纲', '黄金开篇', '金手指', '名字', '人设', '世界观', '卡包']
 
 const customCategories = ref<string[]>(loadCategoriesFromStorage())
 
@@ -1770,15 +1895,17 @@ const customCategories = ref<string[]>(loadCategoriesFromStorage())
 const draggedPrompt = ref<Prompt | null>(null)
 const isDragging = ref(false)
 
-// 未分类的提示词（不在任何自定义卡包中）
+// 未分类的提示词（不在任何自定义卡包中，且不属于拆书分类）
 const uncategorizedPrompts = computed(() => {
   return prompts.value.filter(prompt => {
     const category = prompt.category || '默认'
+    // 排除拆书分类
+    if (category.startsWith('拆书-')) return false
     return category === '未分类' || (!customCategories.value.includes(category) && category !== '默认')
   })
 })
 
-// 按分类分组的提示词列表
+// 按分类分组的提示词列表（排除拆书分类，拆书分类在独立Tab中展示）
 const categoryList = computed(() => {
   const groups: Record<string, Prompt[]> = {}
   
@@ -1789,18 +1916,21 @@ const categoryList = computed(() => {
     }
   })
   
-  // 再确保所有自定义卡包都存在
+  // 再确保所有自定义卡包都存在（排除拆书分类）
   customCategories.value.forEach(cat => {
+    if (cat.startsWith('拆书-')) return
     if (!groups[cat]) {
       groups[cat] = []
     }
   })
   
-  // 添加提示词到对应分组（排除未分类的提示词）
+  // 添加提示词到对应分组（排除未分类和拆书分类的提示词）
   prompts.value.forEach(prompt => {
     const category = prompt.category || '默认'
     // 跳过未分类的提示词
     if (category === '未分类') return
+    // 跳过拆书分类的提示词
+    if (category.startsWith('拆书-')) return
     
     if (!groups[category]) {
       groups[category] = []
@@ -1821,6 +1951,203 @@ const categoryList = computed(() => {
     prompts: prompts.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
   }))
 })
+
+const totalPackCards = computed(() => {
+  return categoryList.value.reduce((sum, cat) => sum + cat.prompts.length, 0)
+})
+
+// ===== 拆书提示词相关 =====
+const BOOK_ANALYSIS_PREFIX = '拆书-'
+
+// 拆书卡包列表（独立计算，不依赖 categoryList）
+const bookAnalysisCategoryList = computed(() => {
+  const groups: Record<string, Prompt[]> = {}
+
+  // 收集所有拆书分类
+  const bookCategories = new Set<string>()
+  customCategories.value.forEach(cat => {
+    if (cat.startsWith(BOOK_ANALYSIS_PREFIX)) {
+      bookCategories.add(cat)
+    }
+  })
+  prompts.value.forEach(prompt => {
+    const category = prompt.category || ''
+    if (category.startsWith(BOOK_ANALYSIS_PREFIX) && category !== '拆书-未分类') {
+      bookCategories.add(category)
+    }
+  })
+
+  // 初始化分组
+  bookCategories.forEach(cat => {
+    groups[cat] = []
+  })
+
+  // 添加提示词到对应分组
+  prompts.value.forEach(prompt => {
+    const category = prompt.category || ''
+    if (category.startsWith(BOOK_ANALYSIS_PREFIX) && category !== '拆书-未分类') {
+      if (!groups[category]) {
+        groups[category] = []
+      }
+      if (prompt.name !== '__category_placeholder__') {
+        groups[category].push(prompt)
+      }
+    }
+  })
+
+  // 转换为数组并排序
+  return Object.entries(groups).map(([name, prompts]) => ({
+    name,
+    prompts: prompts.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+  })).sort((a, b) => a.name.localeCompare(b.name))
+})
+
+// 拆书独立卡片（未分类且属于拆书来源的，或 category 为 "拆书-未分类"）
+const bookAnalysisUncategorizedPrompts = computed(() => {
+  return prompts.value.filter(prompt => {
+    const category = prompt.category || ''
+    return category === '拆书-未分类'
+  })
+})
+
+// 合并的独立卡片（普通独立卡片 + 拆书独立卡片）
+const combinedUncategorizedPrompts = computed(() => {
+  return [...uncategorizedPrompts.value, ...bookAnalysisUncategorizedPrompts.value]
+})
+
+// 拆书卡包总卡片数（不含拆书独立卡片，已并入独立卡片Tab）
+const totalBookAnalysisCards = computed(() => {
+  return bookAnalysisCategoryList.value.reduce((sum, cat) => sum + cat.prompts.length, 0)
+})
+
+// 拆书分类选项（用于创建/编辑时的分类下拉）
+const bookAnalysisCategoryOptions = computed(() => {
+  return bookAnalysisCategoryList.value.map(cat => cat.name).concat(['拆书-未分类'])
+})
+
+// 拆书Tab下创建卡包
+const bookAnalysisCategoryDialogVisible = ref(false)
+const bookAnalysisCategoryForm = ref({ name: '' })
+
+const openBookAnalysisCategoryDialog = () => {
+  bookAnalysisCategoryForm.value.name = ''
+  bookAnalysisCategoryDialogVisible.value = true
+}
+
+const handleCreateBookAnalysisCategory = () => {
+  const rawName = bookAnalysisCategoryForm.value.name.trim()
+  if (!rawName) {
+    ElMessage.warning('请输入卡包名称')
+    return
+  }
+  // 自动加前缀
+  const fullName = rawName.startsWith(BOOK_ANALYSIS_PREFIX) ? rawName : BOOK_ANALYSIS_PREFIX + rawName
+
+  if (DEFAULT_CATEGORIES.includes(fullName)) {
+    ElMessage.warning('该名称为默认卡包，不可使用')
+    return
+  }
+
+  const exists = customCategories.value.includes(fullName) ||
+                 categoryList.value.some(c => c.name === fullName)
+  if (exists) {
+    ElMessage.warning('该卡包名称已存在')
+    return
+  }
+
+  customCategories.value.push(fullName)
+  saveCategoriesToStorage(customCategories.value)
+
+  ElMessage.success('拆书卡包创建成功')
+  bookAnalysisCategoryDialogVisible.value = false
+}
+
+// 拆书Tab下创建提示词
+const handleCreateBookAnalysisPrompt = (category?: string) => {
+  isEdit.value = false
+  currentSessionPassword.value = ''
+  formData.value = {
+    id: 0,
+    name: '',
+    description: '',
+    content: '',
+    category: category || (bookAnalysisCategoryOptions.value[0] || '拆书-默认'),
+    order_num: 0,
+    card_type: 'normal',
+    password: null,
+    creator_name: '',
+    version: ''
+  }
+  fieldsConfig.value = []
+  formSubcategories.value = []
+  newSubcategory.value = ''
+  dialogVisible.value = true
+}
+
+// 处理拆书卡包操作下拉菜单命令
+const handleBookAnalysisPackAction = (command: string, categoryName: string, promptsCount: number) => {
+  switch (command) {
+    case 'add':
+      handleCreateBookAnalysisPrompt(categoryName)
+      break
+    case 'preview':
+      if (promptsCount > 0) {
+        openPackPreviewDialog(categoryName)
+      }
+      break
+    case 'deletePack':
+      handleDeleteBookAnalysisCategory(categoryName)
+      break
+  }
+}
+
+// 拆书Tab下删除卡包
+const handleDeleteBookAnalysisCategory = async (categoryName: string) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除卡包"${categoryName}"吗？该卡包下的所有提示词将被移动到"拆书-未分类"。`,
+      '提示',
+      { type: 'warning' }
+    )
+
+    const promptsToUpdate = prompts.value.filter(p => p.category === categoryName)
+    for (const prompt of promptsToUpdate) {
+      await promptAPI.update(prompt.id, { ...prompt, category: '拆书-未分类' })
+    }
+
+    const index = customCategories.value.indexOf(categoryName)
+    if (index > -1) {
+      customCategories.value.splice(index, 1)
+      saveCategoriesToStorage(customCategories.value)
+    }
+
+    await fetchPrompts()
+    ElMessage.success('卡包删除成功')
+  } catch {
+    // 取消删除
+  }
+}
+
+// 拆书Tab下拖拽放置
+const onBookAnalysisDrop = async (targetCategory: string, event: DragEvent) => {
+  event.preventDefault()
+  if (!draggedPrompt.value) return
+
+  const prompt = draggedPrompt.value
+  const oldCategory = prompt.category || '默认'
+  if (targetCategory === oldCategory) return
+
+  try {
+    await promptAPI.update(prompt.id, { ...prompt, category: targetCategory })
+    await fetchPrompts()
+    ElMessage.success(`已移动到"${targetCategory}"`)
+  } catch (error) {
+    ElMessage.error('移动失败')
+  }
+
+  draggedPrompt.value = null
+  isDragging.value = false
+}
 
 const categoryOptions = computed(() => {
   const names = new Set<string>(DEFAULT_CATEGORIES)
@@ -1843,28 +2170,6 @@ const categoryOptions = computed(() => {
 
   return Array.from(names)
 })
-
-watch(
-  customPromptSkins,
-  (skins) => {
-    savePromptCustomSkinsToStorage(skins)
-  },
-  { deep: true }
-)
-
-watch(
-  [allPromptSkins, selectedPromptSkinId],
-  ([skins, selectedId]) => {
-    const exists = skins.some((skin) => skin.id === selectedId)
-    if (!exists) {
-      selectedPromptSkinId.value = builtInPromptSkins[0].id
-      return
-    }
-
-    localStorage.setItem(PROMPT_SKIN_SELECTED_KEY, selectedId)
-  },
-  { immediate: true }
-)
 
 const getCategoryPromptsByName = (categoryName: string) => {
   if (!categoryName) return []
@@ -1989,6 +2294,30 @@ const handleCreateCategory = () => {
   categoryDialogVisible.value = false
 }
 
+// 处理卡包操作下拉菜单命令
+const handlePackAction = (command: string, categoryName: string, promptsCount: number) => {
+  switch (command) {
+    case 'add':
+      handleCreateInCategory(categoryName)
+      break
+    case 'preview':
+      if (promptsCount > 0) {
+        openPackPreviewDialog(categoryName)
+      }
+      break
+    case 'batchDelete':
+      if (promptsCount > 0 && !DEFAULT_CATEGORIES.includes(categoryName)) {
+        openBatchDeleteDialog(categoryName)
+      }
+      break
+    case 'deletePack':
+      if (!DEFAULT_CATEGORIES.includes(categoryName)) {
+        handleDeleteCategory(categoryName)
+      }
+      break
+  }
+}
+
 // 删除卡包
 const handleDeleteCategory = async (categoryName: string) => {
   if (DEFAULT_CATEGORIES.includes(categoryName)) {
@@ -2034,7 +2363,9 @@ const handleCreateInCategory = (categoryName: string) => {
     category: categoryName,
     order_num: 0,
     card_type: 'normal',
-    password: null
+    password: null,
+    creator_name: '',
+    version: ''
   }
   fieldsConfig.value = []
   // 重置小分类
@@ -2049,7 +2380,9 @@ const fieldsConfig = ref<Array<{
   label: string;
   type: 'text' | 'textarea' | 'select';
   options: string[];
+  optionLabels: string[];
   optionsText: string;
+  optionLabelsText: string;
   description: string;
   required: boolean;
 }>>([])
@@ -2107,7 +2440,121 @@ const handlePreview = (prompt: Prompt) => {
 onMounted(async () => {
   window.addEventListener('keydown', handlePackPreviewKeydown)
   await fetchPrompts()
+  // 自动迁移旧的拆书库 localStorage 数据
+  await migrateOldBookAnalysisData()
+  // 处理路由参数，自动切换到拆书Tab
+  if (route.query.tab === 'bookAnalysis') {
+    activeMainTab.value = 'bookAnalysis'
+  }
 })
+
+// 自动迁移旧的拆书库 localStorage 数据到数据库
+const migrateOldBookAnalysisData = async () => {
+  const OLD_PROMPTS_KEY = 'book-analysis-prompts_prompts'
+  const OLD_CATEGORIES_KEY = 'book-analysis-prompts_categories'
+  const MIGRATION_FLAG_KEY = 'book-analysis-migration-done'
+
+  // 检查是否已迁移
+  if (localStorage.getItem(MIGRATION_FLAG_KEY) === 'true') {
+    return
+  }
+
+  // 检查是否有旧数据
+  const oldPromptsData = localStorage.getItem(OLD_PROMPTS_KEY)
+  if (!oldPromptsData) {
+    // 没有旧数据，标记为已迁移
+    localStorage.setItem(MIGRATION_FLAG_KEY, 'true')
+    return
+  }
+
+  try {
+    const oldPrompts = JSON.parse(oldPromptsData)
+    if (!Array.isArray(oldPrompts) || oldPrompts.length === 0) {
+      localStorage.setItem(MIGRATION_FLAG_KEY, 'true')
+      localStorage.removeItem(OLD_PROMPTS_KEY)
+      localStorage.removeItem(OLD_CATEGORIES_KEY)
+      return
+    }
+
+    // 过滤有效提示词
+    const validPrompts = oldPrompts.filter((p: any) => p && typeof p.name === 'string' && typeof p.content === 'string')
+
+    if (validPrompts.length === 0) {
+      localStorage.setItem(MIGRATION_FLAG_KEY, 'true')
+      localStorage.removeItem(OLD_PROMPTS_KEY)
+      localStorage.removeItem(OLD_CATEGORIES_KEY)
+      return
+    }
+
+    // 显示迁移提示
+    ElMessage.info(`正在迁移 ${validPrompts.length} 条拆书库提示词...`)
+
+    let successCount = 0
+    let failCount = 0
+    const migratedCategories = new Set<string>()
+
+    for (const prompt of validPrompts) {
+      try {
+        // 处理分类名：自动加"拆书-"前缀
+        let category = prompt.category || '未分类'
+        if (category === '未分类') {
+          category = '拆书-未分类'
+        } else if (!category.startsWith('拆书-')) {
+          category = '拆书-' + category
+        }
+
+        migratedCategories.add(category)
+
+        const res = await promptAPI.create({
+          name: prompt.name,
+          content: prompt.content,
+          category: category,
+          order_num: prompt.order_num || 0,
+          created_at: prompt.created_at || new Date().toISOString(),
+          fields: prompt.fields || [],
+          card_type: prompt.card_type || 'normal',
+          password: prompt.password || null,
+          description: prompt.description || '',
+          creator_name: prompt.creator_name || '',
+          version: prompt.version || ''
+        })
+
+        if (res.success) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch (error) {
+        failCount++
+      }
+    }
+
+    // 创建迁移后的分类
+    for (const cat of migratedCategories) {
+      if (cat !== '拆书-未分类' && !customCategories.value.includes(cat)) {
+        customCategories.value.push(cat)
+      }
+    }
+    saveCategoriesToStorage(customCategories.value)
+
+    // 清除旧数据
+    localStorage.removeItem(OLD_PROMPTS_KEY)
+    localStorage.removeItem(OLD_CATEGORIES_KEY)
+    localStorage.setItem(MIGRATION_FLAG_KEY, 'true')
+
+    // 刷新数据
+    await fetchPrompts()
+
+    if (failCount === 0) {
+      ElMessage.success(`迁移完成！已迁移 ${successCount} 条拆书库提示词到拆书提示词Tab`)
+    } else {
+      ElMessage.warning(`迁移完成：成功 ${successCount} 条，失败 ${failCount} 条`)
+    }
+  } catch (error) {
+    console.error('迁移失败:', error)
+    ElMessage.error('迁移失败，请手动导出导入')
+  }
+}
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handlePackPreviewKeydown)
@@ -2122,6 +2569,7 @@ const fetchPrompts = async () => {
 
 const handleCreate = () => {
   isEdit.value = false
+  currentSessionPassword.value = ''
   formData.value = {
     id: 0,
     name: '',
@@ -2130,11 +2578,11 @@ const handleCreate = () => {
     category: categoryOptions.value[0] || '默认',
     order_num: 0,
     card_type: 'normal',
-    password: null
+    password: null,
+    creator_name: '',
+    version: ''
   }
-  // 重置字段配置
   fieldsConfig.value = []
-  // 重置小分类
   formSubcategories.value = []
   newSubcategory.value = ''
   dialogVisible.value = true
@@ -2163,7 +2611,9 @@ const openEditDialog = (prompt: Prompt) => {
     category: prompt.category,
     order_num: prompt.order_num,
     card_type: prompt.card_type || 'normal',
-    password: prompt.password || null
+    password: prompt.password || null,
+    creator_name: prompt.creator_name || '',
+    version: prompt.version || ''
   }
   // 重置字段配置
   fieldsConfig.value = []
@@ -2175,7 +2625,9 @@ const openEditDialog = (prompt: Prompt) => {
       label: field.label,
       type: field.type,
       options: field.options || [],
+      optionLabels: field.optionLabels || [],
       optionsText: (field.options || []).join('\n'),
+      optionLabelsText: (field.optionLabels || []).join('\n'),
       description: field.description || '',
       required: field.required !== undefined ? field.required : true
     }))
@@ -2198,14 +2650,22 @@ const handlePasswordDialogConfirm = async () => {
     if (isValid) {
       const promptToProcess = pendingEditPrompt.value
       const action = passwordAction.value
+      const rawPassword = passwordInput.value
       passwordDialogVisible.value = false
+      passwordInput.value = ''
       pendingEditPrompt.value = null
       if (action === 'edit') {
+        currentSessionPassword.value = rawPassword
+        const decrypted = await decryptContent(promptToProcess.content, rawPassword)
+        if (decrypted !== null) {
+          promptToProcess.content = decrypted
+        }
         openEditDialog(promptToProcess)
       } else if (action === 'delete') {
         executeDelete(promptToProcess)
       } else if (action === 'preview') {
-        previewContent.value = promptToProcess.content
+        const decrypted = await decryptContent(promptToProcess.content, rawPassword)
+        previewContent.value = decrypted !== null ? decrypted : promptToProcess.content
         previewDialogVisible.value = true
       }
     } else {
@@ -2230,6 +2690,7 @@ const handleSetPasswordConfirm = async () => {
   const hashed = await hashPassword(setPasswordInput.value.trim())
   formData.value.card_type = 'encrypted'
   formData.value.password = hashed
+  currentSessionPassword.value = setPasswordInput.value.trim()
   setPasswordDialogVisible.value = false
   setPasswordInput.value = ''
   setConfirmPasswordInput.value = ''
@@ -2245,12 +2706,14 @@ const openSetPasswordDialog = () => {
 const removeCardPassword = () => {
   formData.value.card_type = 'normal'
   formData.value.password = null
+  currentSessionPassword.value = ''
   ElMessage.success('已移除密码，卡片已切换为普通卡片')
 }
 
 const handleCardTypeChange = (val: 'normal' | 'encrypted') => {
   if (val === 'normal') {
     formData.value.password = null
+    currentSessionPassword.value = ''
   }
 }
 
@@ -2287,7 +2750,9 @@ const extractFieldsFromContent = (content: string) => {
       label: fieldName,
       type: 'text',
       options: [],
+      optionLabels: [],
       optionsText: '',
+      optionLabelsText: '',
       description: '',
       required: true
     })
@@ -2301,7 +2766,9 @@ const addField = () => {
     label: `字段${fieldsConfig.value.length + 1}`,
     type: 'text',
     options: [],
+    optionLabels: [],
     optionsText: '',
+    optionLabelsText: '',
     description: '',
     required: true
   })
@@ -2327,7 +2794,26 @@ const updateFieldOptions = (index: number) => {
   const field = fieldsConfig.value[index]
   if (field) {
     const optionsText = field.optionsText
-    field.options = optionsText.split('\n').filter((option: string) => option.trim())
+    field.options = optionsText.split('\n').map((option: string) => option.trim()).filter(Boolean)
+    field.optionLabels = field.optionLabels.slice(0, field.options.length)
+    field.optionLabelsText = field.optionLabels.join('\n')
+  }
+}
+
+const updateFieldOptionLabels = (index: number) => {
+  const field = fieldsConfig.value[index]
+  if (field) {
+    const labels = field.optionLabelsText
+      .split('\n')
+      .map((label: string) => label.trim())
+      .slice(0, field.options.length)
+
+    while (labels.length > 0 && !labels[labels.length - 1]) {
+      labels.pop()
+    }
+
+    field.optionLabels = labels
+    field.optionLabelsText = labels.join('\n')
   }
 }
 
@@ -2426,7 +2912,9 @@ watch(() => formData.value.content, (newContent) => {
           label: fieldName,
           type: 'text',
           options: [],
+          optionLabels: [],
           optionsText: '',
+          optionLabelsText: '',
           description: '',
           required: true
         })
@@ -2470,14 +2958,20 @@ const handleSubmit = async () => {
   }
 
   try {
-    // 准备要保存的数据，包括字段配置和小分类
+    let saveContent = formData.value.content
+    if (formData.value.card_type === 'encrypted' && currentSessionPassword.value) {
+      saveContent = await encryptContent(saveContent, currentSessionPassword.value)
+    }
+
     const dataToSave = {
       ...formData.value,
+      content: saveContent,
       fields: fieldsConfig.value.map(field => ({
         name: field.name,
         label: field.label,
         type: field.type,
         options: field.options,
+        optionLabels: field.optionLabels,
         description: field.description,
         required: field.required
       })),
@@ -2498,9 +2992,9 @@ const handleSubmit = async () => {
       }
     }
     dialogVisible.value = false
+    currentSessionPassword.value = ''
     await fetchPrompts()
   } catch (error) {
-    // 错误已在拦截器中处理
   }
 }
 
@@ -2515,42 +3009,6 @@ const handleExportCommand = (command: string) => {
   }
 }
 
-const handlePromptSkinCommand = (command: string) => {
-  if (command === 'exportCurrent') {
-    const skin = selectedPromptSkin.value
-    downloadPromptSkinFile(
-      `prompt-skin-${skin.id}.json`,
-      {
-        type: 'prompt-skin',
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        skin
-      }
-    )
-    ElMessage.success(`已导出皮肤：${skin.name}`)
-    return
-  }
-
-  if (command === 'exportAll') {
-    downloadPromptSkinFile(
-      'prompt-skin-collection.json',
-      {
-        type: 'prompt-skin-collection',
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        activeSkinId: selectedPromptSkinId.value,
-        skins: allPromptSkins.value
-      }
-    )
-    ElMessage.success('已导出全部皮肤配置')
-    return
-  }
-
-  if (command === 'import') {
-    promptSkinInputRef.value?.click()
-  }
-}
-
 // 导入命令处理
 const handleImportCommand = (command: string) => {
   if (command === 'importAll') {
@@ -2561,47 +3019,6 @@ const handleImportCommand = (command: string) => {
     openImportPackDialog()
   } else if (command === 'importConvert') {
     openImportConvertDialog()
-  }
-}
-
-const handlePromptSkinFileChange = async (event: Event) => {
-  const input = event.target as HTMLInputElement | null
-  const file = input?.files?.[0]
-  if (!file) return
-
-  try {
-    const text = await file.text()
-    const parsed = JSON.parse(text)
-    const existingIds = new Set(allPromptSkins.value.map((skin) => skin.id))
-    const importedSkins: PromptSkinPreset[] = []
-
-    if (parsed?.type === 'prompt-skin-collection' && Array.isArray(parsed.skins)) {
-      parsed.skins.forEach((item: any) => {
-        const normalized = normalizePromptSkin(item, existingIds)
-        if (normalized) {
-          importedSkins.push(normalized)
-        }
-      })
-    } else {
-      const normalized = normalizePromptSkin(parsed?.skin ?? parsed, existingIds)
-      if (normalized) {
-        importedSkins.push(normalized)
-      }
-    }
-
-    if (importedSkins.length === 0) {
-      throw new Error('未找到可导入的皮肤配置')
-    }
-
-    customPromptSkins.value = [...customPromptSkins.value, ...importedSkins]
-    selectedPromptSkinId.value = importedSkins[0].id
-    ElMessage.success(`已导入 ${importedSkins.length} 套皮肤配置`)
-  } catch (error: any) {
-    ElMessage.error(`皮肤导入失败：${error?.message || '文件格式不正确'}`)
-  } finally {
-    if (input) {
-      input.value = ''
-    }
   }
 }
 
@@ -2624,7 +3041,6 @@ const openPackPreviewDialog = (categoryName: string) => {
 }
 
 const handlePackPreviewItemClick = (prompt: Prompt) => {
-  packPreviewVisible.value = false
   handleEdit(prompt)
 }
 
@@ -2635,6 +3051,91 @@ const closePackPreview = () => {
 const handlePackPreviewKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     packPreviewVisible.value = false
+  }
+}
+
+const handlePackPreviewDelete = async (prompt: Prompt) => {
+  if (prompt.card_type === 'encrypted' && prompt.password) {
+    pendingEditPrompt.value = prompt
+    passwordAction.value = 'delete'
+    passwordDialogVisible.value = true
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定删除提示词"${prompt.name}"吗？`,
+      '提示',
+      { type: 'warning' }
+    )
+    await promptAPI.delete(prompt.id)
+    await fetchPrompts()
+    ElMessage.success('删除成功')
+    if (packPreviewPrompts.value.length === 0) {
+      packPreviewVisible.value = false
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+const handleExportSinglePrompt = (prompt: Prompt) => {
+  const exportData = {
+    version: '1.0',
+    type: 'single-prompt',
+    exportTime: new Date().toISOString(),
+    prompt: {
+      id: prompt.id,
+      name: prompt.name,
+      content: prompt.content,
+      description: prompt.description,
+      category: prompt.category,
+      created_at: prompt.created_at,
+      updated_at: prompt.updated_at,
+      card_type: prompt.card_type,
+      fields: prompt.fields
+    }
+  }
+  
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `prompt-${prompt.name.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '_')}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('导出成功')
+}
+
+const openMovePromptDialog = (prompt: Prompt) => {
+  movePromptData.value = prompt
+  moveTargetCategory.value = ''
+  movePromptDialogVisible.value = true
+}
+
+const executeMovePrompt = async () => {
+  if (!movePromptData.value || !moveTargetCategory.value) return
+  
+  const prompt = movePromptData.value
+  const oldCategory = prompt.category || '默认'
+  
+  if (moveTargetCategory.value === oldCategory) {
+    ElMessage.warning('卡片已在该卡包中')
+    return
+  }
+  
+  try {
+    await promptAPI.update(prompt.id, { ...prompt, category: moveTargetCategory.value })
+    await fetchPrompts()
+    ElMessage.success(`已移动到"${moveTargetCategory.value}"`)
+    movePromptDialogVisible.value = false
+    if (packPreviewPrompts.value.length === 0) {
+      packPreviewVisible.value = false
+    }
+  } catch (error) {
+    ElMessage.error('移动失败')
   }
 }
 
@@ -2677,6 +3178,57 @@ const executeBatchDelete = async () => {
     
     ElMessage.success(`成功删除 ${selectedBatchDeleteCards.value.length} 张卡片`)
     batchDeleteDialogVisible.value = false
+    await fetchPrompts()
+  } catch (error) {
+    // 取消删除
+  }
+}
+
+// 打开独立卡片批量删除对话框
+const openStandaloneBatchDeleteDialog = () => {
+  selectedStandaloneBatchDeleteCards.value = []
+  selectAllStandaloneBatchDelete.value = false
+  standaloneBatchDeleteDialogVisible.value = true
+}
+
+// 全选/取消全选独立卡片批量删除
+const handleSelectAllStandaloneBatchDelete = (val: boolean) => {
+  if (val) {
+    selectedStandaloneBatchDeleteCards.value = combinedUncategorizedPrompts.value.map(p => p.id)
+  } else {
+    selectedStandaloneBatchDeleteCards.value = []
+  }
+}
+
+// 切换单个独立卡片批量删除选择
+const toggleStandaloneBatchDeleteCard = (id: number) => {
+  const index = selectedStandaloneBatchDeleteCards.value.indexOf(id)
+  if (index > -1) {
+    selectedStandaloneBatchDeleteCards.value.splice(index, 1)
+  } else {
+    selectedStandaloneBatchDeleteCards.value.push(id)
+  }
+  selectAllStandaloneBatchDelete.value = selectedStandaloneBatchDeleteCards.value.length === combinedUncategorizedPrompts.value.length
+}
+
+// 执行独立卡片批量删除
+const executeStandaloneBatchDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${selectedStandaloneBatchDeleteCards.value.length} 张独立卡片吗？此操作不可恢复。`,
+      '批量删除独立卡片',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const deletePromises = selectedStandaloneBatchDeleteCards.value.map(id => promptAPI.delete(id))
+    await Promise.all(deletePromises)
+    
+    ElMessage.success(`成功删除 ${selectedStandaloneBatchDeleteCards.value.length} 张独立卡片`)
+    standaloneBatchDeleteDialogVisible.value = false
     await fetchPrompts()
   } catch (error) {
     // 取消删除
@@ -2755,13 +3307,15 @@ const executeImportAll = async () => {
           content: prompt.content,
           category: prompt.category || '未分类',
           order_num: prompt.order_num || 0,
+          created_at: prompt.created_at,
           fields: prompt.fields || [],
           subcategories: prompt.subcategories || [],
-          card_type: prompt.card_type || 'normal'
+          card_type: prompt.card_type || 'normal',
+          password: prompt.password || null
         })
       }
     }
-    
+
     // 导入卡包
     if (packs) {
       for (const [packName, promptsInPack] of Object.entries(packs)) {
@@ -2772,9 +3326,11 @@ const executeImportAll = async () => {
               content: prompt.content,
               category: packName,
               order_num: prompt.order_num || 0,
+              created_at: prompt.created_at,
               fields: prompt.fields || [],
               subcategories: prompt.subcategories || [],
-              card_type: prompt.card_type || 'normal'
+              card_type: prompt.card_type || 'normal',
+              password: prompt.password || null
             })
           }
         }
@@ -2806,7 +3362,7 @@ const openExportStandaloneDialog = () => {
 // 全选/取消全选独立卡片
 const handleSelectAllStandalone = (val: boolean) => {
   if (val) {
-    selectedStandaloneCards.value = uncategorizedPrompts.value.map(p => p.id)
+    selectedStandaloneCards.value = combinedUncategorizedPrompts.value.map(p => p.id)
   } else {
     selectedStandaloneCards.value = []
   }
@@ -2820,12 +3376,12 @@ const toggleStandaloneCard = (id: number) => {
   } else {
     selectedStandaloneCards.value.push(id)
   }
-  selectAllStandalone.value = selectedStandaloneCards.value.length === uncategorizedPrompts.value.length
+  selectAllStandalone.value = selectedStandaloneCards.value.length === combinedUncategorizedPrompts.value.length
 }
 
 // 执行导出独立卡片
 const executeExportStandalone = () => {
-  const cardsToExport = uncategorizedPrompts.value.filter(p => selectedStandaloneCards.value.includes(p.id))
+  const cardsToExport = combinedUncategorizedPrompts.value.filter(p => selectedStandaloneCards.value.includes(p.id))
   const exportData = {
     type: 'standalone-cards',
     version: '1.0',
@@ -2835,8 +3391,10 @@ const executeExportStandalone = () => {
       content: p.content,
       category: p.category,
       order_num: p.order_num,
+      created_at: p.created_at,
       fields: p.fields,
-      card_type: p.card_type || 'normal'
+      card_type: p.card_type || 'normal',
+      password: p.password || null
     }))
   }
   
@@ -2875,8 +3433,10 @@ const executeExportPack = () => {
       content: p.content,
       category: p.category,
       order_num: p.order_num,
+      created_at: p.created_at,
       fields: p.fields,
-      card_type: p.card_type || 'normal'
+      card_type: p.card_type || 'normal',
+      password: p.password || null
     }))
   }
   
@@ -2894,18 +3454,20 @@ const executeExportPack = () => {
 
 // 执行整体导出
 const executeExportAll = () => {
-  // 收集所有独立卡片
-  const standalone = uncategorizedPrompts.value.map(p => ({
+  // 收集所有独立卡片（包含普通独立卡片和拆书独立卡片）
+  const standalone = combinedUncategorizedPrompts.value.map(p => ({
     name: p.name,
     content: p.content,
     category: p.category,
     order_num: p.order_num,
+    created_at: p.created_at,
     fields: p.fields,
     subcategories: p.subcategories,
-    card_type: p.card_type || 'normal'
+    card_type: p.card_type || 'normal',
+    password: p.password || null
   }))
-  
-  // 收集所有卡包及其卡片
+
+  // 收集所有卡包（包含普通卡包和拆书卡包）
   const packs: Record<string, any[]> = {}
   categoryList.value.forEach(category => {
     if (category.name !== '未分类') {
@@ -2914,11 +3476,28 @@ const executeExportAll = () => {
         content: p.content,
         category: p.category,
         order_num: p.order_num,
+        created_at: p.created_at,
         fields: p.fields,
         subcategories: p.subcategories,
-        card_type: p.card_type || 'normal'
+        card_type: p.card_type || 'normal',
+        password: p.password || null
       }))
     }
+  })
+  
+  // 收集拆书卡包
+  bookAnalysisCategoryList.value.forEach(category => {
+    packs[category.name] = category.prompts.map(p => ({
+      name: p.name,
+      content: p.content,
+      category: p.category,
+      order_num: p.order_num,
+      created_at: p.created_at,
+      fields: p.fields,
+      subcategories: p.subcategories,
+      card_type: p.card_type || 'normal',
+      password: p.password || null
+    }))
   })
   
   const exportData = {
@@ -2964,6 +3543,11 @@ const handleStandaloneFileChange = (file: any) => {
         selectedImportCards.value = data.prompts.map((_: any, index: number) => index)
         selectAllImportStandalone.value = true
         ElMessage.success(`成功读取 ${data.prompts.length} 张卡片`)
+      } else if (data.type === 'single-prompt' && data.prompt) {
+        importStandalonePreview.value = [data.prompt]
+        selectedImportCards.value = [0]
+        selectAllImportStandalone.value = true
+        ElMessage.success(`成功读取 1 张卡片`)
       } else if (data.type === 'card-pack') {
         ElMessage.warning('这是卡包文件，请使用"导入卡包"功能')
       } else {
@@ -3012,8 +3596,10 @@ const executeImportStandalone = async () => {
         content: card.content,
         category: '未分类',
         order_num: card.order_num || 0,
+        created_at: card.created_at,
         fields: card.fields,
-        card_type: card.card_type || 'normal'
+        card_type: card.card_type || 'normal',
+        password: card.password || null
       })
       if (res.success) {
         successCount++
@@ -3091,8 +3677,10 @@ const executeImportPack = async () => {
         content: card.content,
         category: packName,
         order_num: card.order_num || 0,
+        created_at: card.created_at,
         fields: card.fields,
-        card_type: card.card_type || 'normal'
+        card_type: card.card_type || 'normal',
+        password: card.password || null
       })
       if (res.success) {
         successCount++
@@ -3237,6 +3825,544 @@ const executeImportConvert = async () => {
   convertUploadRef.value?.clearFiles()
   importConvertDialogVisible.value = false
 }
+
+// ===== 拆书导入导出函数 =====
+
+// 拆书导出命令处理
+const handleBookAnalysisExportCommand = (command: string) => {
+  if (command === 'fullBackup') {
+    executeExportBookAnalysisFullBackup()
+  } else if (command === 'pack') {
+    selectedExportBookAnalysisPacks.value = []
+    exportBookAnalysisPackDialogVisible.value = true
+  } else if (command === 'standalone') {
+    selectedExportBookAnalysisCards.value = []
+    exportBookAnalysisStandaloneDialogVisible.value = true
+  }
+}
+
+// 拆书导入命令处理
+const handleBookAnalysisImportCommand = (command: string) => {
+  if (command === 'pack') {
+    importBookAnalysisPackPreview.value = null
+    importBookAnalysisPackDialogVisible.value = true
+  } else if (command === 'standalone') {
+    importBookAnalysisStandalonePreview.value = []
+    selectedImportBookAnalysisCards.value = []
+    importBookAnalysisStandaloneDialogVisible.value = true
+  } else if (command === 'legacyBackup') {
+    importBookAnalysisLegacyPreview.value = null
+    importBookAnalysisLegacyDialogVisible.value = true
+  }
+}
+
+// 执行导出拆书完整备份
+const executeExportBookAnalysisFullBackup = () => {
+  // 收集所有拆书提示词
+  const allBookAnalysisPrompts = prompts.value.filter(p => p.category.startsWith(BOOK_ANALYSIS_PREFIX))
+  
+  if (allBookAnalysisPrompts.length === 0) {
+    ElMessage.warning('没有拆书提示词可导出')
+    return
+  }
+
+  // 按分类组织
+  const packs: Record<string, any[]> = {}
+  const standalone: any[] = []
+
+  for (const prompt of allBookAnalysisPrompts) {
+    const exportPrompt = {
+      id: prompt.id,
+      name: prompt.name,
+      content: prompt.content,
+      category: prompt.category.replace(BOOK_ANALYSIS_PREFIX, ''), // 导出时去掉前缀
+      order_num: prompt.order_num || 0,
+      created_at: prompt.created_at,
+      fields: prompt.fields || [],
+      card_type: prompt.card_type || 'normal',
+      password: prompt.password || null,
+      description: prompt.description || '',
+      creator_name: prompt.creator_name || '',
+      version: prompt.version || '',
+      subcategories: prompt.subcategories || []
+    }
+
+    const cleanCategory = prompt.category.replace(BOOK_ANALYSIS_PREFIX, '')
+    if (cleanCategory === '未分类') {
+      standalone.push(exportPrompt)
+    } else {
+      if (!packs[cleanCategory]) {
+        packs[cleanCategory] = []
+      }
+      packs[cleanCategory].push(exportPrompt)
+    }
+  }
+
+  // 构建完整备份数据
+  const backupData = {
+    type: 'book-analysis-full-backup',
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    data: {
+      packs,
+      standalone
+    },
+    categories: Object.keys(packs)
+  }
+
+  // 导出文件
+  const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `拆书提示词完整备份_${new Date().toISOString().slice(0, 10)}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+
+  const totalCount = allBookAnalysisPrompts.length
+  const packCount = Object.keys(packs).length
+  const standaloneCount = standalone.length
+  
+  ElMessage.success(`已导出完整备份：${packCount} 个卡包，${standaloneCount} 张独立卡片，共 ${totalCount} 条提示词`)
+}
+
+// 执行导出拆书卡包
+const executeExportBookAnalysisPack = () => {
+  if (selectedExportBookAnalysisPacks.value.length === 0) return
+
+  const packsToExport = selectedExportBookAnalysisPacks.value.map(categoryName => {
+    const category = bookAnalysisCategoryList.value.find(c => c.name === categoryName)
+    return {
+      packName: categoryName.replace(BOOK_ANALYSIS_PREFIX, ''),
+      prompts: category ? category.prompts.map(p => ({
+        id: p.id,
+        name: p.name,
+        content: p.content,
+        category: categoryName,
+        order_num: p.order_num || 0,
+        created_at: p.created_at,
+        fields: p.fields || [],
+        card_type: p.card_type || 'normal',
+        password: p.password || null
+      })) : []
+    }
+  })
+
+  const exportData = {
+    type: 'book-analysis-packs',
+    exportedAt: new Date().toISOString(),
+    packs: packsToExport
+  }
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `拆书卡包导出_${new Date().toISOString().slice(0, 10)}.json`
+  link.click()
+  URL.revokeObjectURL(url)
+
+  ElMessage.success(`成功导出 ${packsToExport.length} 个拆书卡包`)
+  exportBookAnalysisPackDialogVisible.value = false
+}
+
+// 执行导出拆书独立卡片
+const executeExportBookAnalysisStandalone = () => {
+  if (selectedExportBookAnalysisCards.value.length === 0) return
+
+  const cardsToExport = selectedExportBookAnalysisCards.value.map(id => {
+    const prompt = bookAnalysisUncategorizedPrompts.value.find(p => p.id === id)
+    if (!prompt) return null
+    return {
+      id: prompt.id,
+      name: prompt.name,
+      content: prompt.content,
+      category: '拆书-未分类',
+      order_num: prompt.order_num || 0,
+      created_at: prompt.created_at,
+      fields: prompt.fields || [],
+      card_type: prompt.card_type || 'normal',
+      password: prompt.password || null
+    }
+  }).filter((card): card is NonNullable<typeof card> => card !== null)
+
+  const exportData = {
+    type: 'book-analysis-standalone',
+    exportedAt: new Date().toISOString(),
+    prompts: cardsToExport
+  }
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `拆书独立卡片导出_${new Date().toISOString().slice(0, 10)}.json`
+  link.click()
+  URL.revokeObjectURL(url)
+
+  ElMessage.success(`成功导出 ${cardsToExport.length} 张拆书独立卡片`)
+  exportBookAnalysisStandaloneDialogVisible.value = false
+}
+
+// 处理拆书卡包文件选择
+const handleImportBookAnalysisPackFileChange = (file: any) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const content = e.target?.result as string
+      const data = JSON.parse(content)
+
+      // 支持两种格式：单个卡包或多个卡包
+      if (data.type === 'book-analysis-packs' && data.packs) {
+        // 多个卡包格式，取第一个
+        if (data.packs.length > 0) {
+          importBookAnalysisPackPreview.value = {
+            packName: data.packs[0].packName,
+            prompts: data.packs[0].prompts
+          }
+        }
+      } else if (data.packName && data.prompts) {
+        // 单个卡包格式
+        importBookAnalysisPackPreview.value = {
+          packName: data.packName,
+          prompts: data.prompts
+        }
+      } else {
+        ElMessage.warning('文件格式不正确，请使用拆书卡包导出文件')
+        importBookAnalysisPackPreview.value = null
+      }
+    } catch (error) {
+      ElMessage.error('文件解析失败，请确保是有效的JSON文件')
+      importBookAnalysisPackPreview.value = null
+    }
+  }
+  reader.readAsText(file.raw)
+}
+
+// 执行导入拆书卡包
+const executeImportBookAnalysisPack = async () => {
+  if (!importBookAnalysisPackPreview.value) return
+
+  const { packName, prompts: cardsToImport } = importBookAnalysisPackPreview.value
+  // 自动加拆书前缀
+  const fullPackName = packName.startsWith(BOOK_ANALYSIS_PREFIX) ? packName : BOOK_ANALYSIS_PREFIX + packName
+
+  // 检查卡包是否已存在，如果不存在则创建
+  if (!customCategories.value.includes(fullPackName)) {
+    customCategories.value.push(fullPackName)
+    saveCategoriesToStorage(customCategories.value)
+  }
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const card of cardsToImport) {
+    try {
+      const res = await promptAPI.create({
+        name: card.name,
+        content: card.content,
+        category: fullPackName,
+        order_num: card.order_num || 0,
+        created_at: card.created_at,
+        fields: card.fields,
+        card_type: card.card_type || 'normal',
+        password: card.password || null
+      })
+      if (res.success) {
+        successCount++
+      } else {
+        failCount++
+      }
+    } catch (error) {
+      failCount++
+    }
+  }
+
+  await fetchPrompts()
+
+  if (failCount === 0) {
+    ElMessage.success(`成功导入拆书卡包"${fullPackName}"，包含 ${successCount} 张卡片`)
+  } else {
+    ElMessage.warning(`导入完成：成功 ${successCount} 张，失败 ${failCount} 张`)
+  }
+
+  importBookAnalysisPackDialogVisible.value = false
+}
+
+// 处理拆书独立卡片文件选择
+const handleImportBookAnalysisStandaloneFileChange = (file: any) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const content = e.target?.result as string
+      const data = JSON.parse(content)
+
+      if (data.type === 'book-analysis-standalone' && data.prompts) {
+        importBookAnalysisStandalonePreview.value = data.prompts
+      } else if (Array.isArray(data)) {
+        importBookAnalysisStandalonePreview.value = data.filter((p: any) => p && p.name && p.content)
+      } else if (data.prompts && Array.isArray(data.prompts)) {
+        importBookAnalysisStandalonePreview.value = data.prompts.filter((p: any) => p && p.name && p.content)
+      } else {
+        ElMessage.warning('文件格式不正确，请使用拆书独立卡片导出文件')
+        importBookAnalysisStandalonePreview.value = []
+      }
+
+      selectedImportBookAnalysisCards.value = []
+      selectAllImportBookAnalysisCards.value = false
+    } catch (error) {
+      ElMessage.error('文件解析失败，请确保是有效的JSON文件')
+      importBookAnalysisStandalonePreview.value = []
+    }
+  }
+  reader.readAsText(file.raw)
+}
+
+// 全选/取消全选拆书导入卡片
+const handleSelectAllImportBookAnalysisCards = (val: boolean) => {
+  if (val) {
+    selectedImportBookAnalysisCards.value = importBookAnalysisStandalonePreview.value.map(card => card.name)
+  } else {
+    selectedImportBookAnalysisCards.value = []
+  }
+}
+
+// 执行导入拆书独立卡片
+const executeImportBookAnalysisStandalone = async () => {
+  const cardsToImport = importBookAnalysisStandalonePreview.value
+    .filter(card => selectedImportBookAnalysisCards.value.includes(card.name))
+
+  if (cardsToImport.length === 0) return
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const card of cardsToImport) {
+    try {
+      const res = await promptAPI.create({
+        name: card.name,
+        content: card.content,
+        category: '拆书-未分类',
+        order_num: card.order_num || 0,
+        created_at: card.created_at,
+        fields: card.fields || [],
+        card_type: card.card_type || 'normal',
+        password: card.password || null
+      })
+      if (res.success) {
+        successCount++
+      } else {
+        failCount++
+      }
+    } catch (error) {
+      failCount++
+    }
+  }
+
+  await fetchPrompts()
+
+  if (failCount === 0) {
+    ElMessage.success(`成功导入 ${successCount} 张拆书独立卡片`)
+  } else {
+    ElMessage.warning(`导入完成：成功 ${successCount} 张，失败 ${failCount} 张`)
+  }
+
+  importBookAnalysisStandaloneDialogVisible.value = false
+}
+
+// 处理旧版完整备份文件选择
+const handleImportBookAnalysisLegacyFileChange = (file: any) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const content = e.target?.result as string
+      let data: any
+      
+      try {
+        data = JSON.parse(content)
+      } catch (parseError) {
+        console.error('JSON解析错误:', parseError)
+        ElMessage.error('文件不是有效的JSON格式')
+        importBookAnalysisLegacyPreview.value = null
+        return
+      }
+
+      console.log('解析到的数据结构:', data)
+
+      // 解析旧版格式
+      let prompts: any[] = []
+      let categories: string[] = []
+
+      // 格式1: 直接是 prompts 数组
+      if (Array.isArray(data)) {
+        console.log('识别为格式1: 直接数组')
+        prompts = data.filter((p: any) => p && p.name && p.content)
+        categories = Array.from(new Set(prompts.map((p: any) => p.category || '未分类').filter((c: string) => c !== '未分类')))
+      }
+      // 格式2: { prompts: [...], categories: [...] }
+      else if (data.prompts && Array.isArray(data.prompts)) {
+        console.log('识别为格式2: { prompts, categories }')
+        prompts = data.prompts.filter((p: any) => p && p.name && p.content)
+        categories = data.categories || Array.from(new Set(prompts.map((p: any) => p.category || '未分类').filter((c: string) => c !== '未分类')))
+      }
+      // 格式3: { type: 'full-backup', data: { standalone: [...], packs: {...} } }
+      else if (data.type === 'full-backup' && data.data) {
+        console.log('识别为格式3: full-backup')
+        const standalone = data.data.standalone || []
+        const packs = data.data.packs || {}
+        
+        // 合并 standalone 和 packs
+        prompts = [...standalone]
+        for (const [packName, packPrompts] of Object.entries(packs)) {
+          if (Array.isArray(packPrompts)) {
+            prompts.push(...packPrompts.map((p: any) => ({ ...p, category: packName })))
+          }
+        }
+        categories = Object.keys(packs).filter((c: string) => c !== '未分类')
+      }
+      // 格式4: 新版拆书完整备份 { type: 'book-analysis-full-backup', data: { packs, standalone } }
+      else if (data.type === 'book-analysis-full-backup' && data.data) {
+        console.log('识别为格式4: book-analysis-full-backup')
+        const standalone = data.data.standalone || []
+        const packs = data.data.packs || {}
+        
+        // 合并 standalone 和 packs
+        prompts = [...standalone]
+        for (const [packName, packPrompts] of Object.entries(packs)) {
+          if (Array.isArray(packPrompts)) {
+            prompts.push(...packPrompts.map((p: any) => ({ ...p, category: packName })))
+          }
+        }
+        categories = Object.keys(packs).filter((c: string) => c !== '未分类')
+      }
+      // 格式5: localStorage 原始格式 { prompts: [...], categories: [...] }
+      else if (data.prompts) {
+        console.log('识别为格式5: localStorage格式')
+        prompts = data.prompts.filter((p: any) => p && p.name && p.content)
+        categories = data.categories || []
+      }
+      // 格式6: 尝试从任意结构中提取 prompts
+      else if (data.data && typeof data.data === 'object') {
+        console.log('尝试格式6: 从 data 中提取')
+        // 尝试各种可能的结构
+        const possiblePrompts = data.data.prompts || data.data.standalone || []
+        const possiblePacks = data.data.packs || data.data.categories || {}
+        
+        if (Array.isArray(possiblePrompts)) {
+          prompts = possiblePrompts.filter((p: any) => p && p.name && p.content)
+        }
+        
+        if (typeof possiblePacks === 'object' && !Array.isArray(possiblePacks)) {
+          for (const [packName, packPrompts] of Object.entries(possiblePacks)) {
+            if (Array.isArray(packPrompts)) {
+              prompts.push(...packPrompts.map((p: any) => ({ ...p, category: packName })))
+              if (packName !== '未分类') {
+                categories.push(packName)
+              }
+            }
+          }
+        }
+      }
+      else {
+        console.error('无法识别的数据结构:', data)
+        ElMessage.warning('无法识别的文件格式，请确保是旧版拆书库导出的备份文件')
+        importBookAnalysisLegacyPreview.value = null
+        return
+      }
+
+      console.log('提取到的提示词数量:', prompts.length)
+      console.log('提取到的分类:', categories)
+
+      if (prompts.length === 0) {
+        ElMessage.warning('文件中没有有效的提示词数据')
+        importBookAnalysisLegacyPreview.value = null
+        return
+      }
+
+      // 构建预览数据
+      importBookAnalysisLegacyPreview.value = {
+        packCount: categories.length,
+        totalPrompts: prompts.length,
+        categories: categories.map((c: string) => c.startsWith('拆书-') ? c : `拆书-${c}`),
+        prompts: prompts
+      }
+    } catch (error) {
+      console.error('文件处理错误:', error)
+      ElMessage.error('文件解析失败：' + (error instanceof Error ? error.message : '未知错误'))
+      importBookAnalysisLegacyPreview.value = null
+    }
+  }
+  reader.onerror = () => {
+    ElMessage.error('文件读取失败')
+    importBookAnalysisLegacyPreview.value = null
+  }
+  reader.readAsText(file.raw)
+}
+
+// 执行导入旧版完整备份
+const executeImportBookAnalysisLegacy = async () => {
+  if (!importBookAnalysisLegacyPreview.value) return
+
+  const { prompts, categories } = importBookAnalysisLegacyPreview.value
+
+  // 创建拆书分类
+  for (const cat of categories) {
+    if (cat !== '拆书-未分类' && !customCategories.value.includes(cat)) {
+      customCategories.value.push(cat)
+    }
+  }
+  saveCategoriesToStorage(customCategories.value)
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const prompt of prompts) {
+    try {
+      // 处理分类名：自动加"拆书-"前缀
+      let category = prompt.category || '未分类'
+      if (category === '未分类') {
+        category = '拆书-未分类'
+      } else if (!category.startsWith('拆书-')) {
+        category = '拆书-' + category
+      }
+
+      const res = await promptAPI.create({
+        name: prompt.name,
+        content: prompt.content,
+        category: category,
+        order_num: prompt.order_num || 0,
+        created_at: prompt.created_at || new Date().toISOString(),
+        fields: prompt.fields || [],
+        card_type: prompt.card_type || 'normal',
+        password: prompt.password || null,
+        description: prompt.description || '',
+        creator_name: prompt.creator_name || '',
+        version: prompt.version || '',
+        subcategories: prompt.subcategories || []
+      })
+
+      if (res.success) {
+        successCount++
+      } else {
+        failCount++
+      }
+    } catch (error) {
+      failCount++
+    }
+  }
+
+  await fetchPrompts()
+
+  if (failCount === 0) {
+    ElMessage.success(`成功导入旧版备份！共 ${successCount} 条提示词，已转换为拆书格式`)
+  } else {
+    ElMessage.warning(`导入完成：成功 ${successCount} 条，失败 ${failCount} 条`)
+  }
+
+  importBookAnalysisLegacyDialogVisible.value = false
+}
 </script>
 
 <style scoped>
@@ -3264,337 +4390,210 @@ const executeImportConvert = async () => {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 10;
-  pointer-events: auto;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 40px;
 }
 
 .pack-fan-board {
-  display: grid;
-  gap: 18px;
-  justify-items: center;
-  padding: 40px 40px 50px 120px;
-  border-radius: 28px;
+  max-width: 90vw;
   background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  pointer-events: auto;
-  min-height: 320px;
-}
-
-.pack-fan-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.pack-fan-summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.pack-fan-summary-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #184e4c;
-}
-
-.pack-fan-summary-count {
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(24, 119, 114, 0.1);
-  color: #187772;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.pack-fan-close {
-  border-color: rgba(24, 119, 114, 0.16);
-  background: rgba(255, 255, 255, 0.86);
-  color: #1b4d4a;
 }
 
 .pack-fan-row {
-  width: 100%;
   display: flex;
-  justify-content: flex-start;
-  align-items: flex-end;
-  gap: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 50px 30px 10px 80px;
-  perspective: 1600px;
-  min-height: 320px;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 24px;
+  overflow-y: auto;
+  max-height: 80vh;
+  pointer-events: auto;
 }
 
 .pack-fan-card {
   position: relative;
-  flex: 0 0 156px;
-  width: 156px;
-  height: 220px;
-  margin-left: -100px;
-  isolation: isolate;
-  padding: 0;
+  width: 220px;
+  height: 240px;
+  padding: 16px 18px;
   border: none;
-  background: transparent;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.06),
+    0 1px 3px rgba(15, 23, 42, 0.04);
   cursor: pointer;
-  transform: translateY(0) rotate(0deg);
-  transform-origin: center bottom;
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), filter 280ms ease;
-  filter: drop-shadow(0 14px 22px rgba(15, 23, 42, 0.12));
-}
-
-.pack-fan-card:first-child {
-  margin-left: 0;
-}
-
-.pack-fan-card::before {
-  content: "";
-  position: absolute;
-  top: -10px;
-  bottom: -10px;
-  left: -12px;
-  right: -12px;
-  z-index: -1;
-}
-
-.pack-fan-card:first-child::before {
-  left: 0;
-  right: -12px;
-}
-
-.pack-fan-card:last-child::before {
-  left: -12px;
-  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+  outline: none;
+  font-family: inherit;
 }
 
 .pack-fan-card:hover {
-  z-index: 12;
-  transform: translateY(-28px) rotate(0deg) scale(1.03);
-  filter: drop-shadow(0 24px 34px rgba(15, 23, 42, 0.2));
-}
-
-.pack-fan-row:hover .pack-fan-card:not(:hover) {
-  filter: drop-shadow(0 10px 18px rgba(15, 23, 42, 0.08)) saturate(0.92);
-}
-
-.pack-fan-card-inner {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-  transition: transform 620ms cubic-bezier(0.2, 0.75, 0.25, 1);
-}
-
-.pack-fan-card:hover .pack-fan-card-inner {
-  transform: rotateY(180deg);
-}
-
-.pack-fan-card-face {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-radius: 20px;
-  overflow: hidden;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.pack-fan-card-back {
-  padding: 16px;
-  border: 1px solid rgba(18, 74, 71, 0.14);
-  background:
-    linear-gradient(135deg, rgba(13, 148, 136, 0.94), rgba(17, 94, 89, 0.96)),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0, rgba(255, 255, 255, 0.08) 8px, transparent 8px, transparent 16px);
+  transform: translateY(-6px);
   box-shadow:
-    0 12px 20px rgba(8, 47, 46, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
-    inset 0 0 0 10px rgba(255, 255, 255, 0.06);
+    0 12px 32px rgba(15, 23, 42, 0.1),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  border-color: #e2e8f0;
 }
 
-.pack-fan-card-back::before {
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
+.pack-fan-card:active {
+  transform: translateY(-2px) scale(0.985);
 }
 
-.pack-fan-card-back::after {
-  content: "";
-  position: absolute;
-  inset: 28px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 72%);
-  mix-blend-mode: screen;
-}
-
-.pack-fan-card-back-core {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  height: 100%;
-  text-align: center;
-  color: #effcfb;
-}
-
-.pack-fan-card-back-title {
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
-.pack-fan-card-back-mark {
-  margin-top: 10px;
-  font-size: 12px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  opacity: 0.76;
-}
-
-.pack-fan-card-front {
-  padding: 12px;
-  border: 1px solid rgba(39, 107, 103, 0.16);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(240, 248, 247, 0.98) 100%);
-  box-shadow:
-    0 18px 30px rgba(22, 77, 75, 0.14),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  color: #163d3b;
-  transform: rotateY(180deg);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-.pack-fan-card-front-header {
+/* ---- 卡片头部 ---- */
+.pack-fan-card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: linear-gradient(135deg, rgba(133, 184, 178, 0.2) 0%, rgba(245, 249, 248, 0.94) 100%);
-  border-bottom: 1px solid rgba(39, 107, 103, 0.10);
-  margin: -12px -12px 8px -12px;
-  padding: 8px 12px;
-  border-radius: 20px 20px 0 0;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.pack-fan-card-front-handle {
-  color: #0d9488;
-  font-size: 14px;
+.pack-fan-card-head-icon {
+  color: #6366f1;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
-.pack-fan-card-front-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f4c48;
+.pack-fan-card-head-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: left;
-  letter-spacing: 0.02em;
 }
 
-.pack-fan-card-front-lock {
+.pack-fan-card-head-lock {
   color: #e6a23c;
   font-size: 14px;
   flex-shrink: 0;
-  margin-left: 4px;
 }
 
-.pack-fan-card-front-content {
+/* ---- 卡片主体 ---- */
+.pack-fan-card-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
 }
 
-.pack-fan-card-front-tag {
+.pack-fan-card-tag {
   align-self: flex-start;
 }
 
-.pack-fan-card-front-preview {
+.pack-fan-card-content {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #475569;
   display: -webkit-box;
-  color: #3d5c58;
-  font-size: 12px;
-  line-height: 1.6;
-  text-align: left;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  letter-spacing: 0.01em;
+  word-break: break-all;
 }
 
-.pack-fan-card-front-footer {
+.pack-fan-card-content.is-empty {
+  color: #94a3b8;
+  font-style: italic;
   display: flex;
-  justify-content: flex-start;
   align-items: center;
-  border-top: 1px solid rgba(39, 107, 103, 0.10);
-  background: linear-gradient(180deg, rgba(241, 247, 246, 0.96) 0%, rgba(233, 241, 240, 0.98) 100%);
-  margin: 8px -12px -12px -12px;
-  padding: 6px 12px;
-  border-radius: 0 0 20px 20px;
+  justify-content: center;
+  flex: 1;
+  -webkit-line-clamp: unset;
 }
 
-.pack-fan-card-front-time {
+.pack-fan-card-content-encrypted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #b45309;
+  font-style: italic;
+}
+
+/* ---- 卡片底部 ---- */
+.pack-fan-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.pack-fan-card-foot-time {
   font-size: 11px;
-  color: #4a6b67;
-  font-weight: 500;
+  color: #94a3b8;
+}
+
+.pack-fan-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pack-fan-action-btn {
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #fff !important;
+  color: #64748b !important;
+  transition: all 0.2s ease;
+}
+
+.pack-fan-action-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.pack-fan-action-btn--danger:hover {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #dc2626 !important;
 }
 
 .pack-fan-stage-enter-active,
 .pack-fan-stage-leave-active {
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition: opacity 240ms ease;
 }
 
 .pack-fan-stage-enter-from,
 .pack-fan-stage-leave-to {
   opacity: 0;
-  transform: translate(-50%, calc(-50% + 18px));
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .pack-fan-stage {
-    width: calc(100vw - 28px);
-  }
-
-  .pack-fan-board {
-    padding: 8px 4px 12px;
+    padding: 16px;
   }
 
   .pack-fan-row {
-    justify-content: flex-start;
-    gap: 0;
-    padding: 14px 22px 8px;
+    gap: 12px;
+    padding: 12px;
   }
 
   .pack-fan-card {
-    flex-basis: 138px;
-    width: 138px;
-    height: 200px;
-    margin-left: -26px;
-  }
-
-  .pack-fan-card:hover {
-    transform: translateY(-22px) rotate(0deg) scale(1.02);
+    width: 100%;
+    max-width: 320px;
   }
 }
 
 .prompts-container {
-  background: var(--prompts-container-bg, #fff);
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background: #f5f7fa;
+  padding: 28px 36px 40px;
+  min-height: 100%;
   animation: fadeIn 0.4s ease;
 }
 
@@ -3626,50 +4625,23 @@ const executeImportConvert = async () => {
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 28px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #f0f2f5;
+  align-items: center;
+  margin-bottom: 24px;
   gap: 16px;
 }
 
 .header-main {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 12px;
   min-width: 0;
 }
 
 .header h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
-  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.skin-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.skin-toolbar-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #607d79;
-  white-space: nowrap;
-}
-
-.skin-select {
-  width: 220px;
-}
-
-.skin-config-btn {
-  border-radius: 999px;
+  color: #1f2937;
 }
 
 .hidden-input {
@@ -3678,27 +4650,79 @@ const executeImportConvert = async () => {
 
 .header-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
 }
 
-:deep(.el-button--primary) {
-  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
-  border: none;
+/* ========== 导出按钮 ========== */
+.btn-export {
+  --btn-color: #f59e0b;
+  border: 1.5px solid #fde68a !important;
+  background: #fffbeb !important;
+  color: #b45309 !important;
+  border-radius: 10px !important;
+  font-weight: 500;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-:deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%);
+.btn-export:hover {
+  border-color: #f59e0b !important;
+  background: #fffbeb !important;
+  color: #92400e !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
 }
 
-:deep(.el-button--success) {
-  background: linear-gradient(135deg, #722ed1 0%, #531dab 100%);
-  border: none;
+/* ========== 导入按钮 ========== */
+.btn-import {
+  border: 1.5px solid #c7d2fe !important;
+  background: #eef2ff !important;
+  color: #4338ca !important;
+  border-radius: 10px !important;
+  font-weight: 500;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-:deep(.el-button--success:hover) {
-  background: linear-gradient(135deg, #9254de 0%, #722ed1 100%);
+.btn-import:hover {
+  border-color: #818cf8 !important;
+  background: #eef2ff !important;
+  color: #3730a3 !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+/* ========== 创建卡包按钮 ========== */
+.btn-create-pack {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.btn-create-pack:hover {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%) !important;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ========== 创建提示词按钮 ========== */
+.btn-create-prompt {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.btn-create-prompt:hover {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.4);
+  transform: translateY(-1px);
 }
 
 /* 区块标题 */
@@ -3727,79 +4751,377 @@ const executeImportConvert = async () => {
   margin-left: 8px;
 }
 
+.section-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-action-btn {
+  background: rgba(255, 77, 79, 0.1);
+  border-color: transparent;
+  color: #ff4d4f;
+  transition: all 0.2s ease;
+}
+
+.section-action-btn:hover {
+  background: rgba(255, 77, 79, 0.2);
+  color: #ff7875;
+}
+
+/* 顶端 Tab 切换 */
+.main-tabs-wrapper {
+  margin-top: 4px;
+}
+
+.main-tabs {
+  --el-tabs-header-height: 40px;
+}
+
+.main-tabs :deep(.el-tabs__header) {
+  margin-bottom: 4px;
+}
+
+.main-tabs :deep(.el-tabs__content) {
+  overflow: visible;
+}
+
+.main-tabs :deep(.el-tab-pane) {
+  padding: 0;
+}
+
+.main-tabs :deep(.el-tabs__nav-wrap)::after {
+  background-color: #e5e7eb;
+}
+
+.main-tabs :deep(.el-tabs__item) {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  padding: 0 14px;
+  transition: color 0.2s ease;
+}
+
+.main-tabs :deep(.el-tabs__item.is-active) {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.main-tabs :deep(.el-tabs__active-bar) {
+  background-color: #22c55e;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.main-tabs :deep(.el-tabs__item:hover) {
+  color: #22c55e;
+}
+
+.main-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.main-tab-label .el-icon {
+  font-size: 15px;
+}
+
+.main-tab-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-left: 2px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.main-tabs :deep(.el-tabs__item.is-active) .main-tab-count {
+  color: #22c55e;
+}
+
+.tab-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 /* 卡包横向排列容器 */
 .packs-wrapper {
   display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: #f4f6f8;
+  border-radius: 12px;
 }
 
-/* 竖向卡包样式 - 基础 */
-.card-pack-vertical {
-  --pack-shell-top: var(--prompt-pack-shell-top, #edf5f4);
-  --pack-shell-mid: var(--prompt-pack-shell-mid, #e5efee);
-  --pack-shell-bottom: var(--prompt-pack-shell-bottom, #dbe8e7);
-  --pack-shell-border: var(--prompt-pack-shell-border, rgba(74, 126, 123, 0.28));
-  --pack-shell-hover-border: var(--prompt-pack-shell-hover-border, rgba(40, 111, 108, 0.44));
-  --pack-header-top: var(--prompt-pack-header-top, #c3ddd8);
-  --pack-header-mid: var(--prompt-pack-header-mid, #afd2cd);
-  --pack-header-bottom: var(--prompt-pack-header-bottom, #98c2bc);
-  --pack-header-border: var(--prompt-pack-header-border, rgba(31, 89, 86, 0.18));
-  --pack-header-text: var(--prompt-pack-header-text, #154d4b);
-  --pack-muted-text: var(--prompt-pack-muted-text, #607d79);
-  --pack-badge-bg: var(--prompt-pack-badge-bg, rgba(239, 246, 245, 0.94));
-  --pack-badge-border: var(--prompt-pack-badge-border, rgba(83, 131, 127, 0.18));
-  --pack-badge-text: var(--prompt-pack-badge-text, #276b67);
-  position: relative;
-  background: linear-gradient(180deg, var(--pack-shell-top) 0%, var(--pack-shell-mid) 52%, var(--pack-shell-bottom) 100%);
-  border-radius: var(--prompt-pack-shell-radius, 20px);
-  border: 1px solid var(--pack-shell-border);
-  box-shadow: var(--prompt-pack-shell-shadow, 0 14px 30px rgba(25, 70, 68, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.38));
+.packs-wrapper.grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.packs-wrapper.list {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(8px);
+  gap: 8px;
 }
 
-.card-pack-vertical::before {
+/* ========== 视图切换按钮 ========== */
+.pack-view-toggle {
+  display: inline-flex;
+  margin-left: auto;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 1px;
+  border: 1px solid #e2e8f0;
+}
+
+.pack-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 15px;
+  outline: none;
+}
+
+.pack-view-btn:hover {
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.pack-view-btn.active {
+  background: #ffffff;
+  color: #6366f1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ========== 卡包信息卡片 ========== */
+.pack-info-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #eef0f3;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+  position: relative;
+}
+
+.pack-info-clickable {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+.pack-info-clickable:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.pack-info-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--prompt-pack-shell-overlay, linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 34%), linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.07) 48%, transparent 70%));
+  border-radius: 12px;
   pointer-events: none;
+  transition: opacity 0.22s ease, box-shadow 0.22s ease;
+  opacity: 0;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4);
 }
 
-.card-pack-vertical:hover {
-  transform: translateY(-4px);
-  border-color: var(--pack-shell-hover-border);
-  box-shadow: var(--prompt-pack-shell-hover-shadow, 0 20px 40px rgba(18, 84, 81, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.46));
+.pack-info-card:hover {
+  border-color: #e2e6ec;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
 }
 
-/* 卡包尺寸 - 小 */
-.card-pack-vertical.small {
-  width: 160px;
-  height: 200px;
+.pack-info-card:hover::before {
+  opacity: 1;
 }
 
-/* 卡包尺寸 - 中 */
-.card-pack-vertical.medium {
-  width: 200px;
-  height: 260px;
+.pack-info-card.drag-over {
+  border-color: #93c5fd;
+  background: #f0f7ff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
-/* 卡包尺寸 - 大 */
-.card-pack-vertical.large {
-  width: 260px;
-  height: 340px;
+.pack-info-card.drag-over::before {
+  opacity: 1;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.55);
 }
 
-.card-pack-vertical.drag-over {
-  border-color: var(--prompt-pack-drag-border, #3d8e89);
-  background: var(--prompt-pack-drag-bg, linear-gradient(180deg, #e7f1f0 0%, #ddeceb 100%));
-  transform: scale(1.02);
-  box-shadow: var(--prompt-pack-drag-shadow, 0 22px 44px rgba(22, 96, 93, 0.18), inset 0 0 0 1px rgba(123, 177, 171, 0.18));
+/* 网格模式 - 横向简洁布局 */
+.packs-wrapper.grid .pack-info-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+.packs-wrapper.grid .pack-info-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+}
+
+.packs-wrapper.grid .pack-info-icon .el-icon {
+  font-size: 18px;
+}
+
+.packs-wrapper.grid .pack-info-body {
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+
+.packs-wrapper.grid .pack-info-name {
+  font-size: 14px;
+  max-width: 100%;
+  font-weight: 600;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.packs-wrapper.grid .pack-info-count {
+  font-size: 11px;
+  color: #94a3b8;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-weight: 400;
+}
+
+.packs-wrapper.grid .pack-info-spacer {
+  flex: 1;
+}
+
+.packs-wrapper.grid .pack-info-actions {
+  display: flex;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.packs-wrapper.list .pack-info-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.packs-wrapper.list .pack-info-spacer {
+  display: block;
+  flex: 1;
+}
+
+.packs-wrapper.list .pack-info-actions {
+  display: flex;
+}
+
+/* 图标区 */
+.pack-info-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pack-info-icon .el-icon {
+  font-size: 18px;
+  color: #3b82f6;
+}
+
+/* 信息主体 */
+.pack-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pack-info-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pack-info-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pack-info-count {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.pack-info-spacer {
+  flex: 1;
+}
+
+/* 操作按钮 */
+.pack-info-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pack-action-btn {
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: #94a3b8 !important;
+  transition: all 0.2s ease !important;
+}
+
+.pack-action-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.pack-action-btn--danger:hover {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #dc2626 !important;
 }
 
 /* 独立卡片区域 */
@@ -3997,8 +5319,7 @@ const executeImportConvert = async () => {
   gap: 4px;
 }
 
-.standalone-card-actions :deep(.el-button),
-.pack-card-actions :deep(.el-button) {
+.standalone-card-actions :deep(.el-button) {
   min-width: 28px;
   height: 28px;
   padding: 0 8px;
@@ -4008,29 +5329,25 @@ const executeImportConvert = async () => {
   transition: all 0.2s ease;
 }
 
-.standalone-card-actions :deep(.el-button.el-button--primary),
-.pack-card-actions :deep(.el-button.el-button--primary) {
+.standalone-card-actions :deep(.el-button.el-button--primary) {
   color: #0f766e;
   border-color: rgba(15, 118, 110, 0.10);
 }
 
-.standalone-card-actions :deep(.el-button.el-button--primary:hover),
-.pack-card-actions :deep(.el-button.el-button--primary:hover) {
+.standalone-card-actions :deep(.el-button.el-button--primary:hover) {
   color: #fff;
   background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
   border-color: transparent;
   box-shadow: 0 8px 18px rgba(20, 184, 166, 0.22);
 }
 
-.standalone-card-actions :deep(.el-button.el-button--danger),
-.pack-card-actions :deep(.el-button.el-button--danger) {
+.standalone-card-actions :deep(.el-button.el-button--danger) {
   color: #c2415b;
   background: rgba(225, 29, 72, 0.06);
   border-color: rgba(225, 29, 72, 0.10);
 }
 
-.standalone-card-actions :deep(.el-button.el-button--danger:hover),
-.pack-card-actions :deep(.el-button.el-button--danger:hover) {
+.standalone-card-actions :deep(.el-button.el-button--danger:hover) {
   color: #fff;
   background: linear-gradient(135deg, #e11d48 0%, #fb7185 100%);
   border-color: transparent;
@@ -4070,402 +5387,6 @@ const executeImportConvert = async () => {
   font-size: 32px;
 }
 
-/* 卡包底部 */
-.pack-footer-vertical {
-  background:
-    linear-gradient(135deg, var(--pack-header-top) 0%, var(--pack-header-mid) 52%, var(--pack-header-bottom) 100%);
-  padding: 10px 12px;
-  border-top: 1px solid var(--pack-header-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-}
-
-.pack-footer-vertical::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--prompt-pack-header-overlay, radial-gradient(circle at top, rgba(255, 255, 255, 0.16), transparent 42%), linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 64%), linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.09) 48%, transparent 72%));
-  pointer-events: none;
-}
-
-.pack-footer-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: relative;
-  z-index: 1;
-}
-
-.pack-footer-icon {
-  color: var(--pack-header-text);
-  font-size: 18px;
-}
-
-.pack-footer-name {
-  font-weight: 600;
-  color: var(--pack-header-text);
-  font-size: 13px;
-  flex: 1;
-}
-
-.pack-footer-count {
-  background: var(--pack-badge-bg);
-  border: 1px solid var(--pack-badge-border);
-  color: var(--pack-badge-text);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  min-width: 20px;
-  text-align: center;
-}
-
-.pack-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  z-index: 1;
-  flex-wrap: wrap;
-}
-
-.pack-footer-actions .el-button {
-  background: var(--prompt-pack-action-bg, rgba(244, 249, 248, 0.58));
-  border-color: var(--prompt-pack-action-border, rgba(210, 228, 225, 0.88));
-  backdrop-filter: blur(8px);
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  min-width: 0;
-  box-shadow: var(--prompt-pack-action-shadow, 0 8px 18px rgba(19, 91, 87, 0.10));
-}
-
-.pack-footer-actions .el-button:hover {
-  background: var(--prompt-pack-action-hover-bg, rgba(249, 252, 251, 0.96));
-  border-color: var(--prompt-pack-action-hover-border, rgba(227, 238, 236, 0.96));
-}
-
-.pack-footer-actions .el-button.el-button--primary {
-  color: var(--prompt-pack-action-primary, #1f6f69);
-}
-
-.pack-footer-actions .el-button.el-button--primary:hover {
-  color: var(--prompt-pack-action-primary-hover, #145b56);
-}
-
-.pack-footer-actions .el-button.el-button--danger {
-  color: var(--prompt-pack-action-danger, #c42727);
-}
-
-.pack-footer-actions .el-button.el-button--danger:hover {
-  color: var(--prompt-pack-action-danger-hover, #a81e1e);
-}
-
-
-
-/* 卡片滚动区域 */
-.cards-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--prompt-pack-scroll-bg, linear-gradient(180deg, rgba(227, 238, 236, 0.82) 0%, rgba(239, 245, 244, 0.96) 100%));
-}
-
-/* 卡包内卡片 - 基础 */
-.pack-card {
-  background: var(--prompt-pack-card-bg, linear-gradient(180deg, rgba(246, 250, 249, 0.98) 0%, #eaf2f1 100%));
-  border-radius: var(--prompt-pack-card-radius, 14px);
-  border: var(--prompt-pack-card-border, 1px solid rgba(39, 107, 103, 0.14));
-  cursor: grab;
-  transition: all 0.2s ease;
-  box-shadow: var(--prompt-pack-card-shadow, 0 8px 18px rgba(21, 77, 75, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.pack-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--prompt-pack-card-hover-border, rgba(24, 99, 95, 0.28));
-  box-shadow: var(--prompt-pack-card-hover-shadow, 0 14px 26px rgba(18, 84, 81, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.82));
-}
-
-.pack-card:active {
-  cursor: grabbing;
-}
-
-.pack-card.dragging {
-  opacity: var(--prompt-pack-card-drag-opacity, 0.56);
-  transform: scale(var(--prompt-pack-card-drag-scale, 0.97));
-}
-
-/* 卡包内卡片尺寸 - 小 */
-.pack-card.small {
-  min-height: 70px;
-}
-
-.pack-card.small .pack-card-header {
-  padding: 6px 8px;
-}
-
-.pack-card.small .pack-card-drag-handle {
-  font-size: 12px;
-}
-
-.pack-card.small .pack-card-name {
-  font-size: 11px;
-}
-
-.pack-card.small .pack-card-content {
-  padding: 0 8px;
-}
-
-.pack-card.small .pack-card-tag {
-  transform: scale(0.75);
-  transform-origin: left center;
-}
-
-.pack-card.small .pack-card-preview {
-  font-size: 9px;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-
-.pack-card.small .pack-card-footer {
-  padding: 4px 8px;
-}
-
-.pack-card.small .pack-card-time {
-  font-size: 9px;
-}
-
-.pack-card.small .pack-card-actions :deep(.el-button) {
-  padding: 1px 3px;
-  font-size: 10px;
-}
-
-/* 卡包内卡片尺寸 - 中 */
-.pack-card.medium {
-  min-height: 90px;
-}
-
-.pack-card.medium .pack-card-header {
-  padding: 8px 10px;
-}
-
-.pack-card.medium .pack-card-drag-handle {
-  font-size: 14px;
-}
-
-.pack-card.medium .pack-card-name {
-  font-size: 12px;
-}
-
-.pack-card.medium .pack-card-content {
-  padding: 0 10px;
-}
-
-.pack-card.medium .pack-card-tag {
-  transform: scale(0.85);
-  transform-origin: left center;
-}
-
-.pack-card.medium .pack-card-preview {
-  font-size: 10px;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
-.pack-card.medium .pack-card-footer {
-  padding: 6px 10px;
-}
-
-.pack-card.medium .pack-card-time {
-  font-size: 10px;
-}
-
-.pack-card.medium .pack-card-actions :deep(.el-button) {
-  padding: 2px 4px;
-  font-size: 11px;
-}
-
-/* 卡包内卡片尺寸 - 大 */
-.pack-card.large {
-  min-height: 120px;
-}
-
-.pack-card.large .pack-card-header {
-  padding: 10px 12px;
-}
-
-.pack-card.large .pack-card-drag-handle {
-  font-size: 16px;
-}
-
-.pack-card.large .pack-card-name {
-  font-size: 13px;
-}
-
-.pack-card.large .pack-card-content {
-  padding: 0 12px;
-}
-
-.pack-card.large .pack-card-tag {
-  transform: scale(0.9);
-  transform-origin: left center;
-}
-
-.pack-card.large .pack-card-preview {
-  font-size: 11px;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
-.pack-card.large .pack-card-footer {
-  padding: 8px 12px;
-}
-
-.pack-card.large .pack-card-time {
-  font-size: 11px;
-}
-
-.pack-card.large .pack-card-actions :deep(.el-button) {
-  padding: 3px 5px;
-  font-size: 12px;
-}
-
-/* 卡包内卡片头部 */
-.pack-card-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--prompt-pack-card-header-bg, linear-gradient(135deg, rgba(133, 184, 178, 0.2) 0%, rgba(245, 249, 248, 0.94) 100%));
-  border-bottom: 1px solid var(--prompt-pack-card-header-border, rgba(39, 107, 103, 0.10));
-}
-
-.pack-card-drag-handle {
-  color: var(--prompt-pack-card-handle-color, #0d9488);
-  cursor: grab;
-}
-
-.pack-card-name {
-  font-weight: 600;
-  color: var(--prompt-pack-card-name-color, #134e4a);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 卡包内卡片内容 */
-.pack-card-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--prompt-pack-card-content-gap, 6px);
-  overflow: hidden;
-}
-
-.pack-card-tag {
-  align-self: flex-start;
-}
-
-.pack-card-preview {
-  color: var(--prompt-pack-card-preview-color, #5f7f7b);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* 卡包内卡片底部 */
-.pack-card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--prompt-pack-card-footer-border, rgba(39, 107, 103, 0.10));
-  background: var(--prompt-pack-card-footer-bg, linear-gradient(180deg, rgba(241, 247, 246, 0.96) 0%, rgba(233, 241, 240, 0.98) 100%));
-}
-
-.pack-card-time {
-  color: var(--prompt-pack-card-time-color, var(--pack-muted-text));
-}
-
-.pack-card-actions {
-  display: flex;
-  gap: 4px;
-}
-
-/* 空卡包提示 */
-.empty-pack-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 30px 10px;
-  color: var(--prompt-pack-empty-text, #7cb9b3);
-  font-size: 12px;
-  gap: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: var(--prompt-pack-empty-border, 1px dashed rgba(94, 234, 212, 0.32));
-  border-radius: var(--prompt-pack-empty-radius, 14px);
-  margin: 4px;
-  background: var(--prompt-pack-empty-bg, linear-gradient(180deg, rgba(236, 254, 255, 0.88) 0%, rgba(255, 255, 255, 0.96) 100%));
-}
-
-.empty-pack-hint:hover {
-  color: var(--prompt-pack-empty-hover-text, #14b8a6);
-  border-color: var(--prompt-pack-empty-hover-border, rgba(45, 212, 191, 0.4));
-  background: var(--prompt-pack-empty-hover-bg, linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%));
-}
-
-/* 卡包底部操作 */
-.pack-footer-vertical {
-  padding: 12px;
-  border-top: 1px solid var(--prompt-pack-footer-border, rgba(94, 234, 212, 0.2));
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  background: var(--prompt-pack-footer-bg, linear-gradient(180deg, rgba(246, 255, 255, 0.98) 0%, rgba(239, 250, 250, 1) 100%));
-}
-
-.pack-footer-vertical :deep(.el-button) {
-  font-size: 12px;
-  border-radius: 999px;
-  padding-inline: 10px;
-  border: 1px solid transparent;
-  background: var(--prompt-pack-footer-button-bg, rgba(255, 255, 255, 0.62));
-  backdrop-filter: blur(8px);
-  box-shadow: var(--prompt-pack-footer-button-shadow, 0 8px 18px rgba(56, 189, 248, 0.08));
-}
-
-.pack-footer-vertical :deep(.el-button--primary) {
-  color: var(--prompt-pack-footer-primary-color, #22c7b8);
-  border-color: var(--prompt-pack-footer-primary-border, rgba(94, 234, 212, 0.34));
-}
-
-.pack-footer-vertical :deep(.el-button--primary:hover) {
-  color: var(--prompt-pack-footer-primary-hover-color, #0f766e);
-  background: var(--prompt-pack-footer-primary-hover-bg, rgba(236, 254, 255, 0.92));
-  border-color: var(--prompt-pack-footer-primary-hover-border, rgba(94, 234, 212, 0.5));
-}
-
-.pack-footer-vertical :deep(.el-button--danger) {
-  color: var(--prompt-pack-footer-danger-color, #fb8fa3);
-  border-color: var(--prompt-pack-footer-danger-border, rgba(251, 113, 133, 0.2));
-}
-
-.pack-footer-vertical :deep(.el-button--danger:hover) {
-  color: var(--prompt-pack-footer-danger-hover-color, #f43f5e);
-  background: var(--prompt-pack-footer-danger-hover-bg, rgba(255, 241, 242, 0.95));
-  border-color: var(--prompt-pack-footer-danger-hover-border, rgba(251, 113, 133, 0.34));
-}
 .form-item-label-with-guide {
   display: inline-flex;
   align-items: center;
@@ -4550,29 +5471,87 @@ const executeImportConvert = async () => {
 }
 
 .prompt-guide-popover code,
-.format-description code {
-  background-color: #f0f0f0;
-  padding: 2px 4px;
-  border-radius: 3px;
+.field-config-banner code {
+  background: linear-gradient(135deg, rgba(74, 126, 123, 0.12), rgba(98, 176, 170, 0.08));
+  padding: 2px 6px;
+  border-radius: 4px;
   font-family: 'Courier New', monospace;
+  color: #276b67;
+  font-size: 12px;
 }
 
-/* 字段配置样式 */
+/* 字段配置样式 - 玻璃拟态主题 */
 .field-config-section {
   margin-top: 12px;
 }
 
+.field-config-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #edf5f4 0%, #e5efee 50%, #dbe8e7 100%);
+  border: 1px solid rgba(74, 126, 123, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(25, 70, 68, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.field-config-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+}
+
+.field-config-banner-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #98c2bc 0%, #afd2cd 100%);
+  border-radius: 10px;
+  color: #154d4b;
+  font-size: 18px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(31, 89, 86, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.field-config-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-config-banner-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #154d4b;
+  margin-bottom: 3px;
+}
+
+.field-config-banner-desc {
+  font-size: 13px;
+  color: #607d79;
+  line-height: 1.5;
+}
+
 .empty-fields {
   text-align: center;
-  padding: 24px;
-  background-color: #fafafa;
-  border-radius: 8px;
+  padding: 28px 24px;
+  background: linear-gradient(135deg, #f7fbfa 0%, #edf5f4 100%);
+  border: 1px dashed rgba(74, 126, 123, 0.22);
+  border-radius: 12px;
   margin-top: 12px;
 }
 
 .empty-hint {
   margin-top: 12px;
-  color: #909399;
+  color: #607d79;
   font-size: 14px;
 }
 
@@ -4581,11 +5560,18 @@ const executeImportConvert = async () => {
 }
 
 .field-item {
-  background-color: #fafafa;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #f7fbfa 0%, #edf5f4 100%);
+  border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid rgba(74, 126, 123, 0.15);
+  box-shadow: 0 2px 8px rgba(25, 70, 68, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field-item:hover {
+  border-color: rgba(74, 126, 123, 0.3);
+  box-shadow: 0 4px 14px rgba(25, 70, 68, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .field-header {
@@ -4614,9 +5600,9 @@ const executeImportConvert = async () => {
 }
 
 .required-tag.el-tag--info {
-  background: linear-gradient(135deg, #f0f0f0 0%, #d9d9d9 100%);
-  border-color: #bfbfbf;
-  color: #595959;
+  background: linear-gradient(135deg, #e7f1f0 0%, #d0e6e2 100%);
+  border-color: rgba(74, 126, 123, 0.25);
+  color: #276b67;
 }
 
 .field-name-input {
@@ -4627,12 +5613,12 @@ const executeImportConvert = async () => {
 
 .field-name {
   font-weight: 600;
-  color: #303133;
+  color: #154d4b;
   font-family: 'Courier New', monospace;
-  background-color: #fffbe6;
+  background: linear-gradient(135deg, #e7f1f0 0%, #ddeceb 100%);
   padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #ffe58f;
+  border-radius: 6px;
+  border: 1px solid rgba(74, 126, 123, 0.18);
 }
 
 .field-actions {
@@ -4948,6 +5934,50 @@ const executeImportConvert = async () => {
   padding: 40px;
 }
 
+/* 移动卡片弹窗样式 */
+.move-prompt-content {
+  min-height: 200px;
+}
+
+.move-prompt-hint {
+  margin-bottom: 20px;
+}
+
+.move-prompt-options {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.move-prompt-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.move-prompt-radio-item {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.move-prompt-radio-item:hover {
+  border-color: #6366f1;
+  background: #f8fafc;
+}
+
+.move-prompt-category-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.move-prompt-category-info .el-icon {
+  color: #6366f1;
+}
+
 /* 导入弹窗样式 */
 .import-dialog .import-content {
   min-height: 300px;
@@ -5122,27 +6152,6 @@ const executeImportConvert = async () => {
   color: #52c41a;
 }
 
-.pack-card.encrypted {
-  border-color: rgba(230, 162, 60, 0.4) !important;
-  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
-}
-
-.pack-card.encrypted:hover {
-  border-color: rgba(230, 162, 60, 0.6) !important;
-  box-shadow: 0 8px 20px rgba(230, 162, 60, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
-}
-
-.pack-card.encrypted .pack-card-header {
-  background: linear-gradient(135deg, rgba(230, 162, 60, 0.15) 0%, rgba(245, 249, 248, 0.94) 100%) !important;
-}
-
-.pack-card-lock {
-  color: #e6a23c;
-  font-size: 14px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
 .standalone-card.encrypted {
   border-color: rgba(230, 162, 60, 0.4) !important;
   box-shadow: 0 4px 12px rgba(230, 162, 60, 0.12) !important;
@@ -5231,5 +6240,710 @@ const executeImportConvert = async () => {
 
 .password-dialog-input {
   margin-bottom: 12px;
+}
+
+/* 暗色主题适配 - 卡包信息卡片 */
+:root[data-theme='dark'] .packs-wrapper {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+:root[data-theme='dark'] .pack-info-clickable:hover {
+  background: rgba(96, 165, 250, 0.08);
+}
+
+:root[data-theme='dark'] .pack-info-card {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(71, 85, 105, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .pack-info-card:hover {
+  border-color: rgba(148, 163, 184, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .pack-info-card.drag-over {
+  border-color: #60a5fa;
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
+}
+
+:root[data-theme='dark'] .pack-info-icon {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%);
+}
+
+:root[data-theme='dark'] .pack-info-icon .el-icon {
+  color: #93c5fd;
+}
+
+:root[data-theme='dark'] .pack-info-name {
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .pack-info-count {
+  color: #94a3b8;
+  background: transparent;
+}
+
+:root[data-theme='dark'] .pack-action-btn {
+  background: transparent !important;
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .pack-action-btn:hover {
+  background: rgba(71, 85, 105, 0.55) !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  color: #e2e8f0 !important;
+}
+
+:root[data-theme='dark'] .pack-action-btn--danger:hover {
+  background: rgba(220, 38, 38, 0.15) !important;
+  border-color: rgba(248, 113, 113, 0.3) !important;
+  color: #fca5a5 !important;
+}
+
+/* --- 暗色主题 - 视图切换按钮 --- */
+:root[data-theme='dark'] .pack-view-toggle {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(71, 85, 105, 0.5);
+}
+
+:root[data-theme='dark'] .pack-view-btn {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .pack-view-btn:hover {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme='dark'] .pack-view-btn.active {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* --- 暗色主题 - 网格模式 --- */
+:root[data-theme='dark'] .packs-wrapper.grid .pack-info-actions {
+  border-top-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .standalone-cards-area {
+  background: linear-gradient(180deg, rgba(124, 45, 18, 0.2) 0%, #1e293b 100%);
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+:root[data-theme='dark'] .standalone-cards-area.drag-over {
+  border-color: rgba(249, 115, 22, 0.6);
+  background: linear-gradient(180deg, rgba(124, 45, 18, 0.3) 0%, #1e293b 100%);
+}
+
+:root[data-theme='dark'] .standalone-card {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(71, 85, 105, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .standalone-card:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .standalone-card-header {
+  background: linear-gradient(135deg, rgba(124, 45, 18, 0.2) 0%, rgba(30, 41, 59, 0.9) 100%);
+  border-bottom-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .card-drag-handle {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .standalone-card-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .standalone-card-preview {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .standalone-card-footer {
+  border-top-color: rgba(71, 85, 105, 0.3);
+  background: rgba(30, 41, 59, 0.8);
+}
+
+:root[data-theme='dark'] .standalone-card-time {
+  color: #6b7280;
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button) {
+  background: rgba(94, 234, 212, 0.1);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary) {
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.2);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--primary:hover) {
+  color: #fff;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+:root[data-theme='dark'] .standalone-card-actions :deep(.el-button.el-button--danger:hover) {
+  color: #fff;
+  background: linear-gradient(135deg, #e11d48 0%, #fb7185 100%);
+}
+
+:root[data-theme='dark'] .prompts-container {
+  background: #0f172a;
+}
+
+:root[data-theme='dark'] .header {
+  border-bottom-color: rgba(71, 85, 105, 0.35);
+}
+
+:root[data-theme='dark'] .header h2 {
+  color: #f1f5f9;
+}
+
+/* --- 暗色主题 - 导出/导入按钮 --- */
+:root[data-theme='dark'] .btn-export {
+  border-color: rgba(251, 191, 36, 0.3) !important;
+  background: rgba(251, 191, 36, 0.08) !important;
+  color: #fbbf24 !important;
+}
+
+:root[data-theme='dark'] .btn-export:hover {
+  border-color: rgba(251, 191, 36, 0.5) !important;
+  background: rgba(251, 191, 36, 0.12) !important;
+  color: #fcd34d !important;
+  box-shadow: 0 2px 12px rgba(251, 191, 36, 0.12);
+}
+
+:root[data-theme='dark'] .btn-import {
+  border-color: rgba(129, 140, 248, 0.3) !important;
+  background: rgba(129, 140, 248, 0.08) !important;
+  color: #a5b4fc !important;
+}
+
+:root[data-theme='dark'] .btn-import:hover {
+  border-color: rgba(129, 140, 248, 0.5) !important;
+  background: rgba(129, 140, 248, 0.12) !important;
+  color: #c7d2fe !important;
+  box-shadow: 0 2px 12px rgba(129, 140, 248, 0.12);
+}
+
+/* --- 暗色主题 - 创建按钮 --- */
+:root[data-theme='dark'] .btn-create-pack {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+}
+
+:root[data-theme='dark'] .btn-create-pack:hover {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.5);
+}
+
+:root[data-theme='dark'] .btn-create-prompt {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
+}
+
+:root[data-theme='dark'] .btn-create-prompt:hover {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.5);
+}
+
+:root[data-theme='dark'] .section-title {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .section-title .el-icon {
+  color: #34d399;
+}
+
+:root[data-theme='dark'] .section-count {
+  background: #10b981;
+}
+
+:root[data-theme='dark'] .section-action-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .main-tabs :deep(.el-tabs__nav-wrap)::after {
+  background-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .main-tabs :deep(.el-tabs__item) {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .main-tabs :deep(.el-tabs__item:hover) {
+  color: #34d399;
+}
+
+:root[data-theme='dark'] .main-tabs :deep(.el-tabs__item.is-active) {
+  color: #34d399;
+}
+
+:root[data-theme='dark'] .main-tabs :deep(.el-tabs__active-bar) {
+  background-color: #10b981;
+}
+
+:root[data-theme='dark'] .main-tab-count {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+}
+
+:root[data-theme='dark'] .main-tabs :deep(.el-tabs__item.is-active) .main-tab-count {
+  background: rgba(16, 185, 129, 0.28);
+  color: #6ee7b7;
+}
+
+:root[data-theme='dark'] .section-action-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+:root[data-theme='dark'] .dialog-header span {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .left-panel {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .panel-header {
+  border-bottom-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .export-select-all {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .export-card-item {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .export-card-item:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+:root[data-theme='dark'] .export-card-item.selected {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+:root[data-theme='dark'] .export-card-name {
+  color: #f3f4f6;
+}
+
+:root[data-theme='dark'] .export-card-preview {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .form-label {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .empty-fields {
+  background-color: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .empty-hint {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .field-item {
+  background-color: rgba(51, 65, 85, 0.6);
+}
+
+:root[data-theme='dark'] .required-tag.el-tag--danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+:root[data-theme='dark'] .required-tag.el-tag--info {
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(107, 114, 128, 0.1) 100%);
+  border-color: rgba(107, 114, 128, 0.4);
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .field-name {
+  color: #f3f4f6;
+  background-color: rgba(124, 45, 18, 0.3);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+:root[data-theme='dark'] .password-dialog-icon {
+  background: rgba(251, 191, 36, 0.15);
+}
+
+:root[data-theme='dark'] .password-dialog-hint {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .standalone-card.encrypted {
+  border-color: rgba(251, 191, 36, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+:root[data-theme='dark'] .standalone-card.encrypted:hover {
+  border-color: rgba(251, 191, 36, 0.6) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+:root[data-theme='dark'] .standalone-card.encrypted .standalone-card-header {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(30, 41, 59, 0.9) 100%) !important;
+}
+
+:root[data-theme='dark'] .standalone-card-lock {
+  color: #fbbf24;
+}
+
+/* --- 暗色主题 - 牌桌预览卡片 --- */
+:root[data-theme='dark'] .pack-fan-stage {
+  background: rgba(2, 6, 23, 0.7);
+}
+
+:root[data-theme='dark'] .pack-fan-card {
+  background: rgba(30, 41, 59, 0.95);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='dark'] .pack-fan-card:hover {
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .pack-fan-card-head {
+  border-bottom-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .pack-fan-card-head-icon {
+  color: #a5b4fc;
+}
+
+:root[data-theme='dark'] .pack-fan-card-head-name {
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .pack-fan-card-head-lock {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .pack-fan-card-content {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .pack-fan-card-content.is-empty {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .pack-fan-card-content-encrypted {
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .pack-fan-card-foot {
+  border-top-color: rgba(71, 85, 105, 0.3);
+}
+
+:root[data-theme='dark'] .pack-fan-card-foot-time {
+  color: #64748b;
+}
+
+:root[data-theme='dark'] .pack-fan-action-btn {
+  border-color: rgba(71, 85, 105, 0.4) !important;
+  background: rgba(30, 41, 59, 0.8) !important;
+  color: #94a3b8 !important;
+}
+
+:root[data-theme='dark'] .pack-fan-action-btn:hover {
+  background: rgba(51, 65, 85, 0.8) !important;
+  border-color: rgba(100, 116, 139, 0.5) !important;
+  color: #e2e8f0 !important;
+}
+
+:root[data-theme='dark'] .pack-fan-action-btn--danger:hover {
+  background: rgba(127, 29, 29, 0.3) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #f87171 !important;
+}
+
+:root[data-theme='dark'] .move-prompt-radio-item {
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+:root[data-theme='dark'] .move-prompt-radio-item:hover {
+  border-color: #818cf8;
+  background: rgba(30, 41, 59, 0.5);
+}
+
+/* ---- 编辑弹窗左右布局 ---- */
+.pack-edit-layout {
+  display: flex;
+  gap: 16px;
+  height: 70vh;
+}
+.pack-edit-left {
+  flex: 2;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+.pack-edit-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #e5e7eb;
+  padding-left: 16px;
+}
+.pack-edit-right-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.pack-edit-right-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.pack-edit-right-tip {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+.pack-edit-right-tip code {
+  background: #eef2f7;
+  color: #4f46e5;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.pack-edit-right-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.pack-edit-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+.pack-edit-form :deep(.el-form-item__label) {
+  font-size: 13px;
+  color: #1f2937;
+  font-weight: 600;
+  padding-bottom: 3px;
+  line-height: 1.4;
+}
+.pack-edit-content-input :deep(.el-textarea__inner) {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+.pack-edit-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+.pack-edit-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pack-edit-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.pack-edit-section-tip {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.pack-edit-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.pack-edit-tag {
+  margin: 0;
+}
+.pack-edit-tag-input {
+  width: 120px;
+}
+.pack-edit-card-type {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pack-edit-card-type-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.pack-edit-card-type-status {
+  margin-top: 4px;
+}
+.pack-edit-empty {
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+}
+.pack-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pack-edit-field {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+}
+.pack-edit-field-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.pack-edit-field-name {
+  flex: 1;
+}
+.pack-edit-field-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pack-edit-field-order {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.pack-edit-field-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ========== 拆书提示词Tab ========== */
+.tab-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 12px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #606266;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.section-divider .section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: #fff;
+  background: #e6a23c;
+  border-radius: 10px;
+}
+
+/* ========== 拆书导入导出对话框 ========== */
+.import-preview-pack-name {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: rgba(230, 162, 60, 0.1);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.import-preview-prefix-hint {
+  color: #e6a23c;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.import-preview-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.import-preview-card-item {
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+}
+
+.import-preview-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.import-preview-stats {
+  display: flex;
+  gap: 16px;
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 8px;
+}
+
+.import-preview-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #10b981;
+}
+
+.import-preview-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.import-preview-category-tag {
+  padding: 4px 12px;
+  background: rgba(230, 162, 60, 0.15);
+  border-radius: 4px;
+  font-size: 13px;
+  color: #e6a23c;
+}
+
+.import-preview-more-categories {
+  padding: 4px 12px;
+  font-size: 13px;
+  color: #909399;
 }
 </style>

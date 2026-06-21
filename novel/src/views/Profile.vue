@@ -53,56 +53,7 @@
     </el-row>
 
     <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :span="16">
-        <el-card class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <div class="flex items-center">
-                <el-button
-                  type="text"
-                  @click="toggleDailyStats"
-                  class="toggle-btn"
-                >
-                  <el-icon :class="{ 'rotate-90': showDailyStats }"><ArrowRight /></el-icon>
-                </el-button>
-                <span>每日模型使用统计</span>
-              </div>
-              <el-date-picker
-                v-model="dateRange"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-                @change="loadDailyStats"
-                style="width: 280px"
-                :disabled="!showDailyStats"
-              />
-            </div>
-          </template>
-          <div v-if="showDailyStats" class="daily-stats" v-loading="dailyLoading">
-            <el-table :data="dailyStats" style="width: 100%" max-height="400">
-              <el-table-column prop="date" label="日期" width="120" />
-              <el-table-column prop="model_name" label="模型" min-width="150" />
-              <el-table-column prop="provider_name" label="服务商" width="120" />
-              <el-table-column prop="usage_count" label="调用次数" width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag type="primary">{{ row.usage_count }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="total_tokens" label="Token用量" width="120" align="center">
-                <template #default="{ row }">
-                  <el-tag type="success">{{ formatTokens(row.total_tokens) }}</el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-empty v-if="dailyStats.length === 0 && !dailyLoading" description="暂无使用记录" />
-          </div>
-        </el-card>
-      </el-col>
-      
-      <el-col :span="8">
+      <el-col :span="24">
         <el-card class="chart-card">
           <template #header>
             <span>模型使用排行</span>
@@ -191,21 +142,16 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { statsAPI } from '@/api'
-import type { UsageOverview, DailyUsage, ModelStats, MonthlyStats } from '@/types'
+import type { UsageOverview, ModelStats, MonthlyStats } from '@/types'
 
 const overview = ref<UsageOverview | null>(null)
-const dailyStats = ref<DailyUsage[]>([])
 const modelStats = ref<ModelStats[]>([])
 const monthlyStats = ref<MonthlyStats[]>([])
 
-const dailyLoading = ref(false)
 const modelLoading = ref(false)
 const monthlyLoading = ref(false)
 
-const showDailyStats = ref(false)
 const showMonthlyStats = ref(false)
-
-const dateRange = ref<[string, string] | null>(null)
 
 const maxMonthlyUsage = computed(() => {
   if (monthlyStats.value.length === 0) return 1
@@ -220,28 +166,6 @@ const loadOverview = async () => {
     }
   } catch (error) {
     console.error('加载概览失败:', error)
-  }
-}
-
-const loadDailyStats = async () => {
-  dailyLoading.value = true
-  try {
-    let startDate: string | undefined
-    let endDate: string | undefined
-    
-    if (dateRange.value) {
-      startDate = dateRange.value[0]
-      endDate = dateRange.value[1]
-    }
-    
-    const res = await statsAPI.getDaily(startDate, endDate)
-    if (res.success && res.data) {
-      dailyStats.value = res.data
-    }
-  } catch (error) {
-    console.error('加载每日统计失败:', error)
-  } finally {
-    dailyLoading.value = false
   }
 }
 
@@ -302,13 +226,6 @@ const getProgressColor = (usage: number) => {
   return '#909399'
 }
 
-const toggleDailyStats = async () => {
-  showDailyStats.value = !showDailyStats.value
-  if (showDailyStats.value) {
-    await loadDailyStats()
-  }
-}
-
 const toggleMonthlyStats = async () => {
   showMonthlyStats.value = !showMonthlyStats.value
   if (showMonthlyStats.value) {
@@ -325,6 +242,8 @@ onMounted(() => {
 <style scoped>
 .profile-container {
   padding: 20px;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .page-title {
@@ -512,5 +431,97 @@ onMounted(() => {
   font-size: 12px;
   color: #909399;
   margin-left: 2px;
+}
+
+/* ========== 暗色主题适配 ========== */
+:root[data-theme='dark'] .page-title {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .stat-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:root[data-theme='dark'] .stat-value {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .stat-label {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .chart-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:root[data-theme='dark'] .ranking-item {
+  border-bottom-color: #334155;
+}
+
+:root[data-theme='dark'] .ranking-item:hover {
+  background-color: #334155;
+}
+
+:root[data-theme='dark'] .ranking-index {
+  background: #475569;
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .ranking-name {
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .ranking-provider {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] .ranking-count .unit {
+  color: #9ca3af;
+}
+
+:root[data-theme='dark'] :deep(.el-card__header) {
+  border-bottom-color: #334155;
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] :deep(.el-card__body) {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] :deep(.el-table) {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] :deep(.el-table th) {
+  background: #334155;
+  color: #e5e7eb;
+  border-color: #475569;
+}
+
+:root[data-theme='dark'] :deep(.el-table td) {
+  border-color: #475569;
+}
+
+:root[data-theme='dark'] :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
+  background: #253347;
+}
+
+:root[data-theme='dark'] :deep(.el-table__body tr:hover > td) {
+  background: #334155;
+}
+
+:root[data-theme='dark'] :deep(.el-empty) {
+  background: transparent;
+}
+
+:root[data-theme='dark'] :deep(.el-date-picker) {
+  background: #1e293b;
+}
+
+:root[data-theme='dark'] :deep(.el-progress__text) {
+  color: #e5e7eb;
 }
 </style>

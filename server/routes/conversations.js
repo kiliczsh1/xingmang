@@ -87,12 +87,12 @@ router.get('/:id/messages', (req, res) => {
 // 保存消息
 router.post('/:id/messages', (req, res) => {
   try {
-    const { role, content } = req.body;
+    const { role, content, displayContent } = req.body;
     const stmt = db.prepare(`
-      INSERT INTO conversation_messages (conversation_id, role, content) 
-      VALUES (?, ?, ?)
+      INSERT INTO conversation_messages (conversation_id, role, content, display_content)
+      VALUES (?, ?, ?, ?)
     `);
-    const result = stmt.run(req.params.id, role, content);
+    const result = stmt.run(req.params.id, role, content, displayContent || null);
     
     // 更新对话的更新时间
     db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
@@ -133,10 +133,10 @@ router.delete('/:conversationId/messages/:messageId', (req, res) => {
 router.put('/:conversationId/messages/:messageId', (req, res) => {
   try {
     const { conversationId, messageId } = req.params;
-    const { content } = req.body;
-    
-    db.prepare('UPDATE conversation_messages SET content = ? WHERE id = ? AND conversation_id = ?')
-      .run(content, messageId, conversationId);
+    const { content, displayContent } = req.body;
+
+    db.prepare('UPDATE conversation_messages SET content = ?, display_content = ? WHERE id = ? AND conversation_id = ?')
+      .run(content, displayContent || null, messageId, conversationId);
     
     // 更新对话的更新时间
     db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(conversationId);

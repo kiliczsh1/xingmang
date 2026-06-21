@@ -30,6 +30,7 @@
         :contenteditable="!disabled"
         :data-placeholder="placeholder"
         :spellcheck="false"
+        :style="{ fontFamily: props.fontFamily, fontSize: props.fontSize + 'px' }"
         @focus="handleFocus"
         @blur="handleBlur"
         @input="handleInput"
@@ -73,9 +74,13 @@ const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
   disabled?: boolean
+  fontFamily?: string
+  fontSize?: number
 }>(), {
   placeholder: '请输入简介内容',
-  disabled: false
+  disabled: false,
+  fontFamily: 'Microsoft YaHei',
+  fontSize: 16
 })
 
 const emit = defineEmits<{
@@ -184,6 +189,14 @@ const wrapSelectionWithHtml = async (html: string) => {
   if (props.disabled) return
   await focusEditor()
   document.execCommand('insertHTML', false, html)
+  saveSelection()
+  emitContent()
+}
+
+const insertPlainText = async (text: string) => {
+  if (props.disabled) return
+  await focusEditor()
+  document.execCommand('insertText', false, text)
   saveSelection()
   emitContent()
 }
@@ -377,6 +390,14 @@ const handleAction = async (action: ToolbarAction) => {
   }
 }
 
+defineExpose({
+  wrapSelectionWithHtml,
+  focusEditor,
+  getSelectedText,
+  insertContent: wrapSelectionWithHtml,
+  insertPlainText
+})
+
 const handleInput = () => {
   saveSelection()
   emitContent()
@@ -413,22 +434,21 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid rgba(0, 201, 167, 0.16);
-  border-radius: 22px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 255, 252, 0.98) 100%);
+  border: 1px solid rgba(0, 201, 167, 0.12);
+  border-radius: 16px;
+  background: transparent;
   overflow: hidden;
   box-shadow:
-    0 20px 40px rgba(0, 136, 110, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+    0 1px 3px rgba(0, 201, 167, 0.03),
+    0 8px 24px rgba(0, 201, 167, 0.05);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .split-rich-text-editor:focus-within {
-  border-color: rgba(0, 168, 150, 0.9);
+  border-color: rgba(0, 201, 167, 0.4);
   box-shadow:
-    0 24px 56px rgba(0, 136, 110, 0.14),
-    0 0 0 4px rgba(0, 201, 167, 0.12);
+    0 1px 3px rgba(0, 201, 167, 0.05),
+    0 12px 32px rgba(0, 201, 167, 0.1);
 }
 
 .toolbar {
@@ -437,8 +457,7 @@ onMounted(() => {
   gap: 4px;
   padding: 8px 12px 7px;
   border-bottom: 1px solid rgba(0, 201, 167, 0.1);
-  background:
-    linear-gradient(180deg, rgba(247, 255, 252, 0.98) 0%, rgba(240, 253, 249, 0.96) 100%);
+  background: rgba(0, 201, 167, 0.04);
 }
 
 .toolbar-button {
@@ -450,8 +469,8 @@ onMounted(() => {
   padding: 0 7px;
   border: 1px solid transparent;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
-  color: #436a63;
+  background: rgba(0, 201, 167, 0.06);
+  color: #374151;
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -460,11 +479,11 @@ onMounted(() => {
 }
 
 .toolbar-button:hover:not(:disabled) {
-  border-color: rgba(0, 201, 167, 0.28);
-  background: rgba(255, 255, 255, 0.94);
-  color: #00a187;
+  border-color: rgba(0, 201, 167, 0.25);
+  background: rgba(0, 201, 167, 0.1);
+  color: #00a896;
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0, 168, 150, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 201, 167, 0.12);
 }
 
 .toolbar-button:disabled {
@@ -496,16 +515,15 @@ onMounted(() => {
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 255, 252, 0.98) 100%);
+  background: transparent;
 }
 
 .editor-surface {
   flex: 1;
   min-height: 240px;
   width: 100%;
-  padding: 34px 44px 56px;
-  color: #29443f;
+  padding: 40px 48px 64px;
+  color: #1f2937;
   font-size: 16px;
   line-height: 2;
   letter-spacing: 0.01em;
@@ -517,7 +535,7 @@ onMounted(() => {
 
 .editor-surface.is-empty::before {
   content: attr(data-placeholder);
-  color: #92b8b0;
+  color: #9ca3af;
 }
 
 .editor-surface :deep(h1),
@@ -535,8 +553,8 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 32px;
   line-height: 1.35;
-  font-weight: 500;
-  color: #23423d;
+  font-weight: 600;
+  color: #1a1c1e;
   letter-spacing: 0.02em;
 }
 
@@ -544,7 +562,7 @@ onMounted(() => {
   font-size: 24px;
   line-height: 1.45;
   font-weight: 600;
-  color: #2d544d;
+  color: #1a1c1e;
 }
 
 .editor-surface :deep(p) {
@@ -558,33 +576,35 @@ onMounted(() => {
 
 .editor-surface :deep(blockquote) {
   padding: 4px 0 4px 18px;
-  border-left: 3px solid rgba(0, 201, 167, 0.58);
-  color: #46716a;
-  background: rgba(233, 250, 246, 0.7);
-  border-radius: 0 12px 12px 0;
+  border-left: 3px solid #00c9a7;
+  color: #4b5563;
+  background: rgba(0, 201, 167, 0.04);
+  border-radius: 0 8px 8px 0;
 }
 
 .editor-surface :deep(pre) {
   padding: 14px 16px;
-  background: rgba(0, 136, 110, 0.06);
-  border-radius: 14px;
+  background: rgba(0, 201, 167, 0.04);
+  border-radius: 12px;
   overflow-x: auto;
 }
 
 .editor-surface :deep(code) {
   padding: 2px 6px;
   border-radius: 6px;
-  background: rgba(0, 136, 110, 0.09);
+  background: rgba(0, 201, 167, 0.08);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  color: #00a896;
 }
 
 .editor-surface :deep(pre code) {
   padding: 0;
   background: transparent;
+  color: inherit;
 }
 
 .editor-surface :deep(a) {
-  color: #00967c;
+  color: #00a896;
   text-decoration: none;
 }
 
@@ -594,7 +614,7 @@ onMounted(() => {
 
 .editor-surface :deep(img) {
   max-width: 100%;
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .editor-surface :deep(table) {
@@ -605,19 +625,20 @@ onMounted(() => {
 .editor-surface :deep(th),
 .editor-surface :deep(td) {
   padding: 8px 10px;
-  border: 1px solid #cfe8e2;
+  border: 1px solid rgba(0, 201, 167, 0.15);
 }
 
 .editor-surface :deep(th) {
-  background: rgba(238, 250, 246, 0.9);
+  background: rgba(0, 201, 167, 0.04);
+  color: #1a1c1e;
 }
 
 .is-disabled {
-  background: rgba(245, 252, 250, 0.96);
+  background: rgba(0, 201, 167, 0.02);
 }
 
 .is-disabled .editor-surface {
-  color: #99b7b1;
+  color: #9ca3af;
   cursor: not-allowed;
 }
 
@@ -650,9 +671,9 @@ onMounted(() => {
 }
 
 :root[data-theme='dark'] .toolbar-button:hover:not(:disabled) {
-  background: rgba(71, 85, 105, 0.8) !important;
+  background: rgba(94, 234, 212, 0.12) !important;
   color: #5eead4 !important;
-  border-color: rgba(94, 234, 212, 0.3) !important;
+  border-color: rgba(94, 234, 212, 0.25) !important;
 }
 
 :root[data-theme='dark'] .editor-shell {
@@ -660,7 +681,7 @@ onMounted(() => {
 }
 
 :root[data-theme='dark'] .editor-surface {
-  color: #f4f7ff !important;
+  color: #e5e7eb !important;
 }
 
 :root[data-theme='dark'] .editor-surface.is-empty::before {
@@ -668,17 +689,17 @@ onMounted(() => {
 }
 
 :root[data-theme='dark'] .editor-surface :deep(h1) {
-  color: #f4f7ff !important;
+  color: #f0ebe0 !important;
 }
 
 :root[data-theme='dark'] .editor-surface :deep(h2) {
-  color: #c8d0e0 !important;
+  color: #e5e0d8 !important;
 }
 
 :root[data-theme='dark'] .editor-surface :deep(blockquote) {
-  color: #c8d0e0 !important;
-  background: rgba(94, 234, 212, 0.08) !important;
-  border-left-color: rgba(94, 234, 212, 0.4) !important;
+  color: #c8c0b4 !important;
+  background: rgba(94, 234, 212, 0.06) !important;
+  border-left-color: rgba(94, 234, 212, 0.35) !important;
 }
 
 :root[data-theme='dark'] .editor-surface :deep(pre) {
@@ -686,8 +707,8 @@ onMounted(() => {
 }
 
 :root[data-theme='dark'] .editor-surface :deep(code) {
-  background: rgba(94, 234, 212, 0.12) !important;
-  color: #f4f7ff !important;
+  background: rgba(94, 234, 212, 0.1) !important;
+  color: #5eead4 !important;
 }
 
 :root[data-theme='dark'] .editor-surface :deep(a) {
@@ -697,7 +718,7 @@ onMounted(() => {
 :root[data-theme='dark'] .editor-surface :deep(th),
 :root[data-theme='dark'] .editor-surface :deep(td) {
   border-color: rgba(71, 85, 105, 0.5) !important;
-  color: #f4f7ff !important;
+  color: #e5e7eb !important;
 }
 
 :root[data-theme='dark'] .editor-surface :deep(th) {

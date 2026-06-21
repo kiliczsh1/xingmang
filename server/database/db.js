@@ -139,6 +139,7 @@ const initDatabase = () => {
       create_type TEXT DEFAULT 'manual',
       author_id INTEGER,
       author_name TEXT DEFAULT '星芒用户',
+      version TEXT,
       status TEXT DEFAULT 'published',
       pdf_parse_status TEXT,
       pdf_parse_result TEXT,
@@ -148,11 +149,24 @@ const initDatabase = () => {
     )
   `);
 
+  // 迁移：添加 version 字段
+  try {
+    const columns = db.prepare("PRAGMA table_info(experience_shares)").all();
+    const hasVersion = columns.some(col => col.name === 'version');
+    if (!hasVersion) {
+      db.exec('ALTER TABLE experience_shares ADD COLUMN version TEXT');
+      console.log('已为 experience_shares 表添加 version 字段');
+    }
+  } catch (e) {
+    console.log('添加 version 字段时出错:', e.message);
+  }
+
   // 分卷表
   db.exec(`
     CREATE TABLE IF NOT EXISTS volumes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       book_id INTEGER NOT NULL,
+      parent_id INTEGER,
       title TEXT NOT NULL,
       order_num INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -183,6 +197,9 @@ const initDatabase = () => {
       model TEXT NOT NULL,
       temperature REAL DEFAULT 0.7,
       max_tokens INTEGER DEFAULT 2000,
+      top_p REAL DEFAULT 0.9,
+      frequency_penalty REAL DEFAULT 0.0,
+      description TEXT DEFAULT '',
       is_default INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -205,7 +222,7 @@ const initDatabase = () => {
           
           // 为每个旧配置创建服务商和模型
           const insertProvider = db.prepare('INSERT INTO api_providers (name, provider_type, api_key, api_url) VALUES (?, ?, ?, ?)');
-          const insertModel = db.prepare('INSERT INTO api_models (provider_id, name, model, temperature, max_tokens, is_default) VALUES (?, ?, ?, ?, ?, ?)');
+          const insertModel = db.prepare('INSERT INTO api_models (provider_id, name, model, temperature, max_tokens, top_p, frequency_penalty, description, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
           
           for (const config of oldConfigs) {
             // 创建服务商
@@ -223,6 +240,9 @@ const initDatabase = () => {
               config.model,
               config.temperature,
               config.max_tokens,
+              config.top_p || 0.9,
+              config.frequency_penalty || 0.0,
+              config.description || '',
               config.is_default
             );
           }
@@ -240,6 +260,63 @@ const initDatabase = () => {
   };
   
   migrateOldConfigs();
+
+  // 迁移api_models表，添加新字段（top_p, frequency_penalty, description）
+  const migrateApiModelsTable = () => {
+    try {
+      const columns = db.prepare("PRAGMA table_info(api_models)").all();
+      const columnNames = columns.map(col => col.name);
+      
+      const newColumns = [
+        { name: 'top_p', sql: 'ALTER TABLE api_models ADD COLUMN top_p REAL DEFAULT 0.9' },
+        { name: 'frequency_penalty', sql: 'ALTER TABLE api_models ADD COLUMN frequency_penalty REAL DEFAULT 0.0' },
+        { name: 'description', sql: "ALTER TABLE api_models ADD COLUMN description TEXT DEFAULT ''" },
+        { name: 'enabled', sql: 'ALTER TABLE api_models ADD COLUMN enabled INTEGER DEFAULT 1' },
+        { name: 'sort_order', sql: 'ALTER TABLE api_models ADD COLUMN sort_order INTEGER DEFAULT 0' }
+      ];
+      
+      for (const col of newColumns) {
+        if (!columnNames.includes(col.name)) {
+          db.exec(col.sql);
+          console.log(`已添加api_models表字段: ${col.name}`);
+        }
+      }
+
+      db.exec('UPDATE api_models SET enabled = 1 WHERE enabled IS NULL');
+      db.exec('UPDATE api_models SET sort_order = 0 WHERE sort_order IS NULL');
+    } catch (error) {
+      console.log('api_models表迁移过程:', error.message);
+    }
+  };
+  
+  migrateApiModelsTable();
+
+  // 迁移api_providers表，添加api_format字段
+  const migrateApiProvidersTable = () => {
+    try {
+      const columns = db.prepare("PRAGMA table_info(api_providers)").all();
+      const columnNames = columns.map(col => col.name);
+
+      const newColumns = [
+        { name: 'api_format', sql: "ALTER TABLE api_providers ADD COLUMN api_format TEXT DEFAULT 'openai'" },
+        { name: 'use_full_url', sql: 'ALTER TABLE api_providers ADD COLUMN use_full_url INTEGER DEFAULT 0' }
+      ];
+
+      for (const col of newColumns) {
+        if (!columnNames.includes(col.name)) {
+          db.exec(col.sql);
+          console.log(`已添加api_providers表字段: ${col.name}`);
+        }
+      }
+
+      db.exec("UPDATE api_providers SET api_format = 'openai' WHERE api_format IS NULL");
+      db.exec('UPDATE api_providers SET use_full_url = 0 WHERE use_full_url IS NULL');
+    } catch (error) {
+      console.log('api_providers表迁移过程:', error.message);
+    }
+  };
+
+  migrateApiProvidersTable();
 
   // 迁移books表，添加新字段
   const migrateBooksTable = () => {
@@ -290,6 +367,28 @@ const initDatabase = () => {
   };
 
   migrateChaptersTable();
+
+  const migrateVolumesTable = () => {
+    try {
+      const columns = db.prepare("PRAGMA table_info(volumes)").all();
+      const columnNames = columns.map(col => col.name);
+
+      const newColumns = [
+        { name: 'parent_id', sql: 'ALTER TABLE volumes ADD COLUMN parent_id INTEGER' }
+      ];
+
+      for (const col of newColumns) {
+        if (!columnNames.includes(col.name)) {
+          db.exec(col.sql);
+          console.log(`已添加 volumes 表字段: ${col.name}`);
+        }
+      }
+    } catch (error) {
+      console.log('volumes 表迁移过程:', error.message);
+    }
+  };
+
+  migrateVolumesTable();
 
   // 迁移prompts表，添加fields字段
   const migratePromptsTable = () => {
@@ -401,10 +500,18 @@ const initDatabase = () => {
       conversation_id INTEGER NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
+      display_content TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     )
   `);
+
+  // 兼容旧数据：为已有表添加 display_content 列（如果不存在）
+  try {
+    db.exec(`ALTER TABLE conversation_messages ADD COLUMN display_content TEXT DEFAULT NULL`);
+  } catch (e) {
+    // 列已存在则忽略
+  }
 
   // 生成器表
   db.exec(`
@@ -525,9 +632,17 @@ const initDatabase = () => {
       entity_count INTEGER DEFAULT 0,
       relation_count INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
     )
   `);
+
+  // 兼容旧数据库：尝试添加 updated_at 列（忽略所有错误）
+  try {
+    db.exec("ALTER TABLE graph_versions ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+  } catch (e) {
+    // 列已存在或添加失败，不影响服务启动
+  }
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_graph_entities_book ON graph_entities(book_id)
@@ -543,6 +658,59 @@ const initDatabase = () => {
   `);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_graph_versions_book ON graph_versions(book_id)
+  `);
+
+  // 词条分类表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS entry_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'other',
+      icon TEXT DEFAULT 'Document',
+      color TEXT DEFAULT '#409EFF',
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // 词条表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      book_id INTEGER,
+      category_id INTEGER NOT NULL,
+      category_type TEXT NOT NULL DEFAULT 'other',
+      name TEXT NOT NULL,
+      avatar TEXT,
+      tags TEXT DEFAULT '[]',
+      appearance TEXT DEFAULT '',
+      background TEXT DEFAULT '',
+      personality TEXT,
+      relationships TEXT,
+      custom_fields TEXT DEFAULT '{}',
+      description TEXT DEFAULT '',
+      is_public INTEGER DEFAULT 0,
+      creator_name TEXT,
+      creator_avatar TEXT,
+      use_count INTEGER DEFAULT 0,
+      like_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+      FOREIGN KEY (category_id) REFERENCES entry_categories(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 词条索引
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_entries_book ON entries(book_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_entries_category ON entries(category_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_entries_category_type ON entries(category_type)
   `);
 
   // 迁移：为 graph_entities 和 graph_relations 添加 version_id 字段

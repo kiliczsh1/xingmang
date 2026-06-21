@@ -43,6 +43,7 @@ const volumeRoutes = require('./routes/volumes');
 const experienceShareRoutes = require('./routes/experienceShares');
 const workflowRoutes = require('./routes/workflows');
 const knowledgeGraphRoutes = require('./routes/knowledgeGraph');
+const entryRoutes = require('./routes/entries');
 
 const app = express();
 const PORT = Number(process.env.PORT) || (isPortablePackage() ? 3014 : 3000);
@@ -76,6 +77,7 @@ app.use('/api/volumes', volumeRoutes);
 app.use('/api/experience-shares', experienceShareRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/knowledge-graph', knowledgeGraphRoutes);
+app.use('/api/entries', entryRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: '服务运行正常' });

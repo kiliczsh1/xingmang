@@ -6,6 +6,8 @@ const db = require('../database/db');
 const {
   parseJsonSafely,
   buildAuthHeaders,
+  buildApiUrl,
+  buildRequestBody,
   buildRequestConfig,
   readResponsePayload,
   requestJson,
@@ -14,6 +16,8 @@ const {
   recordUsage,
   getModelConfig
 } = require('./apiHelpers');
+
+const FANQIE_RANK_URL = 'https://fanqienovel.com/rank';
 
 function createRequestError(message, details = {}) {
   const error = new Error(message);
@@ -158,6 +162,410 @@ function stripMarkdownCodeFence(text) {
   return text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
 }
 
+function decodeHtmlEntities(text) {
+  return String(text || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+function stripHtmlTags(text) {
+  return decodeHtmlEntities(String(text || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+function normalizeFanqieUrl(url) {
+  const value = String(url || '').trim();
+  if (!value) return '';
+  if (value.startsWith('//')) return `https:${value}`;
+  if (value.startsWith('/')) return `https://fanqienovel.com${value}`;
+  return value;
+}
+
+async function fetchPageHtml(url) {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response.text();
+}
+
+function parseRankCategoriesFromHtml(html) {
+  const groupRegex = /<div tabindex="0" aria-expanded="false" class="arco-menu-inline-header"><span><span>([^<]+)<\/span><\/span>[\s\S]*?<div class="arco-menu-inline-content"[^>]*>([\s\S]*?)<\/div><\/div>/g;
+  const itemRegex = /<a level="2" href="([^"]+)">([^<]+)<\/a>/g;
+  const groups = [];
+  let groupMatch;
+
+  while ((groupMatch = groupRegex.exec(html)) !== null) {
+    const label = stripHtmlTags(groupMatch[1]);
+    const content = groupMatch[2];
+    const categories = [];
+    let itemMatch;
+
+    while ((itemMatch = itemRegex.exec(content)) !== null) {
+      const path = itemMatch[1];
+      const id = path.split('_').pop() || path;
+      categories.push({
+        id,
+        label: stripHtmlTags(itemMatch[2]),
+        path,
+        fullUrl: normalizeFanqieUrl(path)
+      });
+    }
+
+    if (label && categories.length > 0) {
+      groups.push({
+        key: `group_${groups.length + 1}`,
+        label,
+        categories
+      });
+    }
+  }
+
+  return groups;
+}
+
+function parseRankBooksFromHtml(html) {
+  const itemRegex = /<div class="rank-book-item">([\s\S]*?)<\/div><\/div>(?=<div class="rank-book-item">|<\/div><\/div><\/div><\/div><\/div>)/g;
+  const rankRegex = /<div class="book-item-index"><h1>(\d+)<\/h1>/;
+  const coverRegex = /<img class="book-cover-img\s*" src="([^"]+)" alt="([^"]*)"\/>/;
+  const titleRegex = /<div class="title"><a href="([^"]+)"[^>]*>([^<]+)<\/a><\/div>/;
+  const authorRegex = /<div class="author">[\s\S]*?<span[^>]*>([^<]+)<\/span>/;
+  const books = [];
+  let match;
+
+  while ((match = itemRegex.exec(html)) !== null) {
+    const block = match[1];
+    const rank = Number(block.match(rankRegex)?.[1] || 0);
+    const coverMatch = block.match(coverRegex);
+    const titleMatch = block.match(titleRegex);
+    const authorMatch = block.match(authorRegex);
+    const coverUrl = normalizeFanqieUrl(coverMatch?.[1] || '');
+
+    if (!coverUrl) {
+      continue;
+    }
+
+    books.push({
+      rank,
+      title: stripHtmlTags(titleMatch?.[2] || coverMatch?.[2] || ''),
+      author: stripHtmlTags(authorMatch?.[1] || ''),
+      coverUrl,
+      bookPath: titleMatch?.[1] || ''
+    });
+  }
+
+  return books;
+}
+
+function extractBookDetailMetadata(html) {
+  const imageMatch = html.match(/"image":\s*\[\s*"([^"]+)"\s*\]/);
+  const titleMatch = html.match(/<div class="info-name"><h1>([^<]+)<\/h1><\/div>/);
+  const authorMatch = html.match(/<span class="author-name-text">([^<]+)<\/span>/);
+
+  return {
+    coverUrl: normalizeFanqieUrl(imageMatch?.[1] || ''),
+    title: stripHtmlTags(titleMatch?.[1] || ''),
+    author: stripHtmlTags(authorMatch?.[1] || '')
+  };
+}
+
+function isPlaceholderCover(url) {
+  return /\/novel-static\//i.test(String(url || ''));
+}
+
+async function enrichRankBooks(books) {
+  return Promise.all(
+    books.map(async (book) => {
+      if (!book.bookPath) {
+        return book;
+      }
+
+      try {
+        const detailHtml = await fetchPageHtml(normalizeFanqieUrl(book.bookPath));
+        const detail = extractBookDetailMetadata(detailHtml);
+        return {
+          ...book,
+          coverUrl: detail.coverUrl || book.coverUrl,
+          title: detail.title || book.title,
+          author: detail.author || book.author
+        };
+      } catch (error) {
+        return book;
+      }
+    })
+  );
+}
+
+function walkJson(value, visitor) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const result = walkJson(item, visitor);
+      if (result) return result;
+    }
+    return '';
+  }
+
+  if (!value || typeof value !== 'object') {
+    return '';
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    const result = visitor(key, child);
+    if (result) return result;
+    const nested = walkJson(child, visitor);
+    if (nested) return nested;
+  }
+
+  return '';
+}
+
+function extractImageResult(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+
+  const directUrl = walkJson(payload, (key, value) => {
+    if (
+      ['url', 'image_url', 'fileUri', 'file_uri'].includes(key)
+      && typeof value === 'string'
+      && value.trim()
+    ) {
+      return value.trim();
+    }
+    return '';
+  });
+
+  if (directUrl) {
+    return directUrl;
+  }
+
+  const base64Image = walkJson(payload, (key, value) => {
+    if (
+      ['b64_json', 'image_base64', 'base64', 'b64'].includes(key)
+      && typeof value === 'string'
+      && value.trim()
+    ) {
+      return value.trim();
+    }
+    return '';
+  });
+
+  if (base64Image) {
+    return `data:image/png;base64,${base64Image}`;
+  }
+
+  const textContent = walkJson(payload, (key, value) => {
+    if (typeof value !== 'string' || !value.trim()) {
+      return '';
+    }
+    if (!['content', 'text', 'output_text'].includes(key)) {
+      return '';
+    }
+    return value;
+  });
+
+  if (!textContent) {
+    return '';
+  }
+
+  const imageUrlMatch = textContent.match(/https?:\/\/[^\s)"']+/);
+  if (imageUrlMatch) {
+    return imageUrlMatch[0];
+  }
+
+  try {
+    const parsedContent = JSON.parse(stripMarkdownCodeFence(textContent));
+    return extractImageResult(parsedContent);
+  } catch (error) {
+    return '';
+  }
+}
+
+function summarizeImagePayload(payload) {
+  const summary = {
+    topLevelType: Array.isArray(payload) ? 'array' : typeof payload,
+    topLevelKeys: payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? Object.keys(payload).slice(0, 20)
+      : [],
+    foundKeys: [],
+    foundTextSamples: []
+  };
+
+  const interestingKeys = new Set([
+    'url',
+    'image_url',
+    'fileUri',
+    'file_uri',
+    'b64_json',
+    'image_base64',
+    'base64',
+    'b64',
+    'content',
+    'text',
+    'output_text'
+  ]);
+
+  walkJson(payload, (key, value) => {
+    if (!interestingKeys.has(key)) {
+      return '';
+    }
+    if (!summary.foundKeys.includes(key)) {
+      summary.foundKeys.push(key);
+    }
+    if (
+      typeof value === 'string'
+      && value.trim()
+      && ['content', 'text', 'output_text'].includes(key)
+      && summary.foundTextSamples.length < 3
+    ) {
+      summary.foundTextSamples.push(value.trim().slice(0, 200));
+    }
+    return '';
+  });
+
+  return summary;
+}
+
+function buildImageRequestCandidates(apiUrl, requestBody, prompt) {
+  const baseUrl = String(apiUrl || '').trim();
+  const normalizedPrompt = String(prompt || '').trim();
+  const defaultSize = requestBody.size || '600x800';
+  const referenceImages = Array.isArray(requestBody.reference_images) ? requestBody.reference_images : [];
+  const candidates = [];
+
+  const addCandidate = (url, body, label) => {
+    if (!url) return;
+    if (candidates.some(candidate => candidate.url === url && JSON.stringify(candidate.body) === JSON.stringify(body))) {
+      return;
+    }
+    candidates.push({ url, body, label });
+  };
+
+  addCandidate(baseUrl, requestBody, 'original');
+
+  if (/\/chat\/completions\/?$/i.test(baseUrl)) {
+    addCandidate(
+      baseUrl.replace(/\/chat\/completions\/?$/i, '/images/generations'),
+      {
+        model: requestBody.model,
+        prompt: normalizedPrompt,
+        n: 1,
+        size: defaultSize,
+        image: referenceImages[0]?.data_base64
+      },
+      'images-from-chat-endpoint'
+    );
+
+    addCandidate(
+      baseUrl,
+      {
+        model: requestBody.model,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: normalizedPrompt },
+            ...referenceImages.map((image) => ({
+              type: 'image_url',
+              image_url: {
+                url: `data:${image.mime_type || 'image/png'};base64,${image.data_base64}`
+              }
+            }))
+          ]
+        }],
+        modalities: ['text', 'image']
+      },
+      'chat-modalities'
+    );
+  }
+
+  if (/\/images\/generations\/?$/i.test(baseUrl)) {
+    addCandidate(
+      baseUrl,
+      {
+        model: requestBody.model,
+        prompt: normalizedPrompt,
+        n: 1,
+        size: defaultSize,
+        image: referenceImages[0]?.data_base64
+      },
+      'images-prompt'
+    );
+
+    addCandidate(
+      baseUrl.replace(/\/images\/generations\/?$/i, '/chat/completions'),
+      {
+        model: requestBody.model,
+        messages: referenceImages.length > 0
+          ? [{
+              role: 'user',
+              content: [
+                { type: 'text', text: normalizedPrompt },
+                ...referenceImages.map((image) => ({
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${image.mime_type || 'image/png'};base64,${image.data_base64}`
+                  }
+                }))
+              ]
+            }]
+          : requestBody.messages,
+        n: 1,
+        size: defaultSize,
+        quality: requestBody.quality,
+        style: requestBody.style
+      },
+      'chat-from-images-endpoint'
+    );
+  }
+
+  return candidates;
+}
+
+async function requestImageWithFallback(config, requestBody, prompt) {
+  const candidates = buildImageRequestCandidates(config.api_url, requestBody, prompt);
+  let lastError = null;
+  const imageTimeoutMs = 180000;
+
+  for (const candidate of candidates) {
+    try {
+      const response = await requestJson(
+        candidate.url,
+        candidate.body,
+        buildAuthHeaders(config.api_key),
+        imageTimeoutMs
+      );
+
+      console.log('==================== Image Generation Response ====================');
+      console.log('Provider URL:', candidate.url);
+      console.log('Model:', config.model);
+      console.log('Attempt:', candidate.label);
+      console.log('Payload summary:', JSON.stringify(summarizeImagePayload(response.data), null, 2));
+      console.log('==================================================================');
+
+      return response;
+    } catch (error) {
+      lastError = error;
+      console.error('==================== Image Generation Attempt Failed ====================');
+      console.error('Attempt:', candidate.label);
+      console.error('Request URL:', candidate.url);
+      console.error('Request Body:', JSON.stringify(candidate.body, null, 2));
+      console.error('Response status:', error.response?.status);
+      console.error('Response status text:', error.response?.statusText);
+      console.error('Response data:', JSON.stringify(error.response?.data ?? null, null, 2));
+      console.error('========================================================================');
+    }
+  }
+
+  throw lastError || new Error('图片生成请求失败');
+}
+
 router.post('/chat', async (req, res) => {
   try {
     const {
@@ -202,16 +610,15 @@ router.post('/chat', async (req, res) => {
       }))
     );
 
-    const requestBody = {
-      model: config.model,
-      messages: chatMessages,
-      temperature: config.temperature,
-      max_tokens: config.max_tokens,
-      stream: true
-    };
+    const apiFormat = config.api_format || 'openai';
+    const useFullUrl = config.use_full_url === 1;
+    const apiUrl = buildApiUrl(config.api_url, apiFormat, useFullUrl);
+    const requestBody = buildRequestBody(config, chatMessages, { stream: true });
 
     console.log('==================== AI Request ====================');
-    console.log('URL:', config.api_url);
+    console.log('URL:', apiUrl);
+    console.log('API Format:', apiFormat);
+    console.log('Use Full URL:', useFullUrl);
     console.log('Model:', config.model);
     console.log('Temperature:', config.temperature);
     console.log('Max Tokens:', config.max_tokens);
@@ -225,9 +632,9 @@ router.post('/chat', async (req, res) => {
 
     try {
       const response = await requestStream(
-        config.api_url,
+        apiUrl,
         requestBody,
-        buildAuthHeaders(config.api_key)
+        buildAuthHeaders(config.api_key, apiFormat)
       );
 
       const streamStatus = await forwardStreamToSse(response, res);
@@ -242,7 +649,8 @@ router.post('/chat', async (req, res) => {
       console.error('==================== AI Request Failed ====================');
       console.error('Error name:', error.name);
       console.error('Error message:', error.message);
-      console.error('Request URL:', config.api_url);
+      console.error('Request URL:', apiUrl);
+      console.error('API Format:', apiFormat);
       console.error('Request Body:', JSON.stringify(requestBody, null, 2));
       console.error('Response status:', error.response?.status);
       console.error('Response status text:', error.response?.statusText);
@@ -290,18 +698,19 @@ router.post('/generate-description', async (req, res) => {
       return res.status(400).json({ success: false, message: '未找到 API 配置' });
     }
 
+    const apiFormat = config.api_format || 'openai';
+    const useFullUrl = config.use_full_url === 1;
+    const apiUrl = buildApiUrl(config.api_url, apiFormat, useFullUrl);
+    const messages = [
+      { role: 'system', content: promptContent },
+      { role: 'user', content: `书名：${title}` }
+    ];
+    const requestBody = buildRequestBody(config, messages, { stream: false });
+
     const response = await requestJson(
-      config.api_url,
-      {
-        model: config.model,
-        messages: [
-          { role: 'system', content: promptContent },
-          { role: 'user', content: `书名：${title}` }
-        ],
-        temperature: config.temperature,
-        max_tokens: config.max_tokens
-      },
-      buildAuthHeaders(config.api_key)
+      apiUrl,
+      requestBody,
+      buildAuthHeaders(config.api_key, apiFormat)
     );
 
     recordUsage(config.id, config.name, config.provider_name);
@@ -375,7 +784,7 @@ router.post('/recognize-characters', async (req, res) => {
           { role: 'user', content: text }
         ],
         temperature: 0.7,
-        max_tokens: config.max_tokens
+        max_tokens: Math.min(Math.max(Number(config.max_tokens) || 2000, 1), 8192)
       },
       buildAuthHeaders(config.api_key)
     );
@@ -402,6 +811,96 @@ router.post('/recognize-characters', async (req, res) => {
       success: false,
       message: getErrorMessage(error)
     });
+  }
+});
+
+router.post('/generate-image', async (req, res) => {
+  try {
+    const { messages, configId, size, quality, style, reference_images } = req.body;
+
+    let prompt = '';
+    if (messages && Array.isArray(messages)) {
+      prompt = messages.map(m => m.content).join('\n');
+    }
+
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: '请输入图片描述提示词'
+      });
+    }
+
+    const config = getModelConfig(configId);
+    if (!config) {
+      return res.status(400).json({
+        success: false,
+        message: '未找到 API 配置'
+      });
+    }
+
+    const requestBody = {
+      model: config.model,
+      messages: messages,
+      n: 1,
+      size: size || '600x800',
+      quality: quality || 'standard',
+      style: style || 'vivid',
+      reference_images: Array.isArray(reference_images) ? reference_images : []
+    };
+
+    const response = await requestImageWithFallback(config, requestBody, prompt);
+
+    recordUsage(config.id, config.name, config.provider_name);
+
+    const imageUrl = extractImageResult(response.data);
+
+    if (!imageUrl) {
+      return res.status(502).json({
+        success: false,
+        message: '图片接口返回成功，但未找到可显示的图片地址或 base64 数据'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { url: imageUrl }
+    });
+  } catch (error) {
+    console.error('Generate image failed:', error.message);
+    console.error('Generate image response status:', error.response?.status);
+    console.error('Generate image response data:', JSON.stringify(error.response?.data ?? null, null, 2));
+    res.status(500).json({
+      success: false,
+      message: getErrorMessage(error)
+    });
+  }
+});
+
+router.get('/rank-reference/categories', async (req, res) => {
+  try {
+    const html = await fetchPageHtml(FANQIE_RANK_URL);
+    const groups = parseRankCategoriesFromHtml(html);
+    res.json({ success: true, data: groups });
+  } catch (error) {
+    res.status(500).json({ success: false, message: getErrorMessage(error, '获取排行榜分类失败') });
+  }
+});
+
+router.get('/rank-reference/books', async (req, res) => {
+  try {
+    const requestedPath = String(req.query.path || '').trim();
+    if (!/^\/rank\/[0-9_]+$/.test(requestedPath)) {
+      return res.status(400).json({ success: false, message: '无效的排行榜路径' });
+    }
+    const html = await fetchPageHtml(normalizeFanqieUrl(requestedPath));
+    const parsedBooks = parseRankBooksFromHtml(html);
+    const needDetailEnrichment = parsedBooks.some((book) => isPlaceholderCover(book.coverUrl));
+    const books = needDetailEnrichment
+      ? await enrichRankBooks(parsedBooks)
+      : parsedBooks;
+    res.json({ success: true, data: books });
+  } catch (error) {
+    res.status(500).json({ success: false, message: getErrorMessage(error, '获取排行榜封面失败') });
   }
 });
 

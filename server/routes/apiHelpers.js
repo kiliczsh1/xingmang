@@ -12,10 +12,75 @@ function parseJsonSafely(value) {
   }
 }
 
-function buildAuthHeaders(apiKey) {
-  return {
-    Authorization: `Bearer ${apiKey}`,
+function buildAuthHeaders(apiKey, apiFormat = 'openai') {
+  const headers = {
     'Content-Type': 'application/json'
+  };
+
+  if (apiFormat === 'anthropic' || apiFormat === 'anthropic_compat' || apiFormat === 'claude') {
+    headers['x-api-key'] = apiKey;
+    if (apiFormat === 'anthropic' || apiFormat === 'claude') {
+      headers['anthropic-version'] = '2023-06-01';
+    }
+  } else if (apiFormat === 'gemini') {
+    headers['x-goog-api-key'] = apiKey;
+  } else {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  return headers;
+}
+
+function buildApiUrl(baseUrl, apiFormat = 'openai', useFullUrl = false) {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  
+  if (useFullUrl) {
+    return trimmed;
+  }
+
+  if (apiFormat === 'anthropic' || apiFormat === 'claude') {
+    if (trimmed.endsWith('/v1/messages')) return trimmed;
+    return `${trimmed}/v1/messages`;
+  }
+
+  if (apiFormat === 'openai' || apiFormat === 'anthropic_compat' || apiFormat === 'gemini') {
+    if (trimmed.endsWith('/chat/completions')) return trimmed;
+    if (trimmed.endsWith('/v1')) return `${trimmed}/chat/completions`;
+    return `${trimmed}/v1/chat/completions`;
+  }
+
+  return trimmed;
+}
+
+function buildRequestBody(config, messages, options = {}) {
+  const { stream = true, maxTokens } = options;
+  const apiFormat = config.api_format || 'openai';
+
+  if (apiFormat === 'anthropic' || apiFormat === 'claude') {
+    const systemMessage = messages.find(m => m.role === 'system');
+    const userMessages = messages.filter(m => m.role !== 'system');
+
+    return {
+      model: config.model,
+      max_tokens: maxTokens || Math.min(Math.max(Number(config.max_tokens) || 2000, 1), 8192),
+      system: systemMessage?.content || '',
+      messages: userMessages.map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content
+      })),
+      stream
+    };
+  }
+
+  // openai, anthropic_compat, gemini 都使用 OpenAI 格式的请求体
+  return {
+    model: config.model,
+    messages,
+    temperature: config.temperature,
+    max_tokens: maxTokens || Math.min(Math.max(Number(config.max_tokens) || 2000, 1), 8192),
+    top_p: config.top_p ?? 0.9,
+    frequency_penalty: config.frequency_penalty ?? 0.0,
+    stream
   };
 }
 
@@ -37,14 +102,21 @@ async function readResponsePayload(response) {
   return parseJsonSafely(rawText);
 }
 
-async function requestJson(url, body, headers) {
+async function requestJson(url, body, headers, timeoutMs = 120000) {
   const config = buildRequestConfig(url, body, headers);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  config.signal = controller.signal;
+  
   let response;
 
   try {
     response = await fetch(url, config);
+    clearTimeout(timeoutId);
   } catch (error) {
-    const err = new Error(error.message);
+    clearTimeout(timeoutId);
+    const err = new Error(error.name === 'AbortError' ? '请求超时' : error.message);
     err.request = true;
     err.config = config;
     err.cause = error;
@@ -132,21 +204,24 @@ function getModelConfig(configId) {
       m.*,
       p.api_key,
       p.api_url,
+      p.api_format,
+      p.use_full_url,
       p.name AS provider_name
     FROM api_models m
     LEFT JOIN api_providers p ON m.provider_id = p.id
+    WHERE m.enabled = 1
   `;
 
   if (configId) {
     return db.prepare(`
       ${baseQuery}
-      WHERE m.id = ?
+      AND m.id = ?
     `).get(configId);
   }
 
   return db.prepare(`
     ${baseQuery}
-    WHERE m.is_default = 1
+    AND m.is_default = 1
     LIMIT 1
   `).get();
 }
@@ -154,6 +229,8 @@ function getModelConfig(configId) {
 module.exports = {
   parseJsonSafely,
   buildAuthHeaders,
+  buildApiUrl,
+  buildRequestBody,
   buildRequestConfig,
   readResponsePayload,
   requestJson,

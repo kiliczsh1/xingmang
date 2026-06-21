@@ -16,6 +16,14 @@ const ensureDescriptionColumn = () => {
   if (!hasPassword) {
     db.exec('ALTER TABLE prompts ADD COLUMN password TEXT');
   }
+  const hasCreatorName = columns.some(column => column.name === 'creator_name');
+  if (!hasCreatorName) {
+    db.exec('ALTER TABLE prompts ADD COLUMN creator_name TEXT');
+  }
+  const hasVersion = columns.some(column => column.name === 'version');
+  if (!hasVersion) {
+    db.exec('ALTER TABLE prompts ADD COLUMN version TEXT');
+  }
 };
 
 // 获取所有提示词
@@ -86,9 +94,9 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   try {
     ensureDescriptionColumn();
-    const { name, description, content, category, order_num, fields, subcategories, card_type, password } = req.body;
-    const stmt = db.prepare('INSERT INTO prompts (name, description, content, category, order_num, fields, subcategories, card_type, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    const result = stmt.run(name, description || null, content, category || '默认', order_num || 0, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null, card_type || 'normal', password || null);
+    const { name, description, content, category, order_num, fields, subcategories, card_type, password, creator_name, version } = req.body;
+    const stmt = db.prepare('INSERT INTO prompts (name, description, content, category, order_num, fields, subcategories, card_type, password, creator_name, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const result = stmt.run(name, description || null, content, category || '默认', order_num || 0, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null, card_type || 'normal', password || null, creator_name || null, version || null);
     const prompt = db.prepare('SELECT * FROM prompts WHERE id = ?').get(result.lastInsertRowid);
     // 解析fields字段
     if (prompt.fields) {
@@ -115,9 +123,9 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     ensureDescriptionColumn();
-    const { name, description, content, category, order_num, fields, subcategories, card_type, password } = req.body;
-    const stmt = db.prepare('UPDATE prompts SET name = ?, description = ?, content = ?, category = ?, order_num = ?, fields = ?, subcategories = ?, card_type = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    stmt.run(name, description || null, content, category, order_num, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null, card_type || 'normal', password !== undefined ? password : null, req.params.id);
+    const { name, description, content, category, order_num, fields, subcategories, card_type, password, creator_name, version } = req.body;
+    const stmt = db.prepare('UPDATE prompts SET name = ?, description = ?, content = ?, category = ?, order_num = ?, fields = ?, subcategories = ?, card_type = ?, password = ?, creator_name = ?, version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    stmt.run(name, description || null, content, category, order_num, fields ? JSON.stringify(fields) : null, subcategories ? JSON.stringify(subcategories) : null, card_type || 'normal', password !== undefined ? password : null, creator_name !== undefined ? creator_name : null, version !== undefined ? version : null, req.params.id);
     const prompt = db.prepare('SELECT * FROM prompts WHERE id = ?').get(req.params.id);
     // 解析fields字段
     if (prompt.fields) {

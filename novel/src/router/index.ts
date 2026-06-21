@@ -23,6 +23,12 @@ const router = createRouter({
           meta: { title: '提示词管理' }
         },
         {
+          path: 'prompts/pack/:name',
+          name: 'PackDetail',
+          component: () => import('@/views/PackDetail.vue'),
+          meta: { title: '卡包详情' }
+        },
+        {
           path: 'prompt-preview',
           name: 'PromptPreview',
           component: () => import('@/views/PromptPreview.vue'),
@@ -32,13 +38,19 @@ const router = createRouter({
           path: 'creative',
           name: 'Creative',
           component: () => import('@/views/Creative.vue'),
-          meta: { title: '创意区' }
+          meta: { title: '抽卡区' }
         },
         {
           path: 'workflow',
           name: 'Workflow',
           component: () => import('@/views/Workflow.vue'),
           meta: { title: '工作流' }
+        },
+        {
+          path: 'wiki-graph',
+          name: 'WikiGraph',
+          component: () => import('@/views/WikiGraph.vue'),
+          meta: { title: 'wiki图谱' }
         },
         {
           path: 'analysis/:bookId',
@@ -119,20 +131,8 @@ const router = createRouter({
           meta: { title: '经验卡片详情' }
         }
       ]
-    },
-    {
-      path: '/book-analysis-prompts',
-      component: FullScreenLayout,
-      children: [
-        {
-          path: '',
-          name: 'BookAnalysisPrompts',
-          component: () => import('@/views/BookAnalysisPrompts.vue'),
-          meta: { title: '拆书库提示词管理' }
-        }
-      ]
     }
-  ],
+  ]
 })
 
 export default router
