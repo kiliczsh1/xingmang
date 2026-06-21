@@ -158,8 +158,8 @@ npm config set registry https://registry.npmmirror.com
 cd XingNovel
 运行install-all
 运行 npm start 命令
-```
 
-与条款
+## 联系方式
 
-与条款
+- 邮箱：3099655664@qq.com
+- 问题反馈：[腾讯文档表单](https://docs.qq.com/form/page/sequence/DTnpNb3pWVUh2Z2tP#/fill-detail)
