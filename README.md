@@ -1,277 +1,165 @@
-# 网文创作辅助系统
+# XingNovel 网文创作辅助系统
 
-> 🎉 经过 60+ 次迭代，专业级网文 AI 辅助创作工具
+> 基于 [星盘写作](https://github.com/nichuanfang/xingpan-write) v0.10 版本基座魔改，现已迭代至 **v0.680**
 
-## 🚀 快速启动
+专业级网文 AI 辅助创作工具，集成 AI 续写、世界观管理、知识图谱、工作流等核心创作能力。
 
-### 方式一：一键启动（推荐 ⭐）
-**从 GitHub 下载后，直接双击运行 `start.bat`**
+## 快速开始
 
-脚本会自动完成：
-- ✅ 检查 Node.js 环境
-- ✅ 自动检测并安装所有依赖（首次运行需要几分钟）
-- ✅ 启动后端服务（端口 3000）
-- ✅ 启动前端服务（端口 5173）
+### 一键启动（推荐）
 
-> 💡 **说明**：GitHub 仓库不包含 `node_modules` 文件夹（体积过大），首次运行时会自动下载安装所有依赖包。
+双击 `start.bat`，脚本自动完成：
 
-### 方式二：快速启动
-如果已经安装过依赖，双击运行 `quick-start.bat` 即可快速启动。
+- 检查 Node.js 环境（要求 v20.19.0+）
+- 自动检测并安装前后端依赖
+- 启动后端服务（端口 3000）和前端服务（端口 5173）
+- 单窗口合并日志输出，关闭窗口即停止所有服务
 
-### 方式三：手动安装依赖并启动
+> 首次运行需要几分钟下载依赖，之后可直接使用 `quick-start.bat` 快速启动。
+
+### 手动启动
+
 ```bash
-# 1. 安装所有依赖（首次使用必须执行）
+# 安装依赖
 npm run install-all
 
-# 2. 启动后端服务
-cd server
-npm start
+# 启动后端（终端 1）
+cd server && npm start
 
-# 3. 启动前端（新开终端）
-cd novel
-npm run dev
+# 启动前端（终端 2）
+cd novel && npm run dev
 ```
 
-### 方式四：分别安装依赖（如遇网络问题）
-```bash
-# 安装根目录依赖
-npm install
+### 访问地址
 
-# 安装后端依赖
-cd server
-npm install
+| 服务    | 地址                  |
+| ------- | --------------------- |
+| 前端界面 | http://localhost:5173 |
+| 后端 API | http://localhost:3000 |
 
-# 安装前端依赖
-cd novel
-npm install
+## 功能概览
+
+### 创作核心
+
+| 功能       | 说明                                           |
+| ---------- | ---------------------------------------------- |
+| 书本管理   | 创建、编辑、删除小说项目，支持卷和章节管理     |
+| AI 续写    | 智能续写，支持流式输出，兼容多家 AI 服务商     |
+| 提示词管理 | 自定义提示词模板，支持卡包分类、预览和测试     |
+| 创意工坊   | 固定模板生成（抽卡），可配置提示词与占位符字段 |
+| 工作流     | 链状多步骤 AI 创作流程，支持工作台独立运行     |
+| 备忘录     | 跨书本共享的创作素材库                         |
+
+### 世界观体系
+
+| 功能         | 说明                                       |
+| ------------ | ------------------------------------------ |
+| WorldBook    | 管理角色、地点、物品、势力等世界观设定      |
+| 词条库       | 统一管理小说中的专有名词和概念             |
+| 知识图谱     | 基于 ECharts 可视化展示元素之间的关系网络   |
+| 角色库       | 专门的角色管理与维护                       |
+| 拆书库       | 对已有书籍进行分析拆解                      |
+
+### 辅助工具
+
+| 功能       | 说明                           |
+| ---------- | ------------------------------ |
+| 经验分享   | 编写和分享个人创作经验         |
+| 对话历史   | 完整的聊天记录管理和搜索回顾   |
+| 消息中心   | 系统通知与消息聚合             |
+| API 配置   | 支持 OpenAI / Claude / 通义千问等 |
+| 暗色主题   | 亮色 / 暗色主题切换            |
+| 个人中心   | 用户信息管理                   |
+
+## 技术栈
+
+```
+前端:  Vue 3.5 + TypeScript 5.9 + Vite 7.1 + Element Plus 2.5 + Pinia 3.0 + Vue Router 4.5
+编辑器: TipTap 3.23（富文本）+ Markdown-it（Markdown 渲染）
+可视化: ECharts 6.0（知识图谱）
+后端:  Node.js + Express 4.18 + better-sqlite3 12.8
+解析:  pdf-parse 2.4 + pdfjs-dist 5.4（PDF 解析）
+数据库: SQLite
 ```
 
-## 📱 访问地址
+## 项目结构
 
-启动成功后，在浏览器访问：
-- **前端界面**: http://localhost:5173
-- **后端 API**: http://localhost:3000
+```
+XingNovel/
+├── novel/                    # 前端 (Vue 3 + Vite)
+│   ├── src/
+│   │   ├── views/            # 页面组件
+│   │   ├── components/       # 通用组件（知识图谱、编辑器、WorldBook 等）
+│   │   ├── router/           # 路由配置
+│   │   ├── stores/           # Pinia 状态管理
+│   │   └── api/              # API 请求封装
+│   └── vite.config.ts
+├── server/                   # 后端 (Express + SQLite)
+│   ├── routes/               # API 路由（17 个业务模块）
+│   ├── database/             # 数据库层
+│   ├── services/             # 业务逻辑
+│   └── index.js              # 入口文件
+├── plugins/                  # 插件系统
+│   └── experience-shares/    # 经验分享插件
+├── start.bat                 # 一键启动脚本
+├── quick-start.bat           # 快速启动（跳过依赖检查）
+└── dev-launcher.js           # 单窗口开发模式启动器
+```
 
-## 🛠️ 功能特性
+## 使用指南
 
-### 📖 创作管理
-- ✅ **书本管理**: 创建、编辑、删除小说项目
-- ✅ **AI 续写**: 智能续写功能，支持流式输出
-- ✅ **提示词管理**: 自定义 AI 提示词模板，支持预览和测试
-- ✅ **备忘录**: 跨书本共享的创作素材库
-- ✅ **创意工坊**: 固定的模板生成，可固定提示词以及匹配占位符字段
-- ✅ **工作流**: 链状工作流，支持多步骤 AI 创作流程
-- ✅ **经验分享**: 用于编写个人经验，方便分享，温故而知新
+### 1. 配置 AI 服务
 
-### 🌍 世界观与设定
-- ✅ **WorldBook（世界观设定本）**: 管理小说世界观、角色、地点、物品等设定
-- ✅ **词条库**: 统一管理小说中的专有名词和概念
-- ✅ **知识图谱**: 可视化展示角色、地点、物品之间的关系网络
+进入「API 配置」页面，添加 AI 服务商的 API Key。支持 OpenAI、Claude、通义千问等多种服务商。
 
-### 💬 交互与通讯
-- ✅ **消息中心**: 集成系统通知、论坛消息等功能
-- ✅ **对话历史**: 完整的聊天记录管理，支持搜索和回顾
-- ✅ **AI 对话**: 实时与 AI 进行创作对话，支持流式输出
+### 2. 创建小说项目
 
-### ⚙️ 系统配置
-- ✅ **API 配置**: 支持多种 AI 服务商（OpenAI、Claude、通义千问等）
-- ✅ **暗色主题**: 支持亮色/暗色主题切换
-- ✅ **个人资料**: 用户信息管理
-
-## 🔧 技术栈
-
-### 前端
-- Vue 3.5.22
-- Element Plus 2.5.1
-- TypeScript 5.9
-- Vite 7.1.7
-- Pinia 3.0.3
-- Vue Router 4.5.1
-- ECharts 6.0（知识图谱可视化）
-
-### 后端
-- Node.js
-- Express 4.18.2
-- better-sqlite3 12.8.0
-- PDF 解析：pdf-parse 2.4.5 + pdfjs-dist 5.4.296
-
-### 数据库
-- SQLite（better-sqlite3）
-
-## 📝 使用说明
-
-### 1. 配置 API 密钥
-首次使用需要配置 AI 服务商的 API 密钥：
-- 进入"API 配置"页面
-- 填写你的 API Key（支持 OpenAI、Claude、通义千问等）
-
-### 2. 创建小说
-- 点击"新建书本"创建你的小说项目
-- 填写书名、作者等基本信息
+在「书本管理」中新建小说，填写书名、作者等信息。
 
 ### 3. 开始创作
-- 在对话界面使用 `user: 你的指令` 格式进行 AI 续写
-- AI 会以 `-> 内容 <-` 格式回复
 
-### 4. 管理世界观设定（WorldBook）
-- 进入"WorldBook"功能模块
-- 添加角色、地点、物品、势力等世界观元素
-- 设置元素的属性、描述和关联关系
-- 在 AI 创作时自动引用相关设定，保持创作一致性
+进入创作页面，使用对话方式与 AI 交互进行续写。
+
+### 4. 管理设定
+
+在 WorldBook 中维护角色、地点、物品等世界观元素，AI 创作时自动引用相关设定保持一致性。
 
 ### 5. 使用知识图谱
-- 点击"知识图谱"查看角色、地点、物品之间的关系网络
-- 支持按书本或全局范围查看
-- 可视化展示元素间的关联，帮助理清复杂设定
 
-### 6. 消息中心
-- 点击消息图标打开消息中心
-- 查看系统通知、论坛消息等
-- 及时获取项目更新和社区动态
+在「wiki 图谱」中查看元素间的关系网络，帮助梳理复杂设定。
 
-### 示例
-```
-user: 主角走进山洞，发现了一个古老的宝箱
+## 常见问题
 
--> 宝箱表面布满了神秘的符文，散发着微弱的蓝光。当你靠近时，符文突然亮起，一股温暖的力量涌入你的体内... <-
+**Q: 启动失败？**
+确保 Node.js 版本 >= v20.19.0，或尝试重新安装依赖：
+好的，请提供您需要翻译的文本。
+运行install-all
+运行install-all
 ```
 
-## ⚠️ 重要提示
-
-### 系统要求
-- **Node.js**: v20.19.0 或更高版本（推荐 v22.x LTS）
-- **npm**: v10.x 或更高版本
-- **操作系统**: Windows 10/11
-
-### 关于依赖安装
-本项目经过 60+ 次迭代，依赖包已更新到最新版本。
-
-**为什么 GitHub 没有 node_modules？**
-- `node_modules` 文件夹体积过大（通常几百 MB）
-- 包含大量二进制文件，不适合版本控制
-- 不同操作系统需要不同的二进制包
-- **最佳实践**：只上传源代码，用户本地安装依赖
-
-**首次运行会自动安装依赖吗？**
-是的！双击 `start.bat` 后会自动：
-1. 检查是否已安装依赖
-2. 如果未安装，自动执行 `npm install`
-3. 安装完成后启动服务
-
-**安装依赖很慢怎么办？**
+好的，请提供您需要翻译的文本。
 使用淘宝镜像加速：
-```bash
+好的，请提供您需要翻译的文本。
 npm config set registry https://registry.npmmirror.com
 ```
 
-## 🆘 常见问题
+**Q: better-sqlite3 安装失败？**
+需要安装 Python 3.x 和 Visual Studio Build Tools（选择"使用 C++ 的桌面开发"）。
 
-### Q1: 启动失败怎么办？
-**解决方案**：
-1. 检查 Node.js 版本：运行 `node --version`，需要 v20.19.0 或更高
-2. 重新安装依赖：
-   ```bash
-   # 删除 node_modules
-   rmdir /s /q node_modules
-   rmdir /s /q server\node_modules
-   rmdir /s /q novel\node_modules
-   
-   # 重新安装
-   npm run install-all
-   ```
-3. 查看错误信息，根据具体错误解决
+**Q: 端口被占用？**
+修改 `server/index.js` 中的 `PORT`（默认 3000）或 `novel/vite.config.ts` 中的 `port`（默认 5173）。
 
-### Q2: 如何停止服务？
-直接关闭启动窗口即可，所有服务会自动停止。
+## 开发参与
 
-### Q3: 端口被占用怎么办？
-**方案一**：修改端口
-- 后端端口：修改 `server/index.js` 中的端口号（默认 3000）
-- 前端端口：修改 `novel/vite.config.ts` 中的端口号（默认 5173）
+欢迎提交 Issue 和 Pull Request。
 
-**方案二**：关闭占用端口的程序
-
-### Q4: 依赖安装失败/卡住？
-**解决方案**：
-1. **使用淘宝镜像**（推荐）：
-   ```bash
-   npm config set registry https://registry.npmmirror.com
-   npm run install-all
-   ```
-
-2. **清除 npm 缓存**：
-   ```bash
-   npm cache clean --force
-   npm run install-all
-   ```
-
-3. **分别安装**：
-   ```bash
-   npm install
-   cd server && npm install
-   cd ../novel && npm install
-   ```
-
-4. **检查网络**：确保网络连接正常
-
-### Q5: better-sqlite3 安装失败？
-better-sqlite3 需要编译原生模块，需要：
-1. 安装 Python（推荐 3.x）
-2. 安装 Visual Studio Build Tools
-   - 下载地址：https://visualstudio.microsoft.com/visual-cpp-build-tools/
-   - 选择"使用 C++ 的桌面开发"
-
-或者使用预编译包：
-```bash
-npm install --build-from-source
-```
-
-### Q6: 前端页面打不开？
-1. 检查后端服务是否启动（访问 http://localhost:3000/api/health）
-2. 检查浏览器控制台是否有错误
-3. 尝试清除浏览器缓存
-
-### Q7: AI 续写没有反应？
-1. 检查是否已配置 API Key
-2. 检查 API Key 是否有效
-3. 查看后端服务日志，确认是否有错误信息
-
-## 📄 许可证
-
-MIT License
-
-## 🌟 开源贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-### 贡献指南
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-### 开发环境搭建
-```bash
-# 克隆仓库
-git clone https://github.com/yourusername/XingNovel.git
-
-# 进入目录
+好的，请提供您需要翻译的文本。
+运行 npm start 命令
 cd XingNovel
-
-# 安装所有依赖
-npm run install-all
-
-# 启动开发服务
-npm start
+运行install-all
+运行 npm start 命令
 ```
 
-## 📞 联系方式
+与条款
 
-如有问题或建议，欢迎通过以下方式联系：
-- 提交 Issue
-- 发送邮件至：[你的邮箱]
-
----
-
-**Made with ❤️ for novel writers**
+与条款
