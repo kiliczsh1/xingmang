@@ -1,14 +1,14 @@
 {
   "name": "novel-creator-server",
-  "version": "1.0.0",
-  "description": "网文创作辅助后端服务",
+  "version": "0.6.4",
+  "description": "星芒创作辅助后端服务",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.8.0",
+    "better-sqlite3": "^11.0.0",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "express": "^4.18.2",

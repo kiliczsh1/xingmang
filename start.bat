@@ -16,7 +16,33 @@ if %errorlevel% neq 0 (
 echo [OK] Node.js is available
 
 echo.
-echo [2/4] Check server dependencies...
+echo [2/4] Check root dependencies...
+if not exist node_modules (
+    echo Installing root dependencies...
+    call npm install
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to install root dependencies
+        pause
+        exit /b 1
+    )
+) else (
+    echo Checking root dependencies...
+    call npm ls --depth=0 >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo Dependencies mismatch, reinstalling...
+        call npm install
+        if %errorlevel% neq 0 (
+            echo [ERROR] Failed to reinstall root dependencies
+            pause
+            exit /b 1
+        )
+    ) else (
+        echo [OK] Root dependencies verified
+    )
+)
+
+echo.
+echo [3/4] Check server dependencies...
 cd server
 if not exist node_modules (
     echo Installing server dependencies...
@@ -27,12 +53,24 @@ if not exist node_modules (
         exit /b 1
     )
 ) else (
-    echo [OK] Server dependencies already installed
+    echo Checking server dependencies...
+    call npm ls --depth=0 >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo Dependencies mismatch, reinstalling...
+        call npm install
+        if %errorlevel% neq 0 (
+            echo [ERROR] Failed to reinstall server dependencies
+            pause
+            exit /b 1
+        )
+    ) else (
+        echo [OK] Server dependencies verified
+    )
 )
 cd ..
 
 echo.
-echo [3/4] Check web dependencies...
+echo [4/4] Check web dependencies...
 cd novel
 if not exist node_modules (
     echo Installing web dependencies...
@@ -43,7 +81,20 @@ if not exist node_modules (
         exit /b 1
     )
 ) else (
-    echo [OK] Web dependencies already installed
+    echo Checking web dependencies...
+    call npm ls --depth=0 >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo Dependencies mismatch, reinstalling...
+        call npm install
+        if %errorlevel% neq 0 (
+            echo [ERROR] Failed to reinstall web dependencies
+            cd ..
+            pause
+            exit /b 1
+        )
+    ) else (
+        echo [OK] Web dependencies verified
+    )
 )
 cd ..
 
