@@ -1,6 +1,26 @@
-# 网文创作辅助系统
+# 星芒小说（XingNovel）
 
 > 🎉 经过 60+ 次迭代，专业级网文 AI 辅助创作工具
+
+## 📌 版本更新
+
+### v-0.6.9.0 (2026-07-26)
+
+**🎨 UI/UX 优化**
+- ✨ 完成角色库弹窗UI优化，改善暗色主题适配
+- ✨ 优化角色库弹窗内部比例布局，提升用户体验
+- ✨ 实现完整的暗色主题支持
+
+**🔧 功能增强**
+- 🚀 重构 ChatPanel 组件，实现插件化架构
+- 🚀 添加 ExperienceShares 功能模块，支持经验分享
+- 🚀 完善 Write.vue 写作界面功能
+- 🚀 新增世界书注入插件、正则过滤插件等
+
+**🏗️ 架构优化**
+- 📦 组件拆分解耦，提升代码可维护性
+- 📦 优化项目结构，增强模块化设计
+- 📦 改进插件系统架构
 
 ## 🚀 快速启动
 
@@ -254,7 +274,7 @@ MIT License
 ### 开发环境搭建
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/XingNovel.git
+git clone https://github.com/kiliczsh1/xingmang.git
 
 # 进入目录
 cd XingNovel
@@ -269,8 +289,12 @@ npm start
 ## 📞 联系方式
 
 如有问题或建议，欢迎通过以下方式联系：
-- 提交 Issue
-- 发送邮件至：[你的邮箱]
+- 📝 提交 Issue：https://github.com/kiliczsh1/xingmang/issues
+- 💬 查看 GitHub 仓库：https://github.com/kiliczsh1/xingmang
+
+## 🙏 致谢
+
+感谢所有为星芒小说项目做出贡献的开发者和用户！
 
 ---
 
