@@ -1,0 +1,37 @@
+appId: com.xingnovel.app
+productName: XingNovel
+copyright: Copyright © 2024 XingNovel Team
+directories:
+  output: install-package
+  buildResources: build
+files:
+  - electron-main.js
+  - novel/dist/**/*
+  - server/**/*
+  - package.json
+extraResources:
+  - from: server
+    to: app.asar.unpacked/server
+    filter:
+      - "**/*"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: novel/public/favicon.ico
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: novel/public/favicon.ico
+  uninstallerIcon: novel/public/favicon.ico
+  installerHeaderIcon: novel/public/favicon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: XingNovel
+portable:
+  artifactName: "${productName}-Portable-${version}.exe"

@@ -1,0 +1,39 @@
+{
+  "name": "experience-shares",
+  "version": "1.0.0",
+  "description": "Reusable XingNovel experience-sharing module with Vue pages, Express route, and migration assets.",
+  "author": {
+    "name": "XingNovel Team",
+    "email": "",
+    "url": ""
+  },
+  "homepage": "",
+  "repository": "",
+  "license": "MIT",
+  "keywords": [
+    "vue",
+    "express",
+    "experience-shares",
+    "pdf-import"
+  ],
+  "interface": {
+    "displayName": "经验分享插件包",
+    "shortDescription": "封装经验分享列表、详情、编辑和 PDF 导入能力。",
+    "longDescription": "将 XingNovel 的经验分享板块整理为可迁移插件包，包含前端页面、依赖组件、后端路由和数据库迁移文件，方便接入其他 Vue + Express 项目。",
+    "developerName": "XingNovel Team",
+    "category": "Content",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "",
+    "privacyPolicyURL": "",
+    "termsOfServiceURL": "",
+    "defaultPrompt": [
+      "集成经验分享列表与详情页",
+      "挂载经验分享后端路由",
+      "启用 PDF 导入经验卡片"
+    ],
+    "brandColor": "#08c6be"
+  }
+}

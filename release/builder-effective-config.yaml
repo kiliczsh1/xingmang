@@ -1,0 +1,26 @@
+directories:
+  output: release
+  buildResources: build
+appId: com.xingnovel.app
+productName: XingNovel
+files:
+  - filter:
+      - electron-main.js
+      - preload.js
+      - server/**/*
+      - novel/dist/**/*
+      - package.json
+asar: true
+asarUnpack:
+  - '**/server/**/*'
+  - '**/server/database/*.db'
+npmRebuild: false
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  verifyUpdateCodeSignature: false
+portable:
+  artifactName: ${productName}-${version}-portable.exe
+electronVersion: 30.5.1

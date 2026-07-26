@@ -1,0 +1,80 @@
+# 依赖目录
+node_modules/
+install-package/node_modules/
+novel/node_modules/
+server/node_modules/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+server/database/*.db
+server/database/*.sqlite
+server/database/*.sqlite3
+
+# 上传文件
+server/uploads/
+
+# 日志文件
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 构建输出
+dist/
+build/
+*.tsbuildinfo
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# 包管理器锁文件（可选，根据项目需求）
+# package-lock.json
+# yarn.lock
+
+# 安装脚本生成的临时目录
+install-package/
+
+# 私人小说数据
+data/
+
+# 临时文件
+*.tmp
+temp_*.txt
+temp_*.html
+
+# 私密文档
+说明文档.txt
+星芒v-*.txt
+参考*.json
+server/pua_map_check.txt
+
+# 无关项目
+GraphRAG-Example-master/
+GraphRAG-Example-master.zip
+andrej-karpathy-skills-main/
+封面生成代码/
+xiajiao/
+
+# Python 缓存
+__pycache__/
+
+# 图片资产
+6530f5067a0f5ac79d569a4bf23b03e7.png

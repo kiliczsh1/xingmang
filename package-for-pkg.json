@@ -1,0 +1,27 @@
+{
+  "name": "xingnovel",
+  "version": "1.0.0",
+  "description": "网文创作辅助系统",
+  "main": "server/index.js",
+  "bin": "server/index.js",
+  "pkg": {
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "install-package",
+    "assets": [
+      "novel/dist/**/*"
+    ]
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "cd novel && npm run build",
+    "pkg": "pkg . --config package-for-pkg.json"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "better-sqlite3": "^9.2.2"
+  }
+}

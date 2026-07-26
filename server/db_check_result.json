@@ -1,0 +1,65 @@
+[
+  {
+    "name": "books"
+  },
+  {
+    "name": "sqlite_sequence"
+  },
+  {
+    "name": "chapters"
+  },
+  {
+    "name": "prompts"
+  },
+  {
+    "name": "memos"
+  },
+  {
+    "name": "api_providers"
+  },
+  {
+    "name": "api_models"
+  },
+  {
+    "name": "conversations"
+  },
+  {
+    "name": "conversation_messages"
+  },
+  {
+    "name": "generators"
+  },
+  {
+    "name": "characters"
+  },
+  {
+    "name": "usage_stats"
+  },
+  {
+    "name": "volumes"
+  },
+  {
+    "name": "experience_shares"
+  },
+  {
+    "name": "workflows"
+  },
+  {
+    "name": "workflow_node_library"
+  },
+  {
+    "name": "graph_entities"
+  },
+  {
+    "name": "graph_relations"
+  },
+  {
+    "name": "graph_versions"
+  },
+  {
+    "name": "entry_categories"
+  },
+  {
+    "name": "entries"
+  }
+]

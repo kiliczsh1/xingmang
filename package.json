@@ -1,0 +1,30 @@
+{
+  "name": "xingnovel",
+  "version": "1.0.0",
+  "description": "网文创作辅助系统",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "cd novel && npm run dev",
+    "build": "cd novel && npm run build",
+    "install-all": "npm install && cd novel && npm install",
+    "setup": "npm run install-all"
+  },
+  "keywords": [
+    "novel",
+    "ai",
+    "writing",
+    "assistant"
+  ],
+  "author": "XingNovel Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
