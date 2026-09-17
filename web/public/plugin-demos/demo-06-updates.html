@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<!--
+  更新中心 Demo
+  心理原则: 一致性(所有更新条目结构一致) + 减少重复决策(单主操作承载批量"全部更新")
+  落地方式: 摘要条(可用更新数) → 更新列表(当前版本 → 新版本 + 变更摘要折叠) → 底部单主操作"全部更新" → 完成后状态变"已是最新"
+  设计预算: 常驻可点 = 全部更新 + 3 单条更新 + 返回 = 5 ≤ 9(B1); 0 弹层(B2)
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 07 · 更新中心</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#ffffff;--line:#e6eaf0;--ink:#1a2230;--ink2:#5a6a80;--ink3:#98a5b8;
+  --accent:#2563eb;--accent-soft:#eef4ff;--success:#16a34a;--warn:#d97706;--shadow:0 1px 2px rgba(30,36,51,.04),0 10px 30px rgba(30,36,51,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0d1117;--card:#161b22;--line:#21262d;--ink:#e6edf3;--ink2:#8b98a8;--ink3:#5f6b7a;--accent:#58a6ff;--accent-soft:#12253f;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);transition:background .3s,color .3s}
+.wrap{max-width:720px;margin:0 auto;padding:28px 24px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.top h1{font-size:22px;font-weight:800}
+.top .crumb{font-size:12px;color:var(--ink3)}.crumb a{color:var(--accent);text-decoration:none}
+
+/* 摘要条 */
+.sumbar{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 18px;margin-bottom:16px;font-size:13px;color:var(--ink2);box-shadow:var(--shadow)}
+.sumbar .badge{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:15px}
+.sumbar b{color:var(--ink)}
+.sumbar .updated{margin-left:auto;font-weight:700;color:var(--success);display:none}
+
+/* 更新列表 */
+.up{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);transition:opacity .3s}
+.up.done{opacity:.5}
+.up-head{display:flex;align-items:center;gap:12px;padding:14px 18px}
+.up .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+.up .nm{font-size:14px;font-weight:700}
+.up .ver{font-size:11.5px;color:var(--ink3);font-family:monospace;margin-top:2px}
+.ver-arrow{color:var(--accent);font-weight:700;margin:0 6px}
+.up .size{margin-left:auto;font-size:11.5px;color:var(--ink3);flex-shrink:0}
+.up button{border:0;background:var(--accent);color:#fff;border-radius:8px;padding:7px 15px;font-size:12.5px;font-weight:700;cursor:pointer;flex-shrink:0}
+.up button:hover{filter:brightness(.9)}
+.up button:disabled{background:var(--line);color:var(--ink3);cursor:default}
+.up.done button{display:none}
+.up .done-tag{display:none;margin-left:auto;font-size:12px;font-weight:700;color:var(--success)}
+.up.done .done-tag{display:inline}
+/* changelog 折叠 */
+details summary{cursor:pointer;font-size:11.5px;color:var(--ink3);padding:0 18px 12px 68px;list-style:none;user-select:none}
+details summary:hover{color:var(--accent)}
+details[open] summary{margin-top:-6px}
+.up-chg{padding:0 18px 14px 68px;font-size:12.5px;color:var(--ink2);line-height:1.9}
+.up-chg li{margin-left:16px}
+
+/* 底部批量操作 */
+.batch{display:flex;align-items:center;gap:16px;margin-top:16px;padding:16px 18px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.batch .all{flex:1;border:0;background:var(--accent);color:#fff;border-radius:11px;padding:13px 0;font-size:15px;font-weight:700;cursor:pointer;transition:.15s}
+.batch .all:hover{filter:brightness(.92)}
+.batch .all:disabled{background:var(--line);color:var(--ink3);cursor:default}
+.batch .note{font-size:12px;color:var(--ink3)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>更新中心</h1>
+      <div class="crumb"><a href="index.html">← Demo 合集</a></div>
+    </div>
+  </div>
+
+  <div class="sumbar">
+    <span class="badge" id="sumNum">3</span>
+    <span>有 <b>3</b> 个插件可更新</span>
+    <span class="updated" id="updatedTag">✓ 所有插件已是最新</span>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="batch">
+    <button class="all" id="allBtn" onclick="updateAll()">全部更新（3）</button>
+    <span class="note">建议每 2 周更新一次，保持兼容与安全</span>
+  </div>
+</div>
+
+<script>
+const UPS=[
+  {n:"世界书智能匹配",old:"1.0.1",ver:"1.2.0",size:"486 KB",e:"📚",c:"#7c3aed",done:false,chg:["新增角色关系自动识别","优化多关键词命中排序","修复长词条注入截断"]},
+  {n:"提示词注入",old:"1.0.0",ver:"1.1.2",size:"212 KB",e:"💬",c:"#2563eb",done:false,chg:["支持跨书本提示词模板","增加注入位置自定义","性能提升约 30%"]},
+  {n:"正则过滤",old:"0.9.0",ver:"1.0.1",size:"158 KB",e:"🔧",c:"#d97706",done:false,chg:["新增预置规则库","支持规则导入导出","修复暗色主题下规则列表对比度"]}
+];
+function render(){
+  document.getElementById("list").innerHTML=UPS.map((u,i)=>`
+    <div class="up ${u.done?"done":""}" id="up${i}">
+      <div class="up-head">
+        <span class="ico" style="background:${u.c}1a;color:${u.c}">${u.e}</span>
+        <div><div class="nm">${u.n}</div><div class="ver">v<span class="ver-arrow">${u.old} → ${u.ver}</span></div></div>
+        <span class="size">${u.size}</span>
+        <button onclick="update(${i})">更新</button>
+        <span class="done-tag">✓ 已更新</span>
+      </div>
+      <details><summary>查看变更</summary><ul class="up-chg">${u.chg.map(c=>`<li>${c}</li>`).join("")}</ul></details>
+    </div>`).join("");
+  const pending=UPS.filter(u=>!u.done).length;
+  const btn=document.getElementById("allBtn");
+  btn.textContent=pending>0?`全部更新（${pending}）`:"已全部更新";
+  btn.disabled=pending===0;
+  document.getElementById("sumNum").textContent=pending;
+  document.getElementById("updatedTag").style.display=pending===0?"inline":"none";
+}
+function update(i){
+  UPS[i].done=true;
+  render();
+  checkAll();
+}
+function updateAll(){
+  const btn=document.getElementById("allBtn");
+  btn.disabled=true;btn.textContent="正在更新…";
+  let n=0;
+  const t=setInterval(()=>{
+    if(!UPS[n]){clearInterval(t);btn.textContent="已全部更新";checkAll();return;}
+    UPS[n].done=true;
+    render();
+    btn.disabled=true;btn.textContent="正在更新…";
+    n++;
+  },600);
+}
+function checkAll(){
+  const done=UPS.every(u=>u.done);
+  if(done)document.getElementById("updatedTag").style.display="inline";
+}
+render();
+</script>
+</body>
+</html>

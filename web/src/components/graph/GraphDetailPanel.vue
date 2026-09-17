@@ -1,0 +1,583 @@
+<template>
+  <aside v-if="entity" class="graph-detail">
+    <div class="detail-header">
+      <div class="detail-title-row">
+        <span class="detail-name" :title="entity.name">{{ entity.name }}</span>
+        <el-button link size="small" @click="emit('close')">
+          <el-icon><Close /></el-icon>
+        </el-button>
+      </div>
+      <div class="detail-meta">
+        <span class="type-chip" :style="{ background: typeColor(entity.type) }">
+          {{ typeLabel(entity.type) }}
+        </span>
+        <span class="detail-stat">连接 {{ degree }}</span>
+        <span class="detail-stat">关联 {{ neighbors.length }}</span>
+      </div>
+    </div>
+
+    <div class="detail-body">
+      <section class="detail-section">
+        <div class="section-label">邻域聚焦</div>
+        <div class="focus-row">
+          <el-button
+            v-for="depth in FOCUS_DEPTHS"
+            :key="depth"
+            size="small"
+            :type="focusDepth === depth ? 'primary' : 'default'"
+            plain
+            @click="emit('set-focus-depth', depth)"
+          >
+            {{ depth }} 跳
+          </el-button>
+          <el-button
+            size="small"
+            :type="focusDepth === null ? 'primary' : 'default'"
+            plain
+            @click="emit('set-focus-depth', null)"
+          >
+            全图
+          </el-button>
+        </div>
+      </section>
+
+      <section v-if="entity.description" class="detail-section">
+        <div class="section-label">描述</div>
+        <MarkdownRenderer class="detail-desc" :content="entity.description" />
+      </section>
+
+      <section v-if="metadataEntries.length > 0" class="detail-section">
+        <div class="section-label">元数据</div>
+        <div class="meta-table">
+          <div v-for="[key, value] in metadataEntries" :key="key" class="meta-row">
+            <span class="meta-key">{{ key }}</span>
+            <span class="meta-value">{{ value }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="detail-section">
+        <div class="section-label section-label-row">
+          <span>副词条（别名）</span>
+          <el-button
+            v-if="aliases.length > 0"
+            link
+            size="small"
+            type="primary"
+            :loading="merging"
+            @click="unmergeAll"
+          >
+            全部解除
+          </el-button>
+        </div>
+
+        <div v-if="aliases.length === 0" class="detail-empty">
+          暂无副词条。同一实体的重复抽取结果可以合并到这里，图上只保留一个主词条。
+        </div>
+        <div v-else class="chapter-tags">
+          <span
+            v-for="alias in aliases"
+            :key="alias.id"
+            class="chapter-tag"
+            :title="`解除「${alias.name}」的合并`"
+            @click="unmergeOne(alias.id)"
+          >
+            {{ alias.name }} ✕
+          </span>
+        </div>
+
+        <div class="merge-row">
+          <el-select-v2
+            v-model="mergeTargetIds"
+            size="small"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            :options="mergeOptions"
+            placeholder="选择要并入本节点的实体"
+            style="flex: 1"
+          />
+          <el-button
+            size="small"
+            type="primary"
+            plain
+            :loading="merging"
+            :disabled="mergeTargetIds.length === 0"
+            @click="doMerge"
+          >
+            合并到此
+          </el-button>
+        </div>
+      </section>
+
+      <section class="detail-section">
+        <div class="section-label section-label-row">
+          <span>出现章节</span>
+          <el-button v-if="!editingChapters" link size="small" @click="startEditChapters">编辑</el-button>
+          <span v-else class="section-actions">
+            <el-button link size="small" @click="editingChapters = false">取消</el-button>
+            <el-button link size="small" type="primary" :loading="savingChapters" @click="saveChapters">保存</el-button>
+          </span>
+        </div>
+
+        <template v-if="!editingChapters">
+          <div v-if="entityChapterLinks.length === 0" class="detail-empty">
+            暂无章节关联。可用「AI 分析」抽取，或点「编辑」手工关联。
+          </div>
+          <div v-else class="chapter-tags">
+            <button
+              v-for="link in entityChapterLinks"
+              :key="link.id"
+              class="chapter-tag"
+              :class="{ active: store.selectedChapterId === link.id }"
+              :title="`只看这一章：${link.label}`"
+              @click="store.selectChapter(store.selectedChapterId === link.id ? null : link.id)"
+            >
+              {{ link.label }}
+            </button>
+          </div>
+        </template>
+
+        <el-select-v2
+          v-else
+          v-model="draftChapterIds"
+          size="small"
+          multiple
+          filterable
+          collapse-tags
+          collapse-tags-tooltip
+          :options="chapterOptions"
+          placeholder="搜索并选择章节"
+          style="width: 100%"
+        />
+      </section>
+
+      <section class="detail-section">
+        <div class="section-label">关联实体</div>
+        <div v-if="neighbors.length === 0" class="detail-empty">暂无关联关系</div>
+        <div v-else class="neighbor-list">
+          <button
+            v-for="(item, index) in neighbors"
+            :key="`${item.relation.id}-${index}`"
+            class="neighbor-row"
+            :disabled="!item.entity"
+            :title="relationTitle(item.relation)"
+            @click="item.entity && emit('select', item.entity.id)"
+          >
+            <span class="neighbor-dir">{{ item.direction === 'out' ? '→' : '←' }}</span>
+            <span class="neighbor-relation">{{ item.relation.relation_type || '关联' }}</span>
+            <span class="neighbor-name">{{ item.entity?.name || '（已删除）' }}</span>
+            <span class="neighbor-confidence" :title="`置信度 ${item.relation.confidence}`">
+              {{ Math.round((item.relation.confidence ?? 1) * 100) }}%
+            </span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </aside>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { Close } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import type { GraphEntity, GraphRelation } from '@/types'
+import { typeColor, typeLabel } from '@/utils/graphColor'
+import { useKnowledgeGraphStore } from '@/stores/knowledgeGraph'
+
+export interface GraphNeighbor {
+  relation: GraphRelation
+  entity: GraphEntity | null
+  direction: 'out' | 'in'
+}
+
+const props = defineProps<{
+  entity: GraphEntity | null
+  degree: number
+  neighbors: GraphNeighbor[]
+  focusDepth: number | null
+}>()
+
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'select', id: number): void
+  (e: 'set-focus-depth', depth: number | null): void
+}>()
+
+const FOCUS_DEPTHS = [1, 2, 3]
+
+const store = useKnowledgeGraphStore()
+
+const editingChapters = ref(false)
+const savingChapters = ref(false)
+const draftChapterIds = ref<number[]>([])
+
+function chapterLabel(chapterId: number): string {
+  const index = store.chapters.findIndex(c => c.id === chapterId)
+  if (index < 0) return `章节 #${chapterId}`
+  const chapter = store.chapters[index]
+  return chapter.title || `第${index + 1}章`
+}
+
+/** 当前实体关联的章节，点击可直接按该章过滤 */
+const entityChapterLinks = computed(() => {
+  const entity = props.entity
+  if (!entity) return []
+  return store.entityChapterIds(entity.id).map(id => ({ id, label: chapterLabel(id) }))
+})
+
+const chapterOptions = computed(() =>
+  store.chapters.map((chapter, index) => ({
+    label: `${String(index + 1).padStart(4, '0')} ${chapter.title || `第${index + 1}章`}`,
+    value: chapter.id
+  }))
+)
+
+function startEditChapters() {
+  const entity = props.entity
+  if (!entity) return
+  draftChapterIds.value = store.entityChapterIds(entity.id)
+  editingChapters.value = true
+}
+
+async function saveChapters() {
+  const entity = props.entity
+  if (!entity) return
+  savingChapters.value = true
+  try {
+    const ok = await store.setEntityChapters(entity.id, draftChapterIds.value)
+    if (ok) {
+      ElMessage.success('已更新章节关联')
+      editingChapters.value = false
+    } else {
+      ElMessage.error('更新章节关联失败')
+    }
+  } finally {
+    savingChapters.value = false
+  }
+}
+
+// 切换到另一个实体时退出编辑态，避免把上一章的草稿存到新实体上
+watch(
+  () => props.entity?.id,
+  () => {
+    editingChapters.value = false
+    draftChapterIds.value = []
+    mergeTargetIds.value = []
+  }
+)
+
+// ── 实体合并（主词条 / 副词条）───────────────────────────
+const merging = ref(false)
+const mergeTargetIds = ref<number[]>([])
+
+/** 本主词条名下的副词条（别名） */
+const aliases = computed(() => (props.entity ? store.aliasesOf(props.entity.id) : []))
+
+/** 可并入的候选：当前版本的其他主词条（排除自己与自己的副词条） */
+const mergeOptions = computed(() => {
+  const self = props.entity
+  if (!self) return []
+  const own = new Set(aliases.value.map(a => a.id))
+  return store.collapsedEntities
+    .filter(e => e.id !== self.id && !own.has(e.id))
+    .map(e => ({ value: e.id, label: `${e.name}（${typeLabel(e.type)}）` }))
+})
+
+async function doMerge() {
+  const self = props.entity
+  if (!self || mergeTargetIds.value.length === 0) return
+  merging.value = true
+  try {
+    const res = await store.mergeEntities(self.id, [...mergeTargetIds.value])
+    if (res.ok) {
+      ElMessage.success(res.message)
+      mergeTargetIds.value = []
+    } else {
+      ElMessage.error(res.message)
+    }
+  } finally {
+    merging.value = false
+  }
+}
+
+/** 解除单个副词条 */
+async function unmergeOne(aliasId: number) {
+  merging.value = true
+  try {
+    const res = await store.unmergeEntities([aliasId])
+    if (res.ok) ElMessage.success(res.message)
+    else ElMessage.error(res.message)
+  } finally {
+    merging.value = false
+  }
+}
+
+/** 解散整组：传主词条 id */
+async function unmergeAll() {
+  const self = props.entity
+  if (!self) return
+  merging.value = true
+  try {
+    const res = await store.unmergeEntities([self.id])
+    if (res.ok) ElMessage.success(res.message)
+    else ElMessage.error(res.message)
+  } finally {
+    merging.value = false
+  }
+}
+
+/** metadata 已在 API 层解析为对象；只展示标量值，嵌套结构不铺开 */
+const metadataEntries = computed<Array<[string, string]>>(() => {
+  const meta = props.entity?.metadata
+  if (!meta || typeof meta !== 'object') return []
+  return Object.entries(meta)
+    .filter(([, value]) => value !== null && value !== undefined && typeof value !== 'object')
+    .map(([key, value]) => [key, String(value)])
+})
+
+/** 关系的描述、出处与所属章节做成悬浮提示——它们都属于单条关系，不铺在实体面板上 */
+function relationTitle(relation: GraphRelation): string {
+  const parts: string[] = []
+  if (relation.description) parts.push(relation.description)
+  if (relation.evidence) parts.push(`出处：${relation.evidence}`)
+  const chapterIds = store.relationChapterIds(relation.id)
+  if (chapterIds.length > 0) parts.push(`章节：${chapterIds.map(chapterLabel).join('、')}`)
+  return parts.join('\n')
+}
+</script>
+
+<style scoped>
+.graph-detail {
+  /* 现在挂在居中弹窗里：宽度跟随弹窗，不再固定 300px，也不需要左边框 */
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.detail-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.type-chip {
+  padding: 1px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  color: #fff;
+}
+
+.detail-stat {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.detail-section + .detail-section {
+  margin-top: 16px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+}
+
+.section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chapter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chapter-tag {
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  background: transparent;
+  font-size: 11px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.chapter-tag:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+
+.chapter-tag.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.focus-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.merge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.detail-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+  word-break: break-word;
+}
+
+.meta-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-row {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.meta-key {
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+}
+
+.meta-value {
+  color: var(--el-text-color-regular);
+  word-break: break-word;
+}
+
+.detail-empty {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.neighbor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.neighbor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.neighbor-row:hover:not(:disabled) {
+  background: var(--el-fill-color-light);
+}
+
+.neighbor-row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.neighbor-dir {
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+}
+
+.neighbor-relation {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.neighbor-name {
+  color: var(--el-text-color-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neighbor-confidence {
+  color: var(--el-text-color-placeholder);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+:root[data-theme='dark'] .graph-detail {
+  border-left-color: rgba(42, 50, 66, 0.4);
+}
+
+:root[data-theme='dark'] .detail-header {
+  border-bottom-color: rgba(42, 50, 66, 0.4);
+}
+
+:root[data-theme='dark'] .detail-name,
+:root[data-theme='dark'] .neighbor-name {
+  color: #e6edf3;
+}
+
+:root[data-theme='dark'] .neighbor-row:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.1);
+}
+</style>

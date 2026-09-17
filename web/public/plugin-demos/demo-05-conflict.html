@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<!--
+  依赖冲突处理 Demo
+  心理原则: 错误预防与恢复(给用户明确的出路,而非报错死路) + 尼尔森#9 帮助用户识别、诊断并修复错误
+  落地方式: 冲突分级(阻断=红 / 警告=黄) → 每级给明确处置动作(一键修复/忽略并继续) → 修复支持撤销 → 「为什么」可展开
+  设计预算: 常驻可点 = 2 处置按钮 + 1 撤销 = 3 ≤ 9(B1); 0 弹层(B2)
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 06 · 依赖冲突处理</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#ffffff;--line:#e6eaf0;--ink:#1a2230;--ink2:#5a6a80;--ink3:#98a5b8;
+  --accent:#2563eb;--accent-soft:#eef4ff;--success:#16a34a;--warn:#d97706;--warn-bg:#fff7ed;--danger:#dc2626;--danger-bg:#fef2f2;
+  --shadow:0 1px 2px rgba(30,36,51,.04),0 10px 30px rgba(30,36,51,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0d1117;--card:#161b22;--line:#21262d;--ink:#e6edf3;--ink2:#8b98a8;--ink3:#5f6b7a;--accent:#58a6ff;--accent-soft:#12253f;--warn-bg:#2a2115;--danger-bg:#2a1515;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);transition:background .3s,color .3s}
+.wrap{max-width:720px;margin:0 auto;padding:28px 24px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.top h1{font-size:22px;font-weight:800}
+.top .crumb{font-size:12px;color:var(--ink3)}.crumb a{color:var(--accent);text-decoration:none}
+.rescan{border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:9px;padding:8px 15px;font-size:12.5px;cursor:pointer}
+.rescan:hover{border-color:var(--accent);color:var(--accent)}
+
+/* 阻断横幅(错误预防: 先拦住,再给出路) */
+.block-banner{display:flex;gap:14px;align-items:flex-start;background:var(--danger-bg);border:1px solid #fecaca;border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.block-banner .bi{font-size:22px;flex-shrink:0}
+.block-banner h3{font-size:14px;color:var(--danger);margin-bottom:4px}
+.block-banner p{font-size:12.5px;color:var(--ink2);line-height:1.7}
+.block-banner .fix{margin-left:auto;flex-shrink:0;border:0;background:var(--danger);color:#fff;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:700;cursor:pointer;align-self:center}
+.block-banner .fix:hover{filter:brightness(.9)}
+.block-banner.fixed{display:none}
+
+/* 冲突列表 */
+.conflict{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow)}
+.conflict.done{opacity:.55}
+.c-head{display:flex;align-items:center;gap:12px;padding:14px 18px}
+.c-head .lv{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;flex-shrink:0;font-weight:800}
+.lv.err{background:var(--danger-bg);color:var(--danger)}
+.lv.warn{background:var(--warn-bg);color:var(--warn)}
+.c-title{font-size:13.5px;font-weight:700}
+.c-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.c-done{margin-left:auto;font-size:12px;font-weight:700;color:var(--success);flex-shrink:0}
+.c-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
+.c-actions button{border-radius:7px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s}
+.c-actions .fix{border:0;background:var(--accent);color:#fff}
+.c-actions .fix:hover{filter:brightness(.9)}
+.c-actions .ignore{border:1px solid var(--line);background:transparent;color:var(--ink2)}
+.c-actions .ignore:hover{border-color:var(--warn);color:var(--warn)}
+/* 为什么可展开 */
+details .why{padding:0 18px 14px 56px;font-size:12.5px;color:var(--ink2);line-height:1.9}
+details summary{cursor:pointer;font-size:11.5px;color:var(--ink3);padding:0 18px 12px 56px;list-style:none;user-select:none}
+details summary:hover{color:var(--accent)}
+details[open] summary{margin-top:-4px}
+
+/* 撤销条 */
+.undo-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:11px;font-size:13px;display:flex;gap:16px;align-items:center;transition:.3s;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.undo-bar.show{transform:translateX(-50%)}
+.undo-bar button{border:0;background:transparent;color:var(--accent);font-weight:700;cursor:pointer;font-size:13px}
+.undo-bar button:hover{text-decoration:underline}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>依赖冲突</h1>
+      <div class="crumb"><a href="index.html">← Demo 合集</a> · 安装「角色关系图谱」时发现的问题</div>
+    </div>
+    <button class="rescan" onclick="location.reload()">重新检查</button>
+  </div>
+
+  <div class="block-banner" id="blockBanner">
+    <span class="bi">⛔</span>
+    <div>
+      <h3>检测到阻断性冲突：无法完成安装</h3>
+      <p>「角色关系图谱」需要知识图谱 API v2，但当前已安装的「Wiki 图谱扩展」仍在使用 v1 接口。继续安装可能导致图谱数据损坏。</p>
+    </div>
+    <button class="fix" onclick="fixBlocking()">一键解决</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<div class="undo-bar" id="undoBar">
+  <span>已解决问题</span>
+  <button onclick="undo()">撤销</button>
+</div>
+
+<script>
+const CONFLICTS=[
+  {lv:"err",t:"知识图谱 API 版本冲突",s:"角色关系图谱(需 v2) ↔ Wiki 图谱扩展(仍用 v1)",why:"两个插件注册了同一个知识图谱 API 钩子。图谱扩展尚未升级到 v2 接口。一键解决会提示图谱扩展升级到 v2。",fixed:false},
+  {lv:"err",t:"正则规则命名空间冲突",s:"正则过滤 ↔ 敏感词过滤",why:"两个插件都想注册名为「response-clean」的规则集,后者会覆盖前者。一键解决会为敏感词过滤重命名规则集。",fixed:false},
+  {lv:"warn",t:"世界书注入位置重叠",s:"世界书智能匹配 与 章节摘要生成 都将在消息前注入内容",why:"两者同时注入可能导致上下文过长。可忽略此警告继续安装。",fixed:false}
+];
+const state={blocked:true,fixLog:[]};
+function fixBlocking(){
+  document.getElementById("blockBanner").classList.add("fixed");
+  state.blocked=false;
+  pushUndo("已解决阻断性冲突(图谱扩展升级 v2)");
+}
+function fix(idx){
+  if(CONFLICTS[idx].fixed)return;
+  CONFLICTS[idx].fixed=true;
+  render();
+  pushUndo("已解决：「"+CONFLICTS[idx].t+"」");
+}
+function ignore(idx){
+  CONFLICTS[idx].fixed=true; // 忽略=标记为已处理
+  render();
+  pushUndo("已忽略警告：「"+CONFLICTS[idx].t+"」");
+}
+function pushUndo(msg){
+  const bar=document.getElementById("undoBar");
+  bar.querySelector("span").textContent=msg;
+  bar.classList.add("show");
+  // 3 秒后自动收起
+  clearTimeout(pushUndo._t);
+  pushUndo._t=setTimeout(()=>bar.classList.remove("show"),4000);
+}
+function undo(){
+  // 撤销最近一次处置
+  const last=CONFLICTS.slice().reverse().find(c=>c.fixed);
+  if(last)last.fixed=false;
+  if(state.blocked===false&&document.getElementById("blockBanner").classList.contains("fixed")){
+    document.getElementById("blockBanner").classList.remove("fixed");
+    state.blocked=true;
+  }
+  document.getElementById("undoBar").classList.remove("show");
+  render();
+}
+function render(){
+  document.getElementById("list").innerHTML=CONFLICTS.map((c,i)=>`
+    <div class="conflict ${c.fixed?"done":""}">
+      <div class="c-head">
+        <span class="lv ${c.lv}">${c.lv==="err"?"!":"!"}</span>
+        <div><div class="c-title">${c.t}</div><div class="c-sub">${c.s}</div></div>
+        ${c.fixed?`<span class="c-done">✓ 已处理</span>`:`<div class="c-actions">
+          <button class="fix" onclick="fix(${i})">一键解决</button>
+          ${c.lv==="warn"?`<button class="ignore" onclick="ignore(${i})">忽略</button>`:""}
+        </div>`}
+      </div>
+      <details><summary>为什么会出现这个问题？</summary><div class="why">${c.why}</div></details>
+    </div>`).join("");
+  const allDone=CONFLICTS.every(c=>c.fixed);
+  if(allDone&&!state.blocked&&!document.getElementById("blockBanner").classList.contains("fixed")){
+    // 全部处理完时给出完成反馈
+  }
+}
+render();
+</script>
+</body>
+</html>

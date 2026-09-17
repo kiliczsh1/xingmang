@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<!--
+  插件管理台 Demo
+  心理原则: 即时反馈(操作立即可见结果) + 状态可见性(每插件有明确运行状态)
+  落地方式: 开关带 loading→成功/失败反馈 → 启用计数实时更新 → 状态点(运行中/已停用/异常) → 筛选 Tab
+  设计预算: 常驻可点 = 3 Tab + 5 开关 + 1 全开 = 9 ≤ 9(B1); 0 弹层,反馈用行内提示(B2)
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 05 · 插件管理台</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#ffffff;--line:#e6eaf0;--ink:#1a2230;--ink2:#5a6a80;--ink3:#98a5b8;
+  --accent:#2563eb;--accent-soft:#eef4ff;--success:#16a34a;--warn:#d97706;--danger:#dc2626;
+  --shadow:0 1px 2px rgba(30,36,51,.04),0 10px 30px rgba(30,36,51,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0d1117;--card:#161b22;--line:#21262d;--ink:#e6edf3;--ink2:#8b98a8;--ink3:#5f6b7a;--accent:#58a6ff;--accent-soft:#12253f;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);transition:background .3s,color .3s}
+.wrap{max-width:760px;margin:0 auto;padding:28px 24px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.top h1{font-size:22px;font-weight:800}
+.top .crumb{font-size:12px;color:var(--ink3)}.crumb a{color:var(--accent);text-decoration:none}
+.all-btn{border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:9px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+.all-btn:hover{background:var(--accent);color:#fff}
+
+/* 统计条: 实时更新 */
+.statbar{display:flex;gap:20px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 18px;margin-bottom:16px;font-size:13px;color:var(--ink2);box-shadow:var(--shadow)}
+.statbar b{color:var(--ink)}
+.statbar b.blue{color:#2563eb}
+.statbar b.purple{color:#7c3aed}
+.statbar b.green{color:var(--success)}
+.statbar .ok{margin-left:auto;font-size:12px;color:var(--success);font-weight:600}
+
+/* 筛选 */
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab{padding:6px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink2);font-size:12.5px;cursor:pointer}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+/* 插件行 */
+.rows{display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow);transition:opacity .2s}
+.row .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+.row .info{flex:1;min-width:0}
+.row .nm{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.row .desc{font-size:12px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 状态点 */
+.st-dot{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px}
+.st-dot.run{background:#ecfdf5;color:var(--success)}
+.st-dot.run::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--success)}
+.st-dot.off{background:var(--bg);color:var(--ink3)}
+.st-dot.off::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ink3)}
+.st-dot.err{background:#fef2f2;color:var(--danger)}
+.st-dot.err::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--danger);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.3}}
+/* 来源徽章 */
+.src-badge{font-size:10.5px;font-weight:700;padding:1.5px 8px;border-radius:999px;flex-shrink:0}
+.src-badge.builtin{background:#eef4ff;color:#2563eb}
+.src-badge.market{background:#f5f3ff;color:#7c3aed}
+
+/* 开关(带 loading) */
+.switch{position:relative;width:44px;height:24px;flex-shrink:0}
+.switch input{opacity:0;width:100%;height:100%;position:absolute;cursor:pointer;z-index:2;margin:0}
+.switch .track{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.2s}
+.switch .thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.switch input:checked+.track{background:var(--accent)}
+.switch input:checked~.thumb{left:23px}
+.switch.loading .track{background:var(--accent-soft)!important}
+.switch.loading .thumb{animation:slide .6s ease-in-out infinite alternate}
+@keyframes slide{from{left:3px}to{left:23px}}
+.switch input:disabled{cursor:wait}
+/* 反馈 toast */
+.toast{position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-16px);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:9px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:99}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast.err{background:var(--danger);color:#fff}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>插件管理台</h1>
+      <div class="crumb"><a href="index.html">← Demo 合集</a> · 管理已安装插件的运行状态</div>
+    </div>
+    <button class="all-btn" onclick="enableAll()">全部启用</button>
+  </div>
+
+  <div class="statbar">
+    <span>已安装 <b id="stTotal">0</b></span>
+    <span>内置 <b class="blue" id="stBuiltin">0</b></span>
+    <span>第三方 <b class="purple" id="stThird">0</b></span>
+    <span>运行中 <b class="green" id="stRun">0</b></span>
+    <span>异常 <b style="color:var(--danger)" id="stErr">0</b></span>
+    <span class="ok" id="stHint">—</span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="rows" id="rows"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const PLUGINS=[
+  {n:"提示词注入",src:"内置",d:"把选中的提示词与关联内容拼装到消息前。",e:"💬",c:"#2563eb",on:true,err:false},
+  {n:"世界书注入",src:"内置",d:"按用户输入匹配世界书词条并注入上下文。",e:"📚",c:"#7c3aed",on:true,err:false},
+  {n:"关联内容注入",src:"内置",d:"将关联的章节/备忘录内容拼接到消息中。",e:"📎",c:"#16a34a",on:true,err:false},
+  {n:"正则过滤",src:"内置",d:"对 AI 响应内容应用正则过滤(扩展点)。",e:"🔧",c:"#d97706",on:false,err:false},
+  {n:"章节摘要生成",src:"第三方",d:"一键生成章节大纲与摘要。",e:"🗒",c:"#0ea5e9",on:true,err:true}
+];
+let filter="全部";
+function toast(msg,isErr){
+  const t=document.getElementById("toast");
+  t.textContent=msg;
+  t.classList.toggle("err",!!isErr);
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),1600);
+}
+function stats(){
+  document.getElementById("stTotal").textContent=PLUGINS.length;
+  document.getElementById("stBuiltin").textContent=PLUGINS.filter(p=>p.src==="内置").length;
+  document.getElementById("stThird").textContent=PLUGINS.filter(p=>p.src==="第三方").length;
+  document.getElementById("stRun").textContent=PLUGINS.filter(p=>p.on&&!p.err).length;
+  document.getElementById("stErr").textContent=PLUGINS.filter(p=>p.err).length;
+}
+function render(){
+  document.getElementById("tabs").innerHTML=["全部","运行中","已停用","异常"].map(f=>{
+    const cnt=f==="全部"?PLUGINS.length:f==="运行中"?PLUGINS.filter(p=>p.on&&!p.err).length:f==="已停用"?PLUGINS.filter(p=>!p.on).length:PLUGINS.filter(p=>p.err).length;
+    return `<button class="tab ${filter===f?"on":""}" onclick="filter='${f}';render()">${f} ${cnt}</button>`;
+  }).join("");
+  const list=PLUGINS.filter(p=>filter==="全部"||(filter==="运行中"&&p.on&&!p.err)||(filter==="已停用"&&!p.on)||(filter==="异常"&&p.err));
+  document.getElementById("rows").innerHTML=list.map((p,i)=>{
+    const st=p.err?"err":p.on?"run":"off";
+    const stText=p.err?"异常":p.on?"运行中":"已停用";
+    return `<div class="row">
+      <span class="ico" style="background:${p.c}1a;color:${p.c}">${p.e}</span>
+      <div class="info"><div class="nm">${p.n} <span class="src-badge ${p.src==="内置"?"builtin":"market"}">${p.src}</span> <span class="st-dot ${st}">${stText}</span></div><div class="desc">${p.d}</div></div>
+      <span class="switch ${p.err?"":"loading"}" id="sw${i}">
+        <input type="checkbox" ${p.on?"checked":""} onchange="toggle(this,${i})" ${p.err?"disabled":""}>
+        <span class="track"></span><span class="thumb"></span>
+      </span>
+    </div>`;
+  }).join("");
+  stats();
+}
+function toggle(input,idx){
+  const p=PLUGINS[idx];
+  const sw=document.getElementById(`sw${idx}`);
+  sw.classList.add("loading"); // 模拟异步切换
+  input.disabled=true;
+  setTimeout(()=>{
+    sw.classList.remove("loading");
+    input.disabled=false;
+    p.on=input.checked;
+    const wasErr=p.err;
+    render();
+    toast(wasErr?"「"+p.n+"」状态已更新":"「"+p.n+"」已"+(p.on?"启用":"停用"),wasErr);
+  },600);
+}
+function enableAll(){
+  toast("正在启用全部插件…");
+  setTimeout(()=>{PLUGINS.forEach(p=>p.on=true);render();toast("已启用全部插件 ✓");},800);
+}
+render();
+</script>
+</body>
+</html>

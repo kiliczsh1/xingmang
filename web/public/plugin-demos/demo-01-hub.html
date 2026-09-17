@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<!--
+  插件中心 · 一站式 Demo（原 01 市场 + 03 详情抽屉 + 08 搜索发现 + 09 诊断面板 合并）
+  心理原则（四条协同）:
+    · 希克定律/信息架构 —— 来源分段(内置/第三方) + 分类 Tab 收敛选项、精选位单一主视觉、卡片 ≤6 字段(C2)
+    · 识别优于回忆 —— 输入联想补全、标签云、搜索历史即点即用
+    · 渐进披露/B2 —— 详情以抽屉滑出、权限与版本历史折叠、主操作唯一
+    · 透明度/可探索性 —— 运行诊断分级配色、可钻取堆栈、一键复制
+  核心区分(本版重点):
+    · 内置插件(builtin) —— 随客户端附带, 只可启用/停用, 不可卸载, 徽章「内置」
+    · 第三方插件(market) —— 来自市场, 可安装/卸载, 徽章「第三方」
+  一体化亮点: 市场里的安装/启停/卸载操作会实时追加进诊断日志, 状态处处可追溯
+  设计预算: 常驻可点 = 视图切换 2 + 来源段 3 + 搜索框 + 分类 Tab + 标签 = ≤9(B1); 弹层仅抽屉一层(B2)
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 01 · 插件中心（内置/第三方分治）</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#ffffff;--line:#e6eaf0;--ink:#1a2230;--ink2:#5a6a80;--ink3:#98a5b8;
+  --accent:#2563eb;--accent-soft:#eef4ff;--success:#16a34a;--warn:#d97706;--warn-bg:#fff7ed;
+  --danger:#dc2626;--danger-bg:#fef2f2;--info:#0ea5e9;--star:#f59e0b;
+  --third:#7c3aed;--third-bg:#f5f3ff;
+  --shadow:0 1px 2px rgba(30,36,51,.04),0 10px 30px rgba(30,36,51,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0d1117;--card:#161b22;--line:#21262d;--ink:#e6edf3;--ink2:#8b98a8;--ink3:#5f6b7a;--accent:#58a6ff;--accent-soft:#12253f;--warn-bg:#2a2115;--danger-bg:#2a1515;--third:#a78bfa;--third-bg:#1e1933;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);transition:background .3s,color .3s;overflow-x:hidden}
+.wrap{max-width:980px;margin:0 auto;padding:24px 24px 60px}
+
+/* 头部 + 视图切换 */
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.top h1{font-size:21px;font-weight:800}
+.top .crumb{font-size:12px;color:var(--ink3);margin-top:3px}.crumb a{color:var(--accent);text-decoration:none}
+.vswitch{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:4px;box-shadow:var(--shadow)}
+.vswitch button{border:0;background:transparent;color:var(--ink2);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+.vswitch button.on{background:var(--accent);color:#fff}
+
+/* 统计条: 一眼分清内置/第三方 */
+.statbar{display:flex;gap:18px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 18px;margin-bottom:14px;font-size:13px;color:var(--ink2);flex-wrap:wrap;box-shadow:var(--shadow)}
+.statbar b{color:var(--ink)}
+.statbar b.blue{color:var(--accent)}
+.statbar b.purple{color:var(--third)}
+.statbar b.green{color:var(--success)}
+.statbar .sep{width:1px;height:16px;background:var(--line)}
+.statbar .pill{margin-left:auto;font-size:11.5px;font-weight:600;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:3px 11px}
+
+/* 搜索 + 联想 */
+.search-box{position:relative;margin-bottom:12px}
+.search-input{display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:0 16px;height:46px;transition:.15s;box-shadow:var(--shadow)}
+.search-input:focus-within{border-color:var(--accent)}
+.search-input::before{content:"⌕";font-size:18px;color:var(--ink3)}
+.search-input input{border:0;outline:0;background:transparent;color:var(--ink);font-size:14px;width:100%}
+.search-input .clear{color:var(--ink3);cursor:pointer;font-size:13px;display:none}
+.search-input.has .clear{display:block}
+.suggest{position:absolute;top:54px;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(15,23,42,.14);overflow:hidden;z-index:30;display:none}
+.suggest.show{display:block}
+.suggest .item{padding:11px 16px;font-size:13px;cursor:pointer;display:flex;gap:10px;align-items:center}
+.suggest .item:hover,.suggest .item.hl{background:var(--accent-soft);color:var(--accent)}
+.suggest .item b{color:var(--accent)}
+.suggest .cat{margin-left:auto;font-size:11px;color:var(--ink3)}
+.suggest .src{margin-left:8px;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:999px;flex-shrink:0}
+.suggest .src.builtin{background:var(--accent-soft);color:var(--accent)}
+.suggest .src.market{background:var(--third-bg);color:var(--third)}
+.hist{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.hist .label{font-size:12px;color:var(--ink3)}
+.hist .h{padding:4px 11px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer}
+.hist .h:hover{filter:brightness(.95)}
+
+/* 来源分段(内置/第三方) + 标签 + 分类 */
+.srcbar{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px;width:fit-content;margin-bottom:12px;box-shadow:var(--shadow)}
+.srcbar button{border:0;background:transparent;color:var(--ink2);border-radius:7px;padding:6px 16px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:6px}
+.srcbar button.on{background:var(--accent);color:#fff}
+.srcbar button.on .n{color:rgba(255,255,255,.8)}
+.srcbar .n{font-size:11px;color:var(--ink3)}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.tag{padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink2);font-size:12.5px;cursor:pointer;transition:.15s}
+.tag:hover{border-color:var(--accent);color:var(--accent)}
+.tag.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tag .n{font-size:11px;opacity:.7}
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:7px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink2);font-size:13px;cursor:pointer}
+.tab:hover{border-color:var(--accent);color:var(--accent)}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.tab .cnt{font-size:11px;opacity:.7;margin-left:4px}
+
+/* 精选位(单一主视觉, 第三方市场位) */
+.featured{display:flex;gap:20px;align-items:center;background:linear-gradient(135deg,var(--accent),var(--third));border-radius:16px;padding:24px 26px;color:#fff;margin-bottom:18px;position:relative;overflow:hidden}
+.featured::after{content:"";position:absolute;right:-40px;top:-40px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.12)}
+.featured .fi{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.22);display:grid;place-items:center;font-size:25px;flex-shrink:0}
+.featured .fb{flex:1;min-width:0}
+.featured .fn{font-size:18px;font-weight:800}
+.featured .ft{display:inline-block;font-size:11px;background:rgba(255,255,255,.22);border-radius:999px;padding:2px 10px;margin-top:4px}
+.featured .fd{font-size:12.5px;opacity:.92;margin-top:7px;line-height:1.7}
+.featured button{border:0;border-radius:10px;padding:11px 24px;font-size:14px;font-weight:700;background:#fff;color:var(--accent);cursor:pointer;flex-shrink:0}
+.featured button:hover{filter:brightness(.95)}
+
+/* 卡片网格(C2: ≤6 字段) */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:9px;cursor:pointer;transition:.18s;box-shadow:var(--shadow)}
+.card:hover{transform:translateY(-3px);border-color:#2563eb55}
+.card .c-top{display:flex;align-items:center;gap:10px}
+.c-ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+.c-name{font-size:14px;font-weight:700}
+.c-cat{font-size:11px;color:var(--ink3)}
+/* 来源徽章(核心区分) */
+.src-badge{font-size:10.5px;font-weight:700;padding:1.5px 8px;border-radius:999px;flex-shrink:0;margin-left:auto}
+.src-badge.builtin{background:var(--accent-soft);color:var(--accent)}
+.src-badge.market{background:var(--third-bg);color:var(--third)}
+.c-desc{font-size:12px;color:var(--ink2);line-height:1.6;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.c-meta{display:flex;gap:10px;font-size:11px;color:var(--ink3)}
+.c-meta .stars{color:var(--star);letter-spacing:1px}
+.c-foot{display:flex;align-items:center;justify-content:space-between}
+.c-state{font-size:11.5px;font-weight:600;color:var(--success)}
+.c-state.off{color:var(--ink3)}
+.c-btn{opacity:0;border:0;background:var(--accent);color:#fff;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;pointer-events:none}
+.card:hover .c-btn{opacity:1;pointer-events:auto}
+.c-btn:hover{filter:brightness(.92)}
+.c-btn.ghost{background:var(--line);color:var(--ink2)}
+
+/* 空态 */
+.empty{text-align:center;padding:52px 20px;color:var(--ink3)}
+.empty .big{font-size:42px;margin-bottom:10px}
+.empty p{font-size:13px;line-height:1.8}
+.empty button{margin-top:14px;border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:9px;padding:8px 18px;font-size:13px;cursor:pointer}
+
+/* 抽屉(渐进披露, 单层) */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.4);opacity:0;pointer-events:none;transition:opacity .25s;z-index:40}
+.overlay.show{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:-420px;width:400px;max-width:92vw;height:100%;background:var(--card);box-shadow:-20px 0 50px rgba(0,0,0,.18);transition:right .28s ease;z-index:50;display:flex;flex-direction:column}
+.drawer.show{right:0}
+.d-head{display:flex;align-items:center;gap:14px;padding:20px 22px 14px;border-bottom:1px solid var(--line)}
+.d-head .ico{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:25px;flex-shrink:0}
+.d-head .nm{font-size:17px;font-weight:800}
+.d-head .id{font-size:11px;color:var(--ink3);font-family:monospace;margin-top:2px}
+.d-src{margin-left:auto;font-size:11px;font-weight:700;padding:3px 11px;border-radius:999px;flex-shrink:0}
+.d-src.builtin{background:var(--accent-soft);color:var(--accent)}
+.d-src.market{background:var(--third-bg);color:var(--third)}
+.close-btn{border:0;background:var(--bg);color:var(--ink2);width:30px;height:30px;border-radius:8px;cursor:pointer}
+.d-body{flex:1;overflow-y:auto;padding:16px 22px}
+.d-desc{font-size:13px;color:var(--ink2);line-height:1.8;margin-bottom:14px}
+details{background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-bottom:9px;overflow:hidden}
+summary{padding:11px 14px;font-size:12.5px;font-weight:600;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;user-select:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"▾";margin-left:auto;color:var(--ink3);transition:transform .2s;font-size:12px}
+details[open] summary::after{transform:rotate(180deg)}
+.d-sec{padding:2px 14px 13px;font-size:12px;color:var(--ink2);line-height:1.85}
+.d-sec .kv{display:flex;justify-content:space-between;padding:3.5px 0;border-bottom:1px dashed var(--line)}
+.d-sec .kv:last-child{border-bottom:0}
+.d-sec .kv span:first-child{color:var(--ink3)}
+.d-foot{border-top:1px solid var(--line);padding:15px 22px;display:flex;gap:10px}
+.d-foot .primary{flex:1;border:0;background:var(--accent);color:#fff;border-radius:10px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer}
+.d-foot .primary:hover{filter:brightness(.92)}
+.d-foot .ghost{border:1px solid var(--line);background:transparent;color:var(--ink2);border-radius:10px;padding:0 18px;cursor:pointer}
+.d-foot .ghost.danger{color:var(--danger);border-color:#fecaca;background:var(--danger-bg)}
+.d-foot .ghost.danger:hover{background:#fee2e2}
+
+/* 诊断视图 */
+.health{display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.health .ring{position:relative;width:52px;height:52px;border-radius:50%;background:conic-gradient(var(--success) 0 74%,var(--line) 74% 100%);display:grid;place-items:center;flex-shrink:0}
+.health .ring::after{content:"";width:38px;height:38px;border-radius:50%;background:var(--card)}
+.health .ring span{position:absolute;font-size:11px;font-weight:800;color:var(--ink)}
+.health .ht{font-size:14px;font-weight:800}
+.health .hs{font-size:12px;color:var(--ink2);line-height:1.7}
+.log{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.log-head{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer}
+.log-head:hover{background:var(--bg)}
+.lv{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.lv.err{background:var(--danger)}.lv.warn{background:var(--warn)}.lv.info{background:var(--info)}.lv.ok{background:var(--success)}
+.log .msg{font-size:12.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log .time{font-size:11px;color:var(--ink3);font-family:monospace;flex-shrink:0}
+.log .expand{color:var(--ink3);font-size:11px;transition:transform .2s;flex-shrink:0}
+.log.open .expand{transform:rotate(90deg)}
+.log-body{display:none;padding:4px 14px 13px;font-size:11.5px;color:var(--ink2);line-height:1.8;font-family:Consolas,monospace;background:var(--bg);border-top:1px dashed var(--line)}
+.log.open .log-body{display:block}
+.log-body .stack{margin-top:7px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 11px;color:var(--ink3);white-space:pre-wrap;word-break:break-all}
+.diag-tools{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.copy-btn{border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:9px;padding:7px 14px;font-size:12.5px;cursor:pointer}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* 反馈 */
+.toast{position:fixed;top:22px;left:50%;transform:translateX(-50%) translateY(-16px);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:9px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:90}
+.toast.show{opacity:1;transform:translateX(-50%)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}.card,.featured button{transform:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>插件中心</h1>
+      <div class="crumb"><a href="index.html">← Demo 合集</a> · 内置与第三方分治 · 搜索 → 浏览 → 详情 → 诊断</div>
+    </div>
+    <div class="vswitch">
+      <button id="vwM" class="on" onclick="switchView('market')">🛍 插件市场</button>
+      <button id="vwD" onclick="switchView('diag')">📊 运行诊断</button>
+    </div>
+  </div>
+
+  <!-- 统计条: 一眼分清内置/第三方 -->
+  <div class="statbar">
+    <span>内置插件 <b class="blue" id="stBuiltin">0</b></span>
+    <span class="sep"></span>
+    <span>第三方插件 <b class="purple" id="stMarket">0</b></span>
+    <span class="sep"></span>
+    <span>已装第三方 <b class="green" id="stInstalled">0</b></span>
+    <span class="sep"></span>
+    <span>运行中 <b id="stRun">0</b></span>
+    <span class="pill">内置=随客户端 · 第三方=来自市场</span>
+  </div>
+
+  <!-- 市场视图 -->
+  <div id="marketView">
+    <div class="search-box">
+      <div class="search-input" id="searchBox">
+        <input id="q" placeholder="搜索插件…（试试输入「世界」）" autocomplete="off" oninput="onInput(this.value)" onkeydown="onKey(event)">
+        <span class="clear" onclick="clearQ()">✕</span>
+      </div>
+      <div class="suggest" id="suggest"></div>
+    </div>
+
+    <!-- 来源分段(内置/第三方) -->
+    <div class="srcbar" id="srcbar"></div>
+    <div class="hist" id="hist"></div>
+    <div class="tags" id="tags"></div>
+    <div class="tabs" id="tabs"></div>
+
+    <div class="featured" id="featured"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 诊断视图 -->
+  <div id="diagView" style="display:none">
+    <div class="health" id="health"></div>
+    <div class="diag-tools">
+      <div class="tabs" id="lvlTabs" style="margin-bottom:0"></div>
+      <button class="copy-btn" onclick="copyDiag()">⧉ 复制诊断信息</button>
+    </div>
+    <div id="logs"></div>
+  </div>
+</div>
+
+<!-- 详情抽屉(渐进披露, 单层) -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="d-head">
+    <span class="ico" id="dIco">💬</span>
+    <div><div class="nm" id="dName">—</div><div class="id" id="dId">—</div></div>
+    <span class="d-src" id="dSrc">内置</span>
+    <button class="close-btn" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="d-body">
+    <p class="d-desc" id="dDesc"></p>
+    <details open><summary>功能简介</summary><div class="d-sec" id="dFunc"></div></details>
+    <details><summary>权限声明</summary><div class="d-sec" id="dPerm"></div></details>
+    <details><summary>版本历史</summary><div class="d-sec" id="dHist"></div></details>
+  </div>
+  <div class="d-foot">
+    <button class="primary" id="dAction" onclick="dPrimary()">启用插件</button>
+    <button class="ghost" id="dGhost" onclick="dSecondary()">取消</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========== 数据(src: builtin 内置 / market 第三方) ========== */
+const PLUGINS=[
+  {n:"世界书智能匹配",src:"builtin",c:"内容处理",d:"按用户输入匹配世界书词条并注入上下文,角色设定始终在线。",m:"2.1万",r:5,col:"#7c3aed",e:"📚",t:["注入","世界书"],kw:["世界","智能","匹配","注入","词条"],inst:true,on:true,
+   func:[["匹配方式","关键词包含匹配(忽略大小写)"],["注入位置","用户输入之前"],["空命中","不注入,原样放行"]],
+   perm:[["读取","当前书本世界书词条"],["修改","仅用户消息(发送前)"],["网络","无"]],
+   hist:[["1.2.0","新增角色关系自动识别"],["1.0.1","优化多关键词命中排序"]]},
+  {n:"提示词注入",src:"builtin",c:"内容处理",d:"把选中的提示词与关联内容按固定顺序拼装到用户消息前。",m:"1.8万",r:5,col:"#2563eb",e:"💬",t:["注入","提示词"],kw:["提示词","注入","拼装","上下文"],inst:true,on:true,
+   func:[["拼装顺序","提示词 → 关联内容 → 用户输入"],["关联内容","章节 / 备忘录"],["空内容","自动跳过"]],
+   perm:[["读取","选中提示词与关联内容"],["修改","仅用户消息"],["网络","无"]],
+   hist:[["1.1.2","支持跨书本提示词模板"],["1.0.0","重构为插件链第一环"]]},
+  {n:"正则过滤",src:"builtin",c:"内容处理",d:"对 AI 回复应用自定义正则规则,清除格式噪音与敏感内容。",m:"9.4千",r:4,col:"#d97706",e:"🔧",t:["正则","过滤"],kw:["正则","过滤","规则","清洗"],inst:true,on:false,
+   func:[["处理阶段","AI 响应显示前(显示层)"],["规则来源","用户自建正则"],["扩展点","本期不参与消息链"]],
+   perm:[["读取","AI 响应内容"],["修改","仅显示内容(不入库)"],["网络","无"]],
+   hist:[["1.0.1","新增预置规则库"],["0.9.0","作为扩展点注册"]]},
+  {n:"章节摘要生成",src:"market",c:"写作增强",d:"一键为章节生成大纲与摘要,保持全书叙事线索一致。",m:"1.2万",r:4,col:"#16a34a",e:"🗒",t:["摘要","章节"],kw:["摘要","大纲","章节","总结"],inst:false,on:true,
+   func:[["调用方式","章节工具栏「生成摘要」"],["输出","大纲 + 摘要(可编辑)"],["上下文","当前章节全文"]],
+   perm:[["读取","当前章节全文"],["调用","AI 对话接口"],["写入","章节摘要字段"]],
+   hist:[["1.1.0","新增大纲模式"],["1.0.0","首次发布"]]},
+  {n:"角色卡速览",src:"market",c:"写作增强",d:"在编辑器侧栏展示当前章节出场角色及其关系图谱。",m:"6.8千",r:4,col:"#0ea5e9",e:"👥",t:["角色","图谱"],kw:["角色","关系","图谱","人物"],inst:false,on:false,
+   func:[["展示位置","编辑器右侧栏"],["数据","章节出场角色 + 关系"],["更新","随章节切换刷新"]],
+   perm:[["读取","章节文本与角色库"],["修改","无"],["网络","无"]],
+   hist:[["0.8.0","关系图支持缩放"]]},
+  {n:"字数热力图",src:"market",c:"数据统计",d:"按天/时段统计码字量,识别你的高效写作时段。",m:"3.3千",r:3,col:"#0891b2",e:"📊",t:["统计"],kw:["字数","统计","热力图","时段"],inst:false,on:false,
+   func:[["统计维度","按天 / 按时段"],["输出","热力图"],["用途","识别高效时段"]],
+   perm:[["读取","写作历史记录"],["修改","无"],["网络","无"]],
+   hist:[["0.5.0","首个版本"]]},
+  {n:"灵感抽卡",src:"market",c:"写作增强",d:"从素材库随机抽取情节卡片,打破写作卡顿。",m:"5.1千",r:4,col:"#eab308",e:"🎴",t:["灵感"],kw:["灵感","抽卡","素材","随机"],inst:false,on:false,
+   func:[["抽卡来源","素材库"],["次数","每日 5 次免费"],["模式","情节 / 人设 / 对话"]],
+   perm:[["读取","素材库内容"],["修改","无"],["网络","无"]],
+   hist:[["1.0.0","首次发布"]]},
+  {n:"章节去重检查",src:"market",c:"内容处理",d:"扫描全书段落相似度,标记疑似重复描写的段落。",m:"2.9千",r:3,col:"#dc2626",e:"🔍",t:["正则","统计"],kw:["去重","相似","重复","扫描"],inst:false,on:false,
+   func:[["范围","全书章节"],["算法","局部敏感哈希"],["输出","相似段落对清单"]],
+   perm:[["读取","全书章节文本"],["修改","无(只标记不删除)"],["网络","无"]],
+   hist:[["0.7.1","修复长文内存占用"]]}
+];
+const CATS=["全部","内容处理","写作增强","数据统计"];
+const ALL_TAGS=["注入","正则","角色","摘要","统计","灵感"];
+let HISTORY=["正则过滤","世界书"];
+let LOGS=[
+  {lv:"warn",msg:"正则过滤规则「response-clean」未匹配任何内容,请检查规则是否过时",time:"14:31:44",stack:"RegExp.test returned false for 14/14 rules\n  at RegexFilter.apply (plugin:regex-filter:53)"},
+  {lv:"info",msg:"提示词注入完成:拼装 2 条提示词 + 3 条关联内容",time:"14:30:21",stack:""},
+  {lv:"ok",msg:"插件链自检通过:3 个内置插件注册成功",time:"14:28:00",stack:""},
+  {lv:"info",msg:"已从本地恢复插件偏好 plugin-prefs(3 项覆盖)",time:"14:27:52",stack:""}
+];
+
+/* ========== 状态 ========== */
+let view="market",src="all",cat="全部",tag="",query="",hl=-1,cur=-1;
+const SRC_LABEL={builtin:"内置",market:"第三方"};
+
+/* ========== 视图切换 ========== */
+function switchView(v){
+  view=v;
+  document.getElementById("vwM").classList.toggle("on",v==="market");
+  document.getElementById("vwD").classList.toggle("on",v==="diag");
+  document.getElementById("marketView").style.display=v==="market"?"":"none";
+  document.getElementById("diagView").style.display=v==="diag"?"":"none";
+  if(v==="diag")renderDiag();
+}
+
+/* ========== 统计条 ========== */
+function renderStats(){
+  const builtin=PLUGINS.filter(p=>p.src==="builtin").length;
+  const market=PLUGINS.filter(p=>p.src==="market");
+  const instThird=market.filter(p=>p.inst).length;
+  const run=PLUGINS.filter(p=>p.inst&&p.on).length;
+  document.getElementById("stBuiltin").textContent=builtin;
+  document.getElementById("stMarket").textContent=market.length;
+  document.getElementById("stInstalled").textContent=instThird;
+  document.getElementById("stRun").textContent=run;
+}
+
+/* ========== 市场: 来源段/搜索/标签/分类 ========== */
+function renderSrcbar(){
+  const counts={all:PLUGINS.length,builtin:PLUGINS.filter(p=>p.src==="builtin").length,market:PLUGINS.filter(p=>p.src==="market").length};
+  document.getElementById("srcbar").innerHTML=[
+    ["all","全部"],["builtin","内置"],["market","第三方"]
+  ].map(([k,label])=>`<button class="${src===k?"on":""}" onclick="src='${k}';renderAll()">${label}<span class="n">${counts[k]}</span></button>`).join("");
+}
+function renderHist(){
+  document.getElementById("hist").innerHTML=`<span class="label">最近搜索</span>`+
+    HISTORY.map(h=>`<span class="h" onclick="setQuery('${h}')">${h}</span>`).join("");
+}
+function renderTags(){
+  document.getElementById("tags").innerHTML=ALL_TAGS.map(t=>{
+    const n=PLUGINS.filter(p=>p.t.includes(t)).length;
+    return `<span class="tag ${tag===t?"on":""}" onclick="toggleTag('${t}')">${t}<span class="n">${n}</span></span>`;
+  }).join("");
+}
+function renderTabs(){
+  document.getElementById("tabs").innerHTML=CATS.map(c=>{
+    const n=c==="全部"?PLUGINS.length:PLUGINS.filter(p=>p.c===c).length;
+    return `<button class="tab ${cat===c?"on":""}" onclick="cat='${c}';renderGrid()">${c}<span class="cnt">${n}</span></button>`;
+  }).join("");
+}
+function filterList(){
+  return PLUGINS.filter(p=>
+    (src==="all"||p.src===src)&&(cat==="全部"||p.c===cat)&&(!tag||p.t.includes(tag))&&
+    (!query||p.kw.some(k=>k.includes(query))||p.n.includes(query)));
+}
+function renderFeatured(){
+  // 精选位 = 第三方市场位(展示来源区分): 默认推「章节摘要生成」
+  const p=PLUGINS.find(x=>x.n==="章节摘要生成");
+  const inst=p.inst;
+  document.getElementById("featured").innerHTML=`
+    <div class="fi">${p.e}</div>
+    <div class="fb">
+      <div class="fn">${p.n}</div>
+      <span class="ft">第三方 · 本周精选 · ${p.r}.0 分</span>
+      <div class="fd">${p.d}</div>
+    </div>
+    <button onclick="install('${p.n}')">${inst?"✓ 已安装":"安装"}</button>`;
+}
+function srcBadge(p){return `<span class="src-badge ${p.src}">${SRC_LABEL[p.src]}</span>`}
+function renderGrid(){
+  const list=filterList();
+  const el=document.getElementById("grid");
+  if(!list.length){
+    el.innerHTML=`<div class="empty"><div class="big">🗂</div><p>没有找到匹配的插件<br>换个关键词,或清除筛选后再试</p><button onclick="document.getElementById('q').value='';query='';tag='';cat='全部';src='all';renderAll()">清除筛选</button></div>`;
+    return;
+  }
+  el.innerHTML=list.map(p=>{
+    const idx=PLUGINS.indexOf(p);
+    const state=p.inst?`● ${p.on?"运行中":"已停用"}`:"可安装";
+    const btn=p.inst?"管理":(p.src==="builtin"?"管理":"安装");
+    return `<div class="card" data-i="${idx}" onclick="openDrawer(${idx})">
+      <div class="c-top"><span class="c-ico" style="background:${p.col}1a;color:${p.col}">${p.e}</span>
+        <div><div class="c-name">${p.n}</div><div class="c-cat">${p.c}</div></div>${srcBadge(p)}</div>
+      <p class="c-desc">${p.d}</p>
+      <div class="c-meta"><span>${p.src==="builtin"?"随客户端附带":"安装 "+p.m}</span><span class="stars">${"★".repeat(p.r)}${"☆".repeat(5-p.r)}</span></div>
+      <div class="c-foot">
+        <span class="c-state ${p.inst?"":"off"}">${state}</span>
+        <button class="c-btn" onclick="event.stopPropagation();openDrawer(${idx})">${btn}</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+function renderAll(){renderSrcbar();renderStats();renderHist();renderTags();renderTabs();renderFeatured();renderGrid();}
+
+/* ========== 搜索联想(识别优于回忆) ========== */
+function onInput(v){
+  query=v.trim();
+  document.getElementById("searchBox").classList.toggle("has",!!v);
+  const sug=document.getElementById("suggest");
+  if(v){
+    const matched=PLUGINS.filter(p=>p.n.includes(v)||p.kw.some(k=>k.includes(v))).slice(0,5);
+    if(matched.length){
+      sug.innerHTML=matched.map((p,i)=>`<div class="item ${i===hl?"hl":""}" onmousedown="event.preventDefault();setQuery('${p.n}')"><span>${highlight(p.n,v)}</span><span class="src ${p.src}">${SRC_LABEL[p.src]}</span><span class="cat">${p.c}</span></div>`).join("");
+      sug.classList.add("show");
+    }else sug.classList.remove("show");
+  }else sug.classList.remove("show");
+  renderGrid();
+}
+function highlight(s,q){
+  const i=s.indexOf(q);
+  return i<0?s:s.slice(0,i)+`<b>${q}</b>`+s.slice(i+q.length);
+}
+function onKey(e){
+  const sug=document.getElementById("suggest");
+  const items=sug.querySelectorAll(".item");
+  if(!sug.classList.contains("show")||!items.length)return;
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+    e.preventDefault();
+    hl=(hl+(e.key==="ArrowDown"?1:-1)+items.length)%items.length;
+    items.forEach((it,i)=>it.classList.toggle("hl",i===hl));
+  }else if(e.key==="Enter"&&hl>=0){
+    setQuery(items[hl].querySelector("span").textContent);
+  }else if(e.key==="Escape"){sug.classList.remove("show");}
+}
+function setQuery(v){
+  document.getElementById("q").value=v;
+  hl=-1;
+  if(!HISTORY.includes(v)){HISTORY.unshift(v);if(HISTORY.length>4)HISTORY.pop();}
+  onInput(v);
+  renderHist();
+  document.getElementById("suggest").classList.remove("show");
+}
+function clearQ(){document.getElementById("q").value="";query="";hl=-1;document.getElementById("searchBox").classList.remove("has");document.getElementById("suggest").classList.remove("show");renderGrid();}
+function toggleTag(t){tag=tag===t?"":t;renderTags();renderGrid();}
+
+/* ========== 安装 / 管理(内置 vs 第三方) ========== */
+function install(name){
+  const p=PLUGINS.find(x=>x.n===name);
+  if(!p)return;
+  if(!p.inst&&p.src==="market"){
+    p.inst=true;p.on=true;
+    toast(`已安装第三方插件「${name}」`);
+    log("info",`已从市场安装第三方插件「${name}」并注册到插件链`);
+  }else{
+    openDrawer(PLUGINS.indexOf(p));
+  }
+  renderFeatured();renderGrid();renderStats();syncDrawer();
+}
+function openDrawer(i){
+  cur=i;const p=PLUGINS[i];
+  document.getElementById("dIco").textContent=p.e;
+  document.getElementById("dIco").style.background=p.col+"1a";
+  document.getElementById("dIco").style.color=p.col;
+  document.getElementById("dName").textContent=p.n;
+  document.getElementById("dId").textContent=p.n.replace(/\s/g,"-").toLowerCase();
+  document.getElementById("dSrc").textContent=SRC_LABEL[p.src];
+  document.getElementById("dSrc").className="d-src "+p.src;
+  document.getElementById("dDesc").textContent=p.d;
+  document.getElementById("dFunc").innerHTML=kv(p.func);
+  document.getElementById("dPerm").innerHTML=kv(p.perm);
+  document.getElementById("dHist").innerHTML=kv(p.hist);
+  syncDrawer();
+  document.getElementById("drawer").classList.add("show");
+  document.getElementById("overlay").classList.add("show");
+}
+function kv(h){return h.map(([k,v])=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("")}
+function syncDrawer(){
+  if(cur<0)return;
+  const p=PLUGINS[cur];
+  const primary=document.getElementById("dAction");
+  const ghost=document.getElementById("dGhost");
+  if(!p.inst){ // 第三方未安装: 主=安装, 次=取消
+    primary.textContent="安装插件";
+    primary.style.background="var(--accent)";primary.style.color="#fff";
+    ghost.textContent="取消";ghost.className="ghost";
+    return;
+  }
+  // 已安装: 主=启停; 次=卸载(仅第三方)/取消(内置不可卸载)
+  primary.textContent=p.on?"停用插件":"启用插件";
+  primary.style.background=p.on?"var(--line)":"var(--accent)";
+  primary.style.color=p.on?"var(--ink2)":"#fff";
+  ghost.textContent=p.src==="market"?"卸载":"取消";
+  ghost.className="ghost"+(p.src==="market"?" danger":"");
+}
+function dPrimary(){
+  const p=PLUGINS[cur];
+  if(!p.inst){install(p.n);return;}
+  p.on=!p.on;
+  log(p.on?"info":"warn",`「${p.n}」已${p.on?"启用":"停用"}(${p.on?"运行中":"已停用"})`);
+  toast(`「${p.n}」已${p.on?"启用":"停用"}`);
+  syncDrawer();renderFeatured();renderGrid();renderStats();
+}
+function dSecondary(){
+  const p=PLUGINS[cur];
+  if(p.inst&&p.src==="market"){ // 卸载仅对第三方开放
+    p.inst=false;p.on=false;
+    log("warn",`第三方插件「${p.n}」已卸载并从插件链移除`);
+    toast(`已卸载「${p.n}」`);
+    closeDrawer();
+    renderFeatured();renderGrid();renderStats();
+  }else{
+    closeDrawer();
+  }
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("show");
+  document.getElementById("overlay").classList.remove("show");
+}
+
+/* ========== 诊断视图(透明度/可探索) ========== */
+let level="全部";
+function log(lv,msg){
+  const time=new Date().toTimeString().slice(0,8);
+  LOGS.unshift({lv,msg,time,stack:""});
+  if(LOGS.length>40)LOGS.pop();
+}
+function renderDiag(){
+  const builtin=PLUGINS.filter(p=>p.src==="builtin").length;
+  const instThird=PLUGINS.filter(p=>p.src==="market"&&p.inst).length;
+  const run=PLUGINS.filter(p=>p.inst&&p.on).length;
+  document.getElementById("health").innerHTML=`
+    <div class="ring"><span>74%</span></div>
+    <div><div class="ht">健康度良好</div><div class="hs">内置 ${builtin} · 已装第三方 ${instThird} · 运行中 ${run}<br>最近事件: ${LOGS[0]?.msg||"无"}</div></div>`;
+  const tabEl=document.getElementById("lvlTabs");
+  tabEl.innerHTML=["全部","错误","警告","信息"].map(l=>{
+    const n=l==="全部"?LOGS.length:l==="错误"?LOGS.filter(x=>x.lv==="err").length:l==="警告"?LOGS.filter(x=>x.lv==="warn").length:LOGS.filter(x=>x.lv==="info").length;
+    return `<button class="tab ${level===l?"on":""}" onclick="level='${l}';renderDiag()">${l}<span class="n">${n}</span></button>`;
+  }).join("");
+  const list=LOGS.filter(x=>level==="全部"||(level==="错误"&&x.lv==="err")||(level==="警告"&&x.lv==="warn")||(level==="信息"&&x.lv!=="err"&&x.lv!=="warn"));
+  document.getElementById("logs").innerHTML=list.map((x,i)=>`
+    <div class="log" id="log${i}">
+      <div class="log-head" ${x.stack?`onclick="document.getElementById('log${i}').classList.toggle('open')"`:""}>
+        <span class="lv ${x.lv}"></span><span class="msg">${x.msg}</span><span class="time">${x.time}</span>
+        ${x.stack?'<span class="expand">▸</span>':""}
+      </div>
+      ${x.stack?`<div class="log-body">${x.msg}<div class="stack">${x.stack}</div></div>`:""}
+    </div>`).join("");
+}
+function copyDiag(){
+  const text=["=== 星芒插件诊断信息 ===","时间: "+new Date().toLocaleString('zh-CN'),
+    ...PLUGINS.map(p=>`[${SRC_LABEL[p.src]}] ${p.inst?(p.on?"运行":"停用"):"未装"} ${p.n}`),"",...LOGS.map(x=>`[${x.lv.toUpperCase()}] ${x.time} ${x.msg}`)].join("\n");
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.querySelector(".copy-btn");
+    btn.textContent="✓ 已复制";setTimeout(()=>btn.textContent="⧉ 复制诊断信息",1600);
+  });
+}
+
+/* ========== 反馈 ========== */
+let toastT;
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1700);
+}
+
+/* ========== 初始化 ========== */
+renderAll();
+</script>
+</body>
+</html>

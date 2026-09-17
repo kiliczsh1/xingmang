@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!--
+  空状态与新手引导 Demo
+  心理原则: 空状态必达(无数据时必须给出空状态 + 引导动作, DESIGN_GUIDELINES C4) + 降低首次决策成本
+  落地方式: 零插件空态不是"空白"而是"起点" → 三步引导(装一个/导入本地/稍后再说) → 推荐插件缩短决策路径
+  设计预算: 常驻可点 = 3 引导 + 3 推荐 + 1 导入 = 7 ≤ 9(B1); 0 弹层(B2)
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 10 · 空状态与新手引导</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#ffffff;--line:#e6eaf0;--ink:#1a2230;--ink2:#5a6a80;--ink3:#98a5b8;
+  --accent:#2563eb;--accent-soft:#eef4ff;--success:#16a34a;--shadow:0 1px 2px rgba(30,36,51,.04),0 10px 30px rgba(30,36,51,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0d1117;--card:#161b22;--line:#21262d;--ink:#e6edf3;--ink2:#8b98a8;--ink3:#5f6b7a;--accent:#58a6ff;--accent-soft:#12253f;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);transition:background .3s,color .3s}
+.wrap{max-width:760px;margin:0 auto;padding:28px 24px 60px}
+.top{margin-bottom:18px}.top h1{font-size:22px;font-weight:800}
+.top .crumb{font-size:12px;color:var(--ink3)}.crumb a{color:var(--accent);text-decoration:none}
+
+/* 空态主视觉(起点而非空白) */
+.empty-card{text-align:center;background:var(--card);border:1px dashed var(--line);border-radius:16px;padding:44px 24px 36px;margin-bottom:22px;box-shadow:var(--shadow)}
+.empty-illu{position:relative;width:96px;height:96px;margin:0 auto 16px;display:grid;place-items:center}
+.empty-illu .box{width:64px;height:64px;border-radius:18px;background:var(--accent-soft);border:2px dashed var(--accent);display:grid;place-items:center;font-size:26px;color:var(--accent)}
+.empty-illu .spark{position:absolute;font-size:18px;animation:float 2.4s ease-in-out infinite}
+.empty-illu .s1{top:4px;right:6px}.empty-illu .s2{bottom:6px;left:8px;animation-delay:1.2s}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.empty-card h3{font-size:18px;font-weight:800;margin-bottom:6px}
+.empty-card p{font-size:13px;color:var(--ink2);line-height:1.8;max-width:440px;margin:0 auto}
+
+/* 三步引导 */
+.steps{display:flex;gap:12px;margin-bottom:22px}
+.step{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center;transition:.15s}
+.step:hover{border-color:var(--accent);transform:translateY(-2px)}
+.step .sn{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;display:grid;place-items:center;margin:0 auto 10px}
+.step .t{font-size:13.5px;font-weight:700;margin-bottom:5px}
+.step .d{font-size:11.5px;color:var(--ink3);line-height:1.6}
+.step .act{display:inline-block;margin-top:10px;font-size:12px;color:var(--accent);font-weight:700;cursor:pointer;border:0;background:var(--accent-soft);border-radius:7px;padding:6px 14px}
+.step .act:hover{filter:brightness(.96)}
+@media(max-width:640px){.steps{flex-direction:column}}
+
+/* 推荐插件 */
+.rec-title{font-size:13px;font-weight:700;color:var(--ink3);margin-bottom:10px}
+.recs{display:flex;gap:12px;flex-wrap:wrap}
+.rec{flex:1;min-width:200px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px;display:flex;gap:12px;align-items:center;transition:.15s}
+.rec:hover{border-color:var(--accent)}
+.rec .ico{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:19px;flex-shrink:0}
+.rec .nm{font-size:13.5px;font-weight:700}
+.rec .meta{font-size:11px;color:var(--ink3);margin-top:2px}
+.rec .star{color:#f59e0b;font-size:11px;margin-top:2px}
+.rec button{margin-left:auto;border:0;background:var(--accent);color:#fff;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0}
+.rec button:hover{filter:brightness(.9)}
+
+/* 次级动作 */
+.secondary{margin-top:16px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:12.5px;color:var(--ink3)}
+.secondary .link{color:var(--ink2);cursor:pointer;text-decoration:underline dotted}
+.secondary .link:hover{color:var(--accent)}
+
+/* 引导完成反馈 */
+.toast{position:fixed;top:22px;left:50%;transform:translateX(-50%) translateY(-16px);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:9px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:99}
+.toast.show{opacity:1;transform:translateX(-50%)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}.step{transform:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>我的插件</h1>
+    <div class="crumb"><a href="index.html">← Demo 合集</a></div>
+  </div>
+
+  <!-- 空状态: 起点 -->
+  <div class="empty-card">
+    <div class="empty-illu">
+      <span class="spark s1">✦</span><span class="spark s2">✧</span>
+      <div class="box">🧩</div>
+    </div>
+    <h3>还没有安装任何插件</h3>
+    <p>插件能为你的写作工作台扩展能力。安装一个试试，最快 10 秒完成。</p>
+  </div>
+
+  <!-- 三步引导 -->
+  <div class="steps">
+    <div class="step">
+      <div class="sn">1</div>
+      <div class="t">从市场挑选</div>
+      <div class="d">浏览分类与评分，找到匹配你写作习惯的插件</div>
+      <button class="act" onclick="toast('→ 前往插件市场')">去市场看看</button>
+    </div>
+    <div class="step">
+      <div class="sn">2</div>
+      <div class="t">一键安装启用</div>
+      <div class="d">点击安装，依赖自动补齐，安装完立即可用</div>
+      <button class="act" onclick="toast('→ 打开安装向导')">了解安装</button>
+    </div>
+    <div class="step">
+      <div class="sn">3</div>
+      <div class="t">随时管理</div>
+      <div class="d">在管理台启停、更新、查看诊断，一切透明</div>
+      <button class="act" onclick="toast('→ 打开管理台')">管理入口</button>
+    </div>
+  </div>
+
+  <!-- 推荐: 缩短决策路径 -->
+  <div class="rec-title">为你推荐（按写作人群）</div>
+  <div class="recs">
+    <div class="rec">
+      <span class="ico" style="background:#7c3aed1a;color:#7c3aed">📚</span>
+      <div><div class="nm">世界书智能匹配</div><div class="meta">内容处理</div><div class="star">★★★★★ 2.1万</div></div>
+      <button onclick="toast('「世界书智能匹配」安装中…')">安装</button>
+    </div>
+    <div class="rec">
+      <span class="ico" style="background:#16a34a1a;color:#16a34a">🗒</span>
+      <div><div class="nm">章节摘要生成</div><div class="meta">写作增强</div><div class="star">★★★★☆ 1.2万</div></div>
+      <button onclick="toast('「章节摘要生成」安装中…')">安装</button>
+    </div>
+  </div>
+
+  <!-- 次级动作 -->
+  <div class="secondary">
+    已有插件包？
+    <span class="link" onclick="toast('文件选择器（演示）')">导入本地插件</span>
+    ·
+    <span class="link" onclick="toast('下次再装，随时可从侧栏进入')">稍后再说</span>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),1700);
+}
+</script>
+</body>
+</html>

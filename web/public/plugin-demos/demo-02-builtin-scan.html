@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<!--
+  内置插件检测 Demo
+  心理原则: 系统状态可见性(尼尔森启发式 #1: 让用户知道系统在做什么) + 透明度
+  落地方式: 检测过程分步点亮、每步给出正在检查的内容 → 结果以"检测报告"呈现 → 汇总反馈
+  设计预算: 常驻可点 = 重新检测 + 返回 = 2 ≤ 9(B1); 0 弹层(B2)
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 02 · 内置插件检测</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#ffffff;--line:#e6eaf0;--ink:#1a2230;--ink2:#5a6a80;--ink3:#98a5b8;
+  --accent:#2563eb;--accent-soft:#eef4ff;--success:#16a34a;--warn:#d97706;--danger:#dc2626;
+  --shadow:0 1px 2px rgba(30,36,51,.04),0 10px 30px rgba(30,36,51,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0d1117;--card:#161b22;--line:#21262d;--ink:#e6edf3;--ink2:#8b98a8;--ink3:#5f6b7a;--accent:#58a6ff;--accent-soft:#12253f;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);transition:background .3s,color .3s}
+.wrap{max-width:760px;margin:0 auto;padding:28px 24px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.top h1{font-size:22px;font-weight:800}
+.top .crumb{font-size:12px;color:var(--ink3)}.crumb a{color:var(--accent);text-decoration:none}
+.primary{border:0;background:var(--accent);color:#fff;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s}
+.primary:hover{filter:brightness(.92)}
+.primary:disabled{opacity:.5;cursor:default}
+
+/* 扫描面板 */
+.scan-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow);margin-bottom:18px}
+.scan-title{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.scan-title .spinner{width:16px;height:16px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:none}
+.scan-panel.running .spinner{display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;background:var(--bg);border:1px solid var(--line);color:var(--ink2);font-size:13px}
+.step .s-num{width:22px;height:22px;border-radius:50%;background:var(--line);color:var(--ink3);display:grid;place-items:center;font-size:12px;font-weight:700;flex-shrink:0}
+.step .s-status{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--ink3)}
+.step.done{border-color:#16a34a44}
+.step.done .s-num{background:var(--success);color:#fff}
+.step.done .s-status{color:var(--success)}
+.step.active{border-color:var(--accent);color:var(--ink)}
+.step.active .s-num{background:var(--accent);color:#fff;animation:pulse 1s infinite}
+.step.active .s-status{color:var(--accent)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.35)}50%{box-shadow:0 0 0 5px rgba(37,99,235,0)}}
+
+/* 汇总 */
+.summary{display:flex;align-items:center;gap:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 20px;margin-bottom:18px;box-shadow:var(--shadow);font-size:13px;color:var(--ink2)}
+.summary b{color:var(--ink)}
+.summary .ok{margin-left:auto;color:var(--success);font-weight:700;font-size:13px}
+.summary.hidden{display:none}
+
+/* 结果清单 */
+.results{display:none}
+.results.show{display:block}
+.result-row{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+.r-head{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer}
+.r-head:hover{background:var(--accent-soft)}
+.r-ico{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+.r-name{font-size:14px;font-weight:700}
+.r-id{font-size:11px;color:var(--ink3);font-family:monospace}
+.r-badge{font-size:11px;font-weight:700;border-radius:999px;padding:2px 10px}
+.r-badge.ok{background:#ecfdf5;color:var(--success)}
+.r-badge.warn{background:#fff7ed;color:var(--warn)}
+.r-arrow{margin-left:auto;color:var(--ink3);transition:transform .2s}
+.r-head.open .r-arrow{transform:rotate(90deg)}
+.r-body{display:none;padding:4px 18px 16px;font-size:12.5px;color:var(--ink2);line-height:1.9}
+.r-head.open+.r-body{display:block}
+.r-body .k{display:inline-block;width:86px;color:var(--ink3)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}.step.active .s-num{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>内置插件检测</h1>
+      <div class="crumb"><a href="index.html">← Demo 合集</a> · 扫描随客户端内置的插件</div>
+    </div>
+    <button class="primary" id="scanBtn" onclick="startScan()">重新检测</button>
+  </div>
+
+  <!-- 扫描过程: 分步点亮 -->
+  <div class="scan-panel" id="scanPanel">
+    <div class="scan-title"><span class="spinner"></span><span id="scanLabel">正在检测内置插件…</span></div>
+    <div class="steps" id="steps"></div>
+  </div>
+
+  <!-- 汇总 -->
+  <div class="summary hidden" id="summary">
+    <span>检测到 <b id="sumTotal">0</b> 个内置插件</span>
+    <span>正常 <b id="sumOk" style="color:var(--success)">0</b></span>
+    <span>异常 <b id="sumBad" style="color:var(--danger)">0</b></span>
+    <span class="ok">✓ 全部通过</span>
+  </div>
+
+  <!-- 检测报告 -->
+  <div class="results" id="results"></div>
+</div>
+
+<script>
+// 内置插件数据(与真实项目 ChatPanel/plugins 对应)
+const BUILTINS=[
+  {n:"提示词注入",id:"prompt-inject",d:"将选中的提示词和关联内容注入到用户消息前面。",v:"1.0.0",e:"💬",color:"#2563eb",health:1},
+  {n:"世界书注入",id:"worldbook-inject",d:"根据用户输入匹配世界书词条并注入上下文。",v:"1.0.1",e:"📚",color:"#7c3aed",health:1},
+  {n:"关联内容注入",id:"related-content-inject",d:"将关联的章节/备忘录内容拼接到消息中。",v:"1.0.0",e:"📎",color:"#16a34a",health:1},
+  {n:"正则过滤",id:"regex-filter",d:"对 AI 响应内容应用正则过滤(扩展点)。",v:"0.9.0",e:"🔧",color:"#d97706",health:0} // health 0=显示层扩展点
+];
+const SCAN_STEPS=["加载内置插件清单","校验依赖完整性","检查版本兼容与权限","生成检测报告"];
+const details=(p)=>[
+  ["状态",p.health?"运行正常":"扩展点(未启用处理)"],
+  ["版本",p.v],
+  ["注册顺序","聊天链第 "+["一","二","三","四"][BUILTINS.indexOf(p)]+" 位"],
+  ["依赖","无"],
+  ["本地存储","plugin-prefs · 缺省启用"]
+];
+function startScan(){
+  const btn=document.getElementById("scanBtn");
+  btn.disabled=true;
+  const panel=document.getElementById("scanPanel");
+  panel.classList.add("running");
+  document.getElementById("scanLabel").textContent="正在检测内置插件…";
+  document.getElementById("summary").classList.add("hidden");
+  document.getElementById("results").classList.remove("show");
+  const stepsEl=document.getElementById("steps");
+  stepsEl.innerHTML=SCAN_STEPS.map((s,i)=>`<div class="step" id="st${i}"><span class="s-num">${i+1}</span>${s}<span class="s-status" id="sts${i}">等待</span></div>`).join("");
+  let i=0;
+  const tick=()=>{
+    if(i<SCAN_STEPS.length){
+      const cur=document.getElementById(`st${i}`);
+      cur.classList.add("active");
+      document.getElementById(`sts${i}`).textContent="检测中…";
+      setTimeout(()=>{
+        cur.classList.remove("active");cur.classList.add("done");
+        document.getElementById(`sts${i}`).textContent="✓ 通过";
+        i++;tick();
+      },700);
+    }else{
+      panel.classList.remove("running");
+      document.getElementById("scanLabel").textContent="检测完成 ✓";
+      document.getElementById("summary").classList.remove("hidden");
+      document.getElementById("sumTotal").textContent=BUILTINS.length;
+      document.getElementById("sumOk").textContent=BUILTINS.filter(p=>p.health).length;
+      document.getElementById("sumBad").textContent=BUILTINS.filter(p=>!p.health).length;
+      const res=document.getElementById("results");
+      res.innerHTML=BUILTINS.map((p,idx)=>`
+        <div class="result-row">
+          <div class="r-head" onclick="this.classList.toggle('open')">
+            <span class="r-ico" style="background:${p.color}1a;color:${p.color}">${p.e}</span>
+            <div><div class="r-name">${p.n}</div><div class="r-id">${p.id}</div></div>
+            <span class="r-badge ${p.health?"ok":"warn"}">${p.health?"✓ 正常":"扩展点"}</span>
+            <span class="r-arrow">▸</span>
+          </div>
+          <div class="r-body">${details(p).map(([k,v])=>`<div><span class="k">${k}</span>${v}</div>`).join("")}</div>
+        </div>`).join("");
+      res.classList.add("show");
+      btn.disabled=false;
+    }
+  };
+  tick();
+}
+startScan();
+</script>
+</body>
+</html>

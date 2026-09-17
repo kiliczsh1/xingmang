@@ -1,0 +1,340 @@
+/* ============================================================
+   Write 页共享质感层（精致扁平，对齐 ChatMain ds-modal 标杆）
+   - 令牌定义在 :root 上，append-to-body 的弹窗也能通过 DOM 继承拿到
+   - 亮色：暖纸白系（贴合写作页纸感）；暗色：对齐 dark-theme.css 深空色板
+   - 本文件为普通全局 CSS：禁止使用 :deep()（Vue 编译器不转换，属无效规则）
+   ============================================================ */
+
+/* ---------- 1. 双态令牌 ---------- */
+:root {
+  /* 面 */
+  --xm-surface: #ffffff;
+  --xm-surface-2: #f7f6f2;
+  --xm-surface-3: #efede7;
+  --xm-veil: rgba(31, 27, 21, 0.32);
+
+  /* 线 */
+  --xm-line: #e7e4dc;
+  --xm-line-strong: #d6d2c8;
+
+  /* 字 */
+  --xm-ink: #2c3138;
+  --xm-ink-2: #5a6270;
+  --xm-ink-3: #8a8f99;
+
+  /* 强调（接 MainLayout 注入的 --accent，5 套皮肤自动适配） */
+  --xm-accent: var(--accent, #2563eb);
+  --xm-accent-soft: var(--accent-soft, rgba(37, 99, 235, 0.1));
+  --xm-on-accent: #ffffff;
+
+  /* 阴影 */
+  --xm-shadow-dialog: 0 20px 60px rgba(15, 23, 42, 0.18), 0 4px 16px rgba(15, 23, 42, 0.06);
+  --xm-shadow-pop: 0 12px 40px rgba(15, 23, 42, 0.16);
+
+  /* 圆角与动效 */
+  --xm-radius: 16px;
+  --xm-radius-sm: 10px;
+  --xm-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --xm-dur: 0.2s;
+}
+
+:root[data-theme='dark'] {
+  --xm-surface: #161b22;
+  --xm-surface-2: #1c2333;
+  --xm-surface-3: #222b3d;
+  --xm-veil: rgba(0, 0, 0, 0.6);
+
+  --xm-line: rgba(59, 130, 246, 0.12);
+  --xm-line-strong: rgba(59, 130, 246, 0.22);
+
+  --xm-ink: #e6edf3;
+  --xm-ink-2: #8b98a8;
+  --xm-ink-3: #5f6b7a;
+
+  --xm-accent: var(--accent, #58a6ff);
+  --xm-accent-soft: var(--accent-soft, rgba(88, 166, 255, 0.14));
+  --xm-on-accent: #ffffff;
+
+  --xm-shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3);
+  --xm-shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- 2. 进场动画 ---------- */
+@keyframes xm-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.xm-pop-in {
+  animation: xm-pop-in var(--xm-dur) var(--xm-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xm-pop-in {
+    animation: none;
+  }
+}
+
+/* ---------- 3. 遮罩（el-overlay 通过 :has 定向命中，自定义遮罩直接挂 .xm-veil） ---------- */
+.xm-veil {
+  background: var(--xm-veil);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.el-overlay:has(.xm-dialog),
+.el-overlay:has(.xm-drawer),
+.el-overlay:has(.xm-pop) {
+  background-color: var(--xm-veil);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Element Plus 的 align-center 只给 .el-dialog 设 margin:auto，垂直方向在块级布局中不生效
+   （弹窗顶到屏幕上沿）；对包含 align-center 弹窗的遮罩层启用 flex 真居中 */
+.el-overlay-dialog:has(> .el-dialog.is-align-center) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- 4. el-dialog 页面级适配：弹窗根元素挂 .xm-dialog ---------- */
+.xm-dialog {
+  --el-dialog-bg-color: var(--xm-surface);
+  --el-border-radius-base: 8px;
+
+  --el-input-bg-color: var(--xm-surface-2);
+  --el-input-border-color: var(--xm-line);
+  --el-input-text-color: var(--xm-ink);
+  --el-input-focus-border-color: var(--xm-accent);
+
+  --el-text-color-primary: var(--xm-ink);
+  --el-text-color-regular: var(--xm-ink);
+  --el-text-color-secondary: var(--xm-ink-2);
+  --el-text-color-placeholder: var(--xm-ink-3);
+  --el-border-color: var(--xm-line);
+  --el-border-color-light: var(--xm-line);
+  --el-border-color-lighter: var(--xm-line);
+  --el-fill-color-light: var(--xm-surface-3);
+  --el-fill-color-lighter: var(--xm-surface-2);
+
+  background: var(--xm-surface);
+  border: 1px solid var(--xm-line);
+  border-radius: var(--xm-radius);
+  box-shadow: var(--xm-shadow-dialog);
+  overflow: hidden;
+  animation: xm-pop-in var(--xm-dur) var(--xm-ease) both;
+}
+
+.xm-dialog .el-dialog__header {
+  padding: 18px 22px;
+  margin: 0;
+  border-bottom: 1px solid var(--xm-line);
+  background: transparent;
+}
+
+.xm-dialog .el-dialog__title {
+  color: var(--xm-ink);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.xm-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: var(--xm-ink-3);
+}
+
+.xm-dialog .el-dialog__headerbtn:hover .el-dialog__close {
+  color: var(--xm-ink);
+}
+
+.xm-dialog .el-dialog__body {
+  padding: 20px 22px;
+  color: var(--xm-ink);
+}
+
+.xm-dialog .el-dialog__footer {
+  padding: 14px 22px;
+  border-top: 1px solid var(--xm-line);
+  background: transparent;
+}
+
+/* 弹窗内按钮：统一圆角与节奏（配色沿用全局主题对 el-button 的处理，避免打架） */
+.xm-dialog .el-button {
+  border-radius: 8px;
+  transition: all var(--xm-dur) var(--xm-ease);
+}
+
+.xm-dialog .el-button--primary {
+  background: var(--xm-accent);
+  border-color: var(--xm-accent);
+}
+
+.xm-dialog .el-button--primary:hover,
+.xm-dialog .el-button--primary:focus {
+  background: var(--xm-accent);
+  border-color: var(--xm-accent);
+  filter: brightness(0.92);
+}
+
+.xm-dialog .el-button--primary:active {
+  filter: brightness(0.85);
+  transform: translateY(1px);
+}
+
+.xm-dialog .el-button--default:not(.is-text):not(.is-link) {
+  background: var(--xm-surface);
+  border-color: var(--xm-line-strong);
+  color: var(--xm-ink-2);
+}
+
+.xm-dialog .el-button--default:not(.is-text):not(.is-link):hover,
+.xm-dialog .el-button--default:not(.is-text):not(.is-link):focus {
+  background: var(--xm-accent-soft);
+  border-color: var(--xm-accent);
+  color: var(--xm-accent);
+}
+
+/* ---------- 5. el-drawer 适配：抽屉根元素挂 .xm-drawer ---------- */
+.xm-drawer {
+  background: var(--xm-surface) !important;
+  box-shadow: var(--xm-shadow-dialog);
+}
+
+.xm-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--xm-line);
+  color: var(--xm-ink);
+  font-weight: 600;
+}
+
+.xm-drawer .el-drawer__body {
+  padding: 20px;
+  color: var(--xm-ink);
+}
+
+/* ---------- 6. 自绘面板 / 按钮 / 输入框基类（手写 modal 用） ---------- */
+.xm-panel {
+  background: var(--xm-surface);
+  border: 1px solid var(--xm-line);
+  border-radius: var(--xm-radius);
+  box-shadow: var(--xm-shadow-dialog);
+  color: var(--xm-ink);
+  overflow: hidden;
+}
+
+.xm-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--xm-line);
+  color: var(--xm-ink);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.xm-panel-body {
+  padding: 20px;
+  color: var(--xm-ink);
+}
+
+.xm-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--xm-line);
+}
+
+.xm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid var(--xm-line-strong);
+  background: var(--xm-surface);
+  color: var(--xm-ink-2);
+  cursor: pointer;
+  transition: all var(--xm-dur) var(--xm-ease);
+}
+
+.xm-btn:hover {
+  border-color: var(--xm-accent);
+  color: var(--xm-accent);
+  background: var(--xm-accent-soft);
+}
+
+.xm-btn:active {
+  transform: translateY(1px);
+}
+
+.xm-btn--primary {
+  border-color: transparent;
+  background: var(--xm-accent);
+  color: var(--xm-on-accent);
+}
+
+.xm-btn--primary:hover {
+  background: var(--xm-accent);
+  color: var(--xm-on-accent);
+  filter: brightness(0.92);
+}
+
+.xm-btn--primary:active {
+  filter: brightness(0.85);
+  transform: translateY(1px);
+}
+
+.xm-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--xm-ink-2);
+}
+
+.xm-btn--ghost:hover {
+  background: var(--xm-surface-3);
+  border-color: transparent;
+  color: var(--xm-ink);
+}
+
+.xm-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: var(--xm-surface-2);
+  border: 1px solid var(--xm-line);
+  border-radius: 8px;
+  color: var(--xm-ink);
+  transition: border-color var(--xm-dur) var(--xm-ease), box-shadow var(--xm-dur) var(--xm-ease),
+    background var(--xm-dur) var(--xm-ease);
+}
+
+.xm-input:focus {
+  outline: none;
+  border-color: var(--xm-accent);
+  box-shadow: 0 0 0 3px var(--xm-accent-soft);
+}
+
+.xm-input::placeholder {
+  color: var(--xm-ink-3);
+}
+
+/* 悬浮层（选择工具条、手机预览浮窗等非模态浮层） */
+.xm-pop {
+  background: var(--xm-surface);
+  border: 1px solid var(--xm-line);
+  border-radius: var(--xm-radius-sm);
+  box-shadow: var(--xm-shadow-pop);
+  color: var(--xm-ink);
+}
