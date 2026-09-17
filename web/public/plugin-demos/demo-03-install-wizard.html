@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<!--
+  安装向导 Demo
+  心理原则: 费茨定律(目标越大越易点击) + 任务分解(单步只问一件事,降低认知负荷)
+  落地方式: 步骤条显示进度 → 每步仅一个决策点(C1: 表单字段≤7) → 底部大主操作始终可达 → 「上一步」可撤销
+  设计预算: 常驻可点 = 返回 + 主操作 + 上一步 = 3 ≤ 9(B1); 0 弹层(B2)
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo 04 · 插件安装向导</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#ffffff;--line:#e6eaf0;--ink:#1a2230;--ink2:#5a6a80;--ink3:#98a5b8;
+  --accent:#2563eb;--accent-soft:#eef4ff;--success:#16a34a;--danger:#dc2626;--shadow:0 1px 2px rgba(30,36,51,.04),0 10px 30px rgba(30,36,51,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0d1117;--card:#161b22;--line:#21262d;--ink:#e6edf3;--ink2:#8b98a8;--ink3:#5f6b7a;--accent:#58a6ff;--accent-soft:#12253f;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.3)}
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);transition:background .3s,color .3s}
+.wrap{max-width:640px;margin:0 auto;padding:28px 24px 40px}
+.top{margin-bottom:20px}.top h1{font-size:22px;font-weight:800}
+.top .crumb{font-size:12px;color:var(--ink3)}.crumb a{color:var(--accent);text-decoration:none}
+
+/* 插件卡片 */
+.plug{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:20px}
+.plug .ico{width:48px;height:48px;border-radius:13px;background:#7c3aed1a;color:#7c3aed;display:grid;place-items:center;font-size:23px}
+.plug .nm{font-size:16px;font-weight:800}
+.plug .ver{font-size:11.5px;color:var(--ink3);font-family:monospace;margin-top:2px}
+
+/* 步骤条 */
+.stepper{display:flex;align-items:center;gap:0;margin-bottom:24px}
+.step-t{flex:1;text-align:center;position:relative;font-size:12px;color:var(--ink3)}
+.step-t .dot{width:26px;height:26px;border-radius:50%;background:var(--line);color:var(--ink3);display:grid;place-items:center;margin:0 auto 6px;font-size:12px;font-weight:700;transition:.2s;position:relative;z-index:2}
+.step-t.done .dot{background:var(--success);color:#fff}
+.step-t.now{color:var(--accent);font-weight:700}
+.step-t.now .dot{background:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-soft)}
+.step-t::before{content:"";position:absolute;top:13px;right:50%;width:100%;height:2px;background:var(--line);z-index:1}
+.step-t:first-child::before{display:none}
+.step-t.done::before{background:var(--success)}
+
+/* 步骤内容 */
+.stage{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow);min-height:220px;display:flex;flex-direction:column}
+.stage .s-title{font-size:15px;font-weight:700;margin-bottom:14px}
+.stage .s-sub{font-size:12.5px;color:var(--ink2);line-height:1.8;margin-bottom:16px}
+/* 单选版本(单选组 = 一个决策点) */
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:10px;padding:13px 15px;cursor:pointer;transition:.15s}
+.opt:hover{border-color:var(--accent)}
+.opt.sel{border-color:var(--accent);background:var(--accent-soft)}
+.opt .radio{width:17px;height:17px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;display:grid;place-items:center}
+.opt.sel .radio{border-color:var(--accent)}
+.opt.sel .radio::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.opt .v{font-size:14px;font-weight:600}
+.opt .vn{font-size:11.5px;color:var(--ink3)}
+.opt .recommend{margin-left:auto;font-size:11px;font-weight:700;color:#7c3aed;background:#f5f3ff;border-radius:999px;padding:2px 9px}
+/* 依赖清单 */
+.deps{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.dep{display:flex;align-items:center;gap:10px;font-size:13px;padding:10px 13px;border-radius:9px;background:var(--bg);border:1px solid var(--line)}
+.dep .chk{width:18px;height:18px;border-radius:6px;border:2px solid var(--success);color:#fff;display:grid;place-items:center;font-size:11px;flex-shrink:0}
+.dep.ok .chk{background:var(--success)}
+.dep .need{margin-left:auto;font-size:11.5px;color:var(--ink3)}
+.dep .installing{color:var(--accent);font-weight:600;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.4}}
+/* 成功 */
+.done-panel{text-align:center;padding:20px 0}
+.done-panel .big{width:64px;height:64px;border-radius:50%;background:#ecfdf5;color:var(--success);display:grid;place-items:center;font-size:30px;margin:0 auto 14px}
+.done-panel h3{font-size:17px;margin-bottom:6px}
+.done-panel p{font-size:13px;color:var(--ink2);line-height:1.8}
+
+/* 底部操作栏(费茨: 大主操作,始终可达) */
+.foot{display:flex;gap:12px;margin-top:16px;align-items:center}
+.back{border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:11px;padding:13px 22px;font-size:14px;cursor:pointer;transition:.15s}
+.back:hover{border-color:var(--accent);color:var(--accent)}
+.back.hidden{visibility:hidden}
+.next{flex:1;border:0;background:var(--accent);color:#fff;border-radius:11px;padding:13px 0;font-size:15px;font-weight:700;cursor:pointer;transition:.15s}
+.next:hover{filter:brightness(.92)}
+.next:disabled{background:var(--line);color:var(--ink3);cursor:default}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>安装插件</h1>
+    <div class="crumb"><a href="index.html">← Demo 合集</a></div>
+  </div>
+
+  <div class="plug">
+    <span class="ico">🗒</span>
+    <div><div class="nm">章节摘要生成</div><div class="ver">chapter-summary · 第三方 · 最新版本可安装</div></div>
+  </div>
+
+  <div class="stepper" id="stepper"></div>
+
+  <div class="stage" id="stage"></div>
+
+  <div class="foot">
+    <button class="back hidden" id="backBtn" onclick="go(-1)">上一步</button>
+    <button class="next" id="nextBtn" onclick="goNext()">下一步</button>
+  </div>
+</div>
+
+<script>
+const STEPS=["选择版本","确认依赖","完成"];
+let step=0;           // 0/1/2
+let version="";
+let installing=false;
+const DEPENDENCIES=[
+  {n:"运行时核心 ≥ 2.1",s:true},{n:"章节全文索引",s:true},{n:"AI 对话接口(用于生成摘要)",s:false}
+];
+function renderStepper(){
+  document.getElementById("stepper").innerHTML=STEPS.map((s,i)=>`
+    <div class="step-t ${i<step?"done":""} ${i===step?"now":""}">
+      <div class="dot">${i<step?"✓":i+1}</div>${s}
+    </div>`).join("");
+}
+function renderStage(){
+  const stage=document.getElementById("stage");
+  const backBtn=document.getElementById("backBtn");
+  const nextBtn=document.getElementById("nextBtn");
+  backBtn.classList.toggle("hidden",step===0);
+  if(step===0){
+    stage.innerHTML=`
+      <div class="s-title">选择要安装的版本</div>
+      <div class="s-sub">推荐使用正式版。测试版可能包含未验证的新功能。</div>
+      <div class="opts">
+        <div class="opt ${version==="1.1.0"?"sel":""}" onclick="pick('1.1.0')">
+          <span class="radio"></span><div><div class="v">v1.1.0 正式版</div><div class="vn">稳定 · 已通过 1.2 万+ 安装验证</div></div><span class="recommend">推荐</span>
+        </div>
+        <div class="opt ${version==="1.2.0-beta"?"sel":""}" onclick="pick('1.2.0-beta')">
+          <span class="radio"></span><div><div class="v">v1.2.0-beta 测试版</div><div class="vn">含大纲一键转细纲,需手动反馈问题</div></div>
+        </div>
+      </div>`;
+    nextBtn.textContent="下一步：确认依赖";
+    nextBtn.disabled=!version;
+  }else if(step===1){
+    stage.innerHTML=`
+      <div class="s-title">确认依赖</div>
+      <div class="s-sub">安装 ${version} 需要以下条件,系统将自动补齐缺失项。</div>
+      <div class="deps">${DEPENDENCIES.map((d,i)=>`
+        <div class="dep ${d.s?"ok":""}" id="dep${i}">
+          <span class="chk">${d.s?"✓":""}</span>${d.n}
+          <span class="need" id="depn${i}">${d.s?"已满足":"等待安装"}</span>
+        </div>`).join("")}</div>`;
+    nextBtn.textContent="开始安装";
+    nextBtn.disabled=false;
+  }else{
+    stage.innerHTML=`
+      <div class="done-panel">
+        <div class="big">✓</div>
+        <h3>安装完成</h3>
+        <p>「章节摘要生成」v${version} 已启用<br>你现在可以去创作页面使用它了</p>
+      </div>`;
+    nextBtn.textContent="完成";
+    nextBtn.disabled=false;
+  }
+}
+function pick(v){version=v;renderStage();}
+function go(n){step+=n;renderStepper();renderStage();}
+function goNext(){
+  if(step===0){if(version)go(1);}
+  else if(step===1){
+    // 模拟补装依赖
+    nextBtn.disabled=true;
+    document.getElementById("nextBtn").textContent="安装中…";
+    let i=0;
+    DEPENDENCIES.forEach((d,idx)=>{
+      if(!d.s){
+        const dep=document.getElementById(`dep${idx}`);
+        const need=document.getElementById(`depn${idx}`);
+        setTimeout(()=>{
+          dep.classList.add("ok");
+          dep.querySelector(".chk").textContent="✓";
+          need.textContent="已安装";need.classList.remove("installing");
+          dep.classList.add("installing");
+        },400);
+      }
+    });
+    setTimeout(()=>{go(2);},1600);
+  }else{go(0);version="";}
+}
+renderStepper();renderStage();
+</script>
+</body>
+</html>

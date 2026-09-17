@@ -1,0 +1,11 @@
+{
+  "name": "example-suffix",
+  "label": "示例·回复后缀",
+  "version": "1.0.0",
+  "description": "把 AI 回复末尾追加一行标记（本地插件安装示例）",
+  "author": "星芒示例",
+  "icon": "MagicStick",
+  "color": "#0ea5e9",
+  "tags": ["示例", "内容处理"],
+  "entry": "index.js"
+}

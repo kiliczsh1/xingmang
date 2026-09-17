@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>插件系统 · HCI 交互 Demo 合集</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;background:#f4f6f8;color:#1e293b}
+  .page{max-width:1080px;margin:0 auto;padding:56px 32px 64px}
+  .head{text-align:center;margin-bottom:48px}
+  .head h1{font-size:30px;font-weight:800;letter-spacing:.5px;background:linear-gradient(90deg,#2563eb,#7c3aed);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .head p{margin-top:12px;color:#64748b;font-size:14px;max-width:760px;margin-left:auto;margin-right:auto;line-height:1.9}
+  .head .tag{margin-top:18px;display:inline-block;padding:6px 14px;background:#eef4ff;color:#2563eb;border-radius:999px;font-size:12px;font-weight:600}
+  .head .tag b{font-weight:800}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  a.item{display:flex;gap:16px;align-items:flex-start;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:18px;text-decoration:none;color:inherit;transition:.25s;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  a.item:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(15,23,42,.1);border-color:#2563eb55}
+  .num{flex-shrink:0;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;background:linear-gradient(135deg,#2563eb,#60a5fa)}
+  a.item:nth-child(2) .num{background:linear-gradient(135deg,#16a34a,#4ade80)}
+  a.item:nth-child(3) .num{background:linear-gradient(135deg,#d97706,#fbbf24)}
+  a.item:nth-child(4) .num{background:linear-gradient(135deg,#0ea5e9,#38bdf8)}
+  a.item:nth-child(5) .num{background:linear-gradient(135deg,#dc2626,#f87171)}
+  a.item:nth-child(6) .num{background:linear-gradient(135deg,#0891b2,#22d3ee)}
+  a.item:nth-child(7) .num{background:linear-gradient(135deg,#eab308,#fde047)}
+  .info{min-width:0}
+  .name{font-size:16px;font-weight:700;color:#0f172a}
+  .pr{display:inline-block;margin-top:5px;font-size:11px;font-weight:700;color:#7c3aed;background:#f5f3ff;border-radius:999px;padding:2px 9px}
+  .desc{font-size:12.5px;color:#64748b;margin-top:7px;line-height:1.75}
+  .go{display:inline-block;margin-top:8px;font-size:12px;color:#2563eb;font-weight:600}
+  .foot{margin-top:40px;text-align:center;font-size:12px;color:#94a3b8}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <h1>插件系统 · HCI 交互 Demo 合集</h1>
+    <p>覆盖插件系统完整生命周期（发现 → 检测 → 安装 → 管理 → 冲突 → 更新 → 空态引导），每个 Demo 落地一条人机交互心理学原则，并遵循项目 DESIGN_GUIDELINES 的界面密度预算。</p>
+    <span class="tag">共 <b>7</b> 个可交互 Demo · 每个文件独立自包含</span>
+  </div>
+  <div class="grid">
+    <a class="item" href="demo-01-hub.html"><span class="num">01</span><div class="info"><div class="name">插件中心（内置/第三方分治）</div><span class="pr">四条原则协同</span><p class="desc">市场 + 搜索 + 详情抽屉 + 诊断合为一体：来源分段一眼分清「内置(仅启停)」与「第三方(可安装/卸载)」，操作实时汇入诊断日志。</p><span class="go">打开并交互 →</span></div></a>
+    <a class="item" href="demo-02-builtin-scan.html"><span class="num">02</span><div class="info"><div class="name">内置插件检测</div><span class="pr">系统状态可见性</span><p class="desc">检测过程分步点亮、结果以"检测报告"呈现，让用户始终知道系统在做什么。</p><span class="go">打开并交互 →</span></div></a>
+    <a class="item" href="demo-03-install-wizard.html"><span class="num">03</span><div class="info"><div class="name">安装向导</div><span class="pr">费茨定律 · 任务分解</span><p class="desc">面向第三方插件的安装流程：单步只问一件事，步骤条显示进度，底部大主操作始终可达，支持上一步撤销。</p><span class="go">打开并交互 →</span></div></a>
+    <a class="item" href="demo-04-manage-toggles.html"><span class="num">04</span><div class="info"><div class="name">插件管理台</div><span class="pr">即时反馈 · 状态可见</span><p class="desc">开关带 loading→成功反馈，启用计数实时更新，每个插件有明确的运行状态点。</p><span class="go">打开并交互 →</span></div></a>
+    <a class="item" href="demo-05-conflict.html"><span class="num">05</span><div class="info"><div class="name">依赖冲突处理</div><span class="pr">错误预防与恢复</span><p class="desc">冲突分级（阻断/警告），每级给出明确处置动作，一键修复 + 撤销兜底。</p><span class="go">打开并交互 →</span></div></a>
+    <a class="item" href="demo-06-updates.html"><span class="num">06</span><div class="info"><div class="name">更新中心</div><span class="pr">一致性 · 减少重复决策</span><p class="desc">单主操作"全部更新"承载批量，版本变化与变更摘要清晰可见。</p><span class="go">打开并交互 →</span></div></a>
+    <a class="item" href="demo-07-empty-onboarding.html"><span class="num">07</span><div class="info"><div class="name">空状态与新手引导</div><span class="pr">空状态必达 · 引导动作</span><p class="desc">零插件不是空白而是起点：三步引导 + 推荐插件，缩短首次决策路径。</p><span class="go">打开并交互 →</span></div></a>
+  </div>
+  <div class="foot">每个 Demo 均支持亮/暗主题切换（跟随系统偏好）· prefers-reduced-motion 下装饰动画自动降级</div>
+</div>
+</body>
+</html>

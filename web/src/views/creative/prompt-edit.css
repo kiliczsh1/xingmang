@@ -1,0 +1,186 @@
+/* 提示词编辑弹窗样式 */
+.prompt-edit-content {
+  padding: 10px 0;
+}
+
+.prompt-format-hint {
+  margin-bottom: 12px;
+}
+
+.format-description {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.format-description p {
+  margin: 4px 0;
+}
+
+.format-tip {
+  color: #3b82f6;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.format-example {
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid #3b82f6;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 4px 0;
+  font-family: 'Courier New', monospace;
+  color: #ffffff;
+}
+
+.format-description code {
+  background-color: #333333;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  color: #3b82f6;
+}
+
+/* 字段配置样式 */
+.field-config-section {
+  margin-top: 12px;
+}
+
+.empty-fields {
+  text-align: center;
+  padding: 24px;
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.empty-hint {
+  margin-top: 12px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.fields-list {
+  margin-top: 12px;
+}
+
+.field-item {
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid #333333;
+}
+
+.field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.field-name {
+  font-weight: 600;
+  color: #3b82f6;
+  font-family: 'Courier New', monospace;
+  background-color: rgba(59, 130, 246, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #3b82f6;
+}
+
+.field-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.field-config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field-input {
+  width: 100%;
+}
+
+.field-options {
+  margin-top: 8px;
+}
+
+.field-options label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+/* 固定提示词预览样式 */
+.fixed-prompt-preview {
+  margin-top: 8px;
+}
+
+.fixed-prompt-preview :deep(.el-textarea__inner) {
+  background-color: #2a2a2a;
+  color: #ffffff;
+  border-color: #4a4a4a;
+}
+
+.fixed-prompt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.fixed-prompt-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #3b82f6;
+}
+
+/* 固定提示词弹窗样式 */
+/* 固定提示词弹窗 - 内容 */
+.fixed-prompt-dialog-content {
+  padding: 10px 0;
+}
+
+.fixed-prompt-dialog-content :deep(.el-textarea__inner) {
+  background-color: var(--fp-bg-soft);
+  color: var(--fp-text-color);
+  font-family: 'Courier New', monospace;
+  line-height: var(--fp-line-height);
+  border-color: var(--fp-border-color);
+}
+
+.form-item {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-weight: 500;
+  color: #ffffff;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+/* 页面头部按钮 */
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.create-generator-btn {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #1a1a1a;
+}
+
+.create-generator-btn:hover {
+  background: #22c55e;
+  border-color: #22c55e;
+}

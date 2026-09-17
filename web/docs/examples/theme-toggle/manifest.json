@@ -1,0 +1,11 @@
+{
+  "name": "theme-toggle",
+  "label": "暗亮切换",
+  "version": "1.0.0",
+  "description": "全局右下角圆形按钮，一键切换暗色 / 亮色主题（UI 类插件）",
+  "author": "user",
+  "icon": "🌗",
+  "color": "#2563eb",
+  "tags": ["主题", "暗色", "亮色", "切换", "ui"],
+  "entry": "index.js"
+}
