@@ -414,7 +414,7 @@ export const changelogReleases: ChangelogRelease[] = [
     details: [
       {
         tag: '功能',
-        text: '新增「星芒 Agent」独立板块：对话式写作助手，含对话界面 AB 结构、星盘形态输入区、可折叠思考卡、工具调用后的「任务容器」排版、助手回答可编辑且编辑内容进入上下文。'
+        text: '新增「星芒 Agent」独立板块：对话式写作助手，含对话界面 AB 结构、居中悬浮卡片式输入区、可折叠思考卡、工具调用后的「任务容器」排版、助手回答可编辑且编辑内容进入上下文。'
       },
       {
         tag: '功能',
@@ -753,7 +753,7 @@ export const changelogReleases: ChangelogRelease[] = [
       },
       {
         tag: '界面',
-        text: 'PackDetail 提示词弹窗功能同步至灵犀版本。'
+        text: 'PackDetail 提示词弹窗功能已同步到独立页面。'
       },
       {
         tag: '工具链',

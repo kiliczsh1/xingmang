@@ -1939,7 +1939,7 @@ onUnmounted(() => {
   margin-bottom: 6px;
 }
 
-/* 输入区：星盘形态的卡片式 composer */
+/* 输入区：居中悬浮卡片式 composer */
 .composer-zone {
   flex-shrink: 0;
   padding: 4px 24px 16px;

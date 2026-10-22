@@ -271,7 +271,7 @@ function nodeReducer(node: string, data: NodeDisplayData): NodeAttrs {
   const id = Number(node)
   const sel = snapSelectedId
 
-  // ── 选中态：马良式「清场」──
+  // ── 选中态：「清场」──
   //
   // 无关节点只把**填充**灰化成 #E2E2E2，描边保留主色 →
   // 视觉上是"空心彩边"（和参照图一致）。
@@ -382,7 +382,7 @@ function edgeReducer(edge: string, data: EdgeAttrs): EdgeAttrs {
     return { ...data, hidden: true }
   }
 
-  // ── 选中态：马良式「清场」──
+  // ── 选中态：「清场」──
   //
   // 无关边 **hidden = true**（整个消失），不是"变淡"。
   // 选中一个节点后画面里只剩它和它的邻居，其余整个退场 ——

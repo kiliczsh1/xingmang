@@ -11,7 +11,7 @@ import type {
 } from '@/types/workflow'
 
 /**
- * 工作流 store —— 从源项目（魔力创作 2.1.0）workflow-DxJ6T8H-.js 逐函数直译。
+ * 工作流 store —— 从上游参考工程的 workflow-DxJ6T8H-.js 逐函数直译。
  * 保留 canResume / pauseExecution / hasCheckpoint 等字段（源版即空壳，不接 UI）。
  * 本地化新增：currentRunId（关联后端 workflow_runs 行）。
  */

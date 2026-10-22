@@ -1,5 +1,5 @@
 // 工作流画布类型定义
-// 字段以源项目（魔力创作 2.1.0）反压缩产物 workflow-DxJ6T8H-.js / executor-C2yGHSMY.js 的实际用法为准。
+// 字段以上游参考工程反压缩产物 workflow-DxJ6T8H-.js / executor-C2yGHSMY.js 的实际用法为准。
 
 /**
  * 节点类型。

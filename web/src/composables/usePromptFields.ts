@@ -316,7 +316,7 @@ export function usePromptFields<T extends { content: string }>(deps: {
     })
   })
 
-  // 配置了但未在模板正文中引用的字段（对齐灵犀提示）
+  // 配置了但未在模板正文中引用的字段（未引用提示）
   const unusedFields = computed(() => {
     const content = formData.value.content || ''
     const regex = /\$\{([^}]+)\}/g

@@ -178,7 +178,7 @@
       destroy-on-close
       class="pack-edit-dialog"
     >
-      <!-- 顶部操作栏（对标灵犀） -->
+      <!-- 顶部操作栏 -->
       <div class="pack-edit-opbar">
         <span class="pack-edit-opbar-title">基本信息</span>
         <div class="pack-edit-opbar-actions">
@@ -452,7 +452,7 @@
           </div>
           <div class="pack-edit-right-tip">动态字段 <code>${字段名}</code></div>
           <div class="pack-edit-right-body">
-            <!-- 空状态（对齐灵犀） -->
+            <!-- 空状态 -->
             <div v-if="fieldsConfig.length === 0" class="pack-edit-empty">
               <el-icon class="pack-edit-empty-icon"><Tickets /></el-icon>
               <p>暂无字段配置</p>
@@ -642,7 +642,7 @@
       </template>
     </el-dialog>
 
-    <!-- 提示词预览测试弹窗（对标灵犀） -->
+    <!-- 提示词预览测试弹窗 -->
     <el-dialog
       v-model="previewTestVisible"
       title="提示词预览测试"
@@ -711,7 +711,7 @@
       </template>
     </el-dialog>
 
-    <!-- 生成参数设置弹窗（对标灵犀） -->
+    <!-- 生成参数设置弹窗 -->
     <el-dialog
       v-model="genParamsVisible"
       title="生成参数设置"
@@ -748,7 +748,7 @@
       </template>
     </el-dialog>
 
-    <!-- 使用说明弹窗（对标灵犀引导教程） -->
+    <!-- 使用说明弹窗（引导教程） -->
     <el-dialog
       v-model="usageGuideVisible"
       title="创建提示词使用说明"
@@ -1048,7 +1048,7 @@ const formData = ref({
   password: null as string | null,
   creator_name: '',
   version: '',
-  // 灵犀式 metadata 相关（存 Prompt.metadata）
+  // 扩展 metadata 相关（存 Prompt.metadata）
   workType: 'novel' as 'novel' | 'script',
   usageMode: 'private' as 'private' | 'public',
   contentPublic: false
@@ -1068,7 +1068,7 @@ const genParams = ref({
   topP: 0.95
 })
 
-// ============ 灵犀式新功能状态 ============
+// ============ 扩展功能状态 ============
 const previewTestVisible = ref(false)
 const genParamsVisible = ref(false)
 const usageGuideVisible = ref(false)
@@ -1853,7 +1853,7 @@ const handleSubmit = async () => {
         defaultValue: field.defaultValue || ''
       })),
       subcategories: formSubcategories.value,
-      // 灵犀式扩展信息（存 metadata，不修改后端 schema）
+      // 扩展信息（存 metadata，不修改后端 schema）
       metadata: {
         work_type: formData.value.workType,
         usage_mode: formData.value.usageMode,
@@ -1889,7 +1889,7 @@ const handleSubmit = async () => {
   }
 }
 
-// 保存并打开预览测试（对齐灵犀"预览并保存"）
+// 保存并打开预览测试（"预览并保存"）
 const handleSubmitAndPreview = async () => {
   await handleSubmit()
   if (!editDialogVisible.value) {
@@ -1961,7 +1961,7 @@ const updateFieldOptionLabels = (index: number) => {
   field.optionLabelsText = labels.join('\n')
 }
 
-// ============ 插入动态字段（对标灵犀） ============
+// ============ 插入动态字段 ============
 // 常用字段预置
 const COMMON_FIELDS = ['期望字数', '参考文风', '角色设定', '背景设定', '剧情方向', '输出格式']
 
@@ -2005,7 +2005,7 @@ const {
   newSubcategory,
 })
 
-// ============ 顶部操作栏功能（对标灵犀） ============
+// ============ 顶部操作栏功能 ============
 
 // 保存生成参数
 const saveGenParams = () => {
@@ -2707,7 +2707,7 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* 内容区警告横幅（对齐灵犀：橙色三角警告） */
+/* 内容区警告横幅（橙色三角警告） */
 .pack-edit-content-warn {
   display: flex;
   align-items: flex-start;
@@ -2727,7 +2727,7 @@ onMounted(() => {
   color: #ea580c;
 }
 
-/* 未使用字段提示（对齐灵犀） */
+/* 未使用字段提示 */
 .pack-edit-unused-fields {
   display: flex;
   align-items: flex-start;
@@ -2928,7 +2928,7 @@ onMounted(() => {
 .pack-edit-field.expanded {
   border-color: var(--el-color-primary);
 }
-/* 卡片头（灵犀式：编号 + 名称 + 类型 + 箭头） */
+/* 卡片头（编号 + 名称 + 类型 + 箭头） */
 .pack-edit-field-head {
   display: flex;
   align-items: center;
@@ -3011,7 +3011,7 @@ onMounted(() => {
   gap: 6px;
 }
 
-/* ========== 顶部操作栏（对标灵犀） ========== */
+/* ========== 顶部操作栏 ========== */
 .pack-edit-opbar {
   display: flex;
   align-items: center;
@@ -3082,7 +3082,7 @@ onMounted(() => {
   box-shadow: none;
 }
 
-/* ========== 使用模式 / 内容公开（对标灵犀） ========== */
+/* ========== 使用模式 / 内容公开 ========== */
 .pack-edit-usage-mode {
   display: flex;
   flex-direction: column;
@@ -3110,7 +3110,7 @@ onMounted(() => {
   color: #94a3b8;
 }
 
-/* ========== 预览测试弹窗（对标灵犀） ========== */
+/* ========== 预览测试弹窗 ========== */
 .preview-test-tip {
   font-size: 12px;
   color: #6b7280;

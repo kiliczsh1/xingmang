@@ -288,7 +288,7 @@ type Prompt struct {
 	Insight       *string `json:"insight"`   // 使用心得（卡片上的自由笔记）
 	CreatorName   *string `json:"creator_name"`
 	Version       *string `json:"version"`
-	Metadata      *string `json:"metadata"` // JSON（灵犀式扩展信息：适用作品/使用模式/生成参数等）
+	Metadata      *string `json:"metadata"` // JSON（扩展信息：适用作品/使用模式/生成参数等）
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
 	// 以下两个是只读聚合字段（来自 prompt_insights 子查询），供卡片徽标免额外请求渲染；

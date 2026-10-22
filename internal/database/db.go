@@ -825,7 +825,7 @@ func ensureColumns(db *sql.DB, table string, columns []struct{ name, ddl string 
 }
 
 // migratePromptsColumns 确保 prompts 表包含扩展列：
-// metadata（灵犀式扩展信息）、is_locked（卡片锁定标记）、insight（使用心得）。
+// metadata（扩展信息）、is_locked（卡片锁定标记）、insight（使用心得）。
 func migratePromptsColumns(db *sql.DB) error {
 	return ensureColumns(db, "prompts", []struct{ name, ddl string }{
 		{"metadata", "metadata TEXT"},
