@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/mark-32.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网文创作辅助</title>
+
+    <!--
+      首屏主题预执行：必须同步、且在所有样式与模块之前。
+      应用的主题状态源是 localStorage['main-theme-mode' | 'main-theme'] + <html> 的 data-theme
+      （见 MainLayout.vue 的 getInitialThemeMode / applyTheme）。而 MainLayout 是懒加载路由，
+      要等路由 chunk 到位才挂 data-theme —— 暗色用户会先看到整屏亮色底再跳暗色。
+      这里提前挂上，取值口径与主逻辑完全一致，不存在两套真相。
+    -->
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement
+          var mode = localStorage.getItem('main-theme-mode')
+          if (mode !== 'light' && mode !== 'dark' && mode !== 'system') {
+            var legacy = localStorage.getItem('main-theme')
+            mode = (legacy === 'light' || legacy === 'dark') ? legacy : 'light'
+          }
+          var resolved = mode
+          if (mode === 'system') {
+            resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          if (resolved === 'dark') root.setAttribute('data-theme', 'dark')
+          // 护眼模式仅在亮色下生效（与 applyEyeCare 一致）
+          if (localStorage.getItem('main-theme-eyecare') === '1' && resolved === 'light') {
+            root.setAttribute('data-eyecare', '1')
+          }
+        } catch (e) { /* localStorage 不可用时按默认亮色走 */ }
+
+        /*
+          版本错配自愈：换版本后浏览器可能还拿着旧的 index.html，
+          去请求已被改名/删除的 chunk，加载失败后界面就是一片空白。
+          Vite 的预加载助手会派发 vite:preloadError —— 这里 reload 一次拿新
+          index.html 即可恢复。用 sessionStorage 加锁，保证每个会话最多只重载
+          一次，避免「重载→仍失败→再重载」的死循环。
+        */
+        window.addEventListener('vite:preloadError', function () {
+          try {
+            if (sessionStorage.getItem('xm-preload-recovered') === '1') return
+            sessionStorage.setItem('xm-preload-recovered', '1')
+          } catch (e) { /* 取不到存储就不做自愈，交给错误面板 */ }
+          window.location.reload()
+        })
+      })()
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- 非阻塞加载：fonts.googleapis.com 连不通时不能挡住首屏（曾导致打包版白屏） -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+SC:wght@400;600;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+SC:wght@400;600;700;900&display=swap" rel="stylesheet"></noscript>
+
+    <!--
+      首屏骨架：纯 HTML + 内联 CSS，零外部依赖、零 JS 依赖。
+      填掉「HTML 已解析 → 首屏 JS 解析执行 → Vue 挂载」这段空白窗口。
+      尺寸对齐 MainLayout.vue 真实布局（topbar 58px / sidebar 64px / padding 28px 34px），
+      Vue 挂载后由 src/main.ts 淡出移除，视觉无跳动。
+    -->
+    <style>
+      #xm-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        background: #f4f6f8;
+        color: #1a2230;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+          'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+        transition: opacity .3s ease;
+      }
+      :root[data-theme='dark'] #xm-boot { background: #0d1117; color: #e6edf3; }
+      :root[data-eyecare='1'] #xm-boot { filter: sepia(.22) saturate(.9) hue-rotate(-12deg) brightness(.98); }
+      #xm-boot.xm-boot-out { opacity: 0; }
+
+      /* 顶栏骨架 —— 58px，与 .topbar 一致 */
+      .xm-boot-topbar {
+        height: 58px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 20px;
+        background: #ffffff;
+        border-bottom: 1px solid #e6eaf0;
+      }
+      :root[data-theme='dark'] .xm-boot-topbar { background: #161b22; border-bottom-color: #21262d; }
+
+      .xm-boot-mark {
+        width: 32px;
+        height: 32px;
+        border-radius: 7px;
+        flex-shrink: 0;
+        display: block;
+        background: #0FB98D;
+      }
+      .xm-boot-mark img {
+        width: 32px;
+        height: 32px;
+        border-radius: 7px;
+        display: block;
+      }
+      .xm-boot-brand { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+      .xm-boot-brand b { font-size: 16px; font-weight: 700; letter-spacing: .5px; white-space: nowrap; }
+      .xm-boot-chip {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 20px;
+        white-space: nowrap;
+        color: #2563eb;
+        background: #eef4ff;
+        border: 1px solid rgba(37, 99, 235, .16);
+      }
+      :root[data-theme='dark'] .xm-boot-chip { color: #58a6ff; background: #12253f; border-color: rgba(88, 166, 255, .18); }
+
+      /* 主体 —— 侧栏 64px + 内容区 */
+      .xm-boot-body { flex: 1; min-height: 0; display: flex; }
+      .xm-boot-side {
+        width: 64px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 0;
+        background: #ffffff;
+        border-right: 1px solid #e6eaf0;
+      }
+      :root[data-theme='dark'] .xm-boot-side { background: #161b22; border-right-color: #21262d; }
+
+      .xm-boot-nav { width: 40px; height: 42px; border-radius: 10px; }
+      .xm-boot-main { flex: 1; min-width: 0; padding: 28px 34px; overflow: hidden; background: #f4f6f8; }
+      :root[data-theme='dark'] .xm-boot-main { background: #0d1117; }
+
+      .xm-boot-head { height: 34px; width: 190px; border-radius: 8px; margin-bottom: 26px; }
+      .xm-boot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+      .xm-boot-card { height: 176px; border-radius: 14px; }
+
+      /* 微光扫过：表达「正在加载」，而不是「页面坏了」 */
+      .xm-boot-head,
+      .xm-boot-card,
+      .xm-boot-nav {
+        background-image: linear-gradient(90deg, rgba(90, 106, 128, .10) 25%, rgba(90, 106, 128, .17) 37%, rgba(90, 106, 128, .10) 63%);
+        background-size: 400% 100%;
+        animation: xm-boot-shimmer 1.5s ease-in-out infinite;
+      }
+      :root[data-theme='dark'] .xm-boot-head,
+      :root[data-theme='dark'] .xm-boot-card,
+      :root[data-theme='dark'] .xm-boot-nav {
+        background-image: linear-gradient(90deg, rgba(139, 152, 168, .09) 25%, rgba(139, 152, 168, .16) 37%, rgba(139, 152, 168, .09) 63%);
+      }
+      @keyframes xm-boot-shimmer {
+        0% { background-position: 100% 50%; }
+        100% { background-position: 0 50%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .xm-boot-head, .xm-boot-card, .xm-boot-nav { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- 骨架屏：由 src/main.ts 在挂载后淡出移除 -->
+    <div id="xm-boot">
+      <div class="xm-boot-topbar">
+        <div class="xm-boot-mark"><img src="/brand/mark-32.png" width="32" height="32" alt=""></div>
+        <div class="xm-boot-brand">
+          <b>星芒 AI 写作</b>
+          <span class="xm-boot-chip">创作工作台</span>
+        </div>
+      </div>
+      <div class="xm-boot-body">
+        <div class="xm-boot-side">
+          <div class="xm-boot-nav"></div>
+          <div class="xm-boot-nav"></div>
+          <div class="xm-boot-nav"></div>
+          <div class="xm-boot-nav"></div>
+        </div>
+        <div class="xm-boot-main">
+          <div class="xm-boot-head"></div>
+          <div class="xm-boot-grid">
+            <div class="xm-boot-card"></div>
+            <div class="xm-boot-card"></div>
+            <div class="xm-boot-card"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

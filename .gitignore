@@ -1,0 +1,45 @@
+# 运行数据与个人数据 —— 一律不入库
+xingmang.db
+xingmang.db-wal
+xingmang.db-shm
+*.db
+*.db-wal
+*.db-shm
+*.db.bak-*
+books/
+data/
+logs/
+chapter-cache/
+workflow_outputs/
+_memory/
+.zcode/
+
+# 构建产物与依赖
+dist/
+web/dist/
+cmd/xingmang/web/dist/
+node_modules/
+*.exe
+*.syso
+*.otf
+
+# 备份 / 临时 / 归档
+*.bak
+*.bak-*
+*.log
+*.tmp
+*.tmp.cjs
+*.zip
+dist-verify-*
+
+# 密钥与配置
+.env
+*.pem
+*.key
+
+# 验证与截图残留
+tmp/
+_repro_*
+_shot*
+probe*.cjs
+shot-*.png

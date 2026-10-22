@@ -1,0 +1,35 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+# 构建临时目录与历史备份（dist-tmp-*、dist.bak*、dist.dbgbak* 等）
+# 这些曾经既没被忽略、也落在 Vite watch 范围内，会触发整页 reload 白屏。
+# 现已由 vite.config.ts 的 server.watch.ignored 排除，这里再补上版本控制忽略。
+dist-*
+dist.*
+coverage
+*.local
+
+/cypress/videos/
+/cypress/screenshots/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo

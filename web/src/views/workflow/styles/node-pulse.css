@@ -1,0 +1,10 @@
+/* 源版节点/画布状态动画（Vue Flow 自定义节点共用） */
+@keyframes wf-node-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(230, 162, 60, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(230, 162, 60, 0);
+  }
+}

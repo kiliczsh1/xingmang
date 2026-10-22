@@ -1,0 +1,468 @@
+/* 源版 IDELayout 布局与工作流编辑器样式（scope 4fbda3e7），
+   EP 语义色沿用，表面/文字色映射到星芒主题变量以同时适配明暗两套主题。 */
+.ide-layout {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  background: var(--wf-el-bg, #ffffff);
+  overflow: hidden;
+}
+.sidebar {
+  position: relative;
+  height: 100%;
+  flex-shrink: 0;
+}
+.left-sidebar {
+  border-right: 1px solid var(--wf-el-border, #dcdfe6);
+}
+.resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+.resize-handle:hover {
+  background-color: var(--el-color-primary, #409eff);
+}
+.resize-handle.left {
+  right: 0;
+}
+.editor-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--wf-el-bg, #ffffff);
+  position: relative;
+  z-index: 1;
+}
+.workflow-visual-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+.workflow-visual-editor {
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  background: var(--wf-el-bg, #ffffff);
+  position: relative;
+}
+.workflow-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--wf-el-bg, #ffffff);
+  color: var(--wf-el-text-secondary, #909399);
+  font-size: 14px;
+}
+.workflow-loading i {
+  font-size: 32px;
+  animation: wf-rotating 1.5s linear infinite;
+}
+@keyframes wf-rotating {
+  0% {
+    transform: rotate(0);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 文件标签页 ---------- */
+.file-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0;
+  background: var(--wf-el-bg-page, #f2f3f5);
+  border-bottom: 1px solid var(--wf-el-border, #dcdfe6);
+  height: 32px;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.tabs-list {
+  display: flex;
+  gap: 1px;
+  flex: 1;
+  align-items: flex-end;
+  padding: 0 8px;
+  max-height: 32px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+}
+.tabs-list::-webkit-scrollbar {
+  height: 5px !important;
+}
+.tabs-list::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.tabs-list::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.3) !important;
+  border-radius: 1px !important;
+}
+.tabs-list-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+.empty-text {
+  font-size: 12px;
+  color: var(--wf-el-text-placeholder, #c0c4cc);
+  font-style: italic;
+}
+.file-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  height: 28px;
+  background: var(--wf-el-fill-light, #f5f7fa);
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  user-select: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -1px;
+}
+.file-tab:hover {
+  background: var(--wf-el-fill, #f0f2f5);
+}
+.file-tab.active {
+  background: var(--wf-el-bg, #ffffff);
+  border-color: var(--wf-el-border, #dcdfe6);
+  border-bottom-color: transparent;
+  height: 30px;
+}
+.file-tab i {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.tab-label {
+  font-size: 12px;
+  color: var(--wf-el-text-regular, #606266);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-tab.active .tab-label {
+  color: var(--wf-el-text-primary, #303133);
+  font-weight: 500;
+}
+.workflow-icon {
+  color: #ff9800;
+}
+.close-btn {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0;
+  transition: all 0.15s;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.close-btn i {
+  font-size: 9px;
+  color: var(--wf-el-text-secondary, #909399);
+}
+.file-tab:hover .close-btn {
+  opacity: 1;
+}
+.close-btn:hover {
+  background: var(--wf-el-fill-dark, #e0e2e6);
+}
+.close-btn:hover i {
+  color: var(--wf-el-text-primary, #303133);
+}
+.tabs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  height: 100%;
+  flex-shrink: 0;
+}
+.toolbar-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.toolbar-btn i {
+  font-size: 13px;
+}
+.toolbar-btn:hover {
+  background: var(--wf-el-fill, #f0f2f5);
+}
+.toolbar-btn.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- 编辑器容器 / 工具栏 ---------- */
+.editor-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.editor-wrapper {
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.workflow-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--wf-el-bg-page, #f2f3f5);
+  border-bottom: 1px solid var(--wf-el-border, #dcdfe6);
+  min-height: 40px;
+}
+.workflow-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.workflow-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.editor-footer {
+  height: 28px;
+  border-top: 1px solid var(--wf-el-border-light, #ebeef5);
+  background: var(--wf-el-bg, #ffffff);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--wf-el-text-secondary, #909399);
+  flex-shrink: 0;
+}
+.footer-stats {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.stat-item i {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.stat-value {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* ---------- 欢迎页 ---------- */
+.welcome-screen {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: 100%;
+  background: var(--wf-el-bg, #ffffff);
+  overflow-y: auto;
+  padding: 40px 20px;
+}
+.welcome-content {
+  max-width: 800px;
+  width: 100%;
+}
+.welcome-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--wf-el-text-primary, #303133);
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.recent-files-section {
+  margin-bottom: 32px;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wf-el-text-secondary, #909399);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.section-header i {
+  font-size: 14px;
+  color: var(--el-color-primary, #409eff);
+}
+.recent-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.recent-file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--wf-el-fill-light, #f5f7fa);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.recent-file-item:hover {
+  background: var(--wf-el-fill, #f0f2f5);
+  border-color: var(--wf-el-border, #dcdfe6);
+}
+.recent-file-item .file-icon {
+  font-size: 20px;
+  min-width: 24px;
+}
+.recent-file-item .file-info {
+  flex: 1;
+  min-width: 0;
+}
+.recent-file-item .file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--wf-el-text-primary, #303133);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-file-item .file-path {
+  font-size: 12px;
+  color: var(--wf-el-text-secondary, #909399);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-file-item .file-time {
+  font-size: 12px;
+  color: var(--wf-el-text-placeholder, #c0c4cc);
+  white-space: nowrap;
+  margin-left: 8px;
+}
+.quick-actions-section {
+  margin-bottom: 32px;
+}
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.action-card {
+  padding: 20px;
+  background: var(--wf-el-fill-light, #f5f7fa);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  text-align: center;
+}
+.action-card:hover {
+  background: var(--wf-el-fill, #f0f2f5);
+  border-color: var(--el-color-primary, #409eff);
+}
+.action-card i {
+  font-size: 32px;
+  color: var(--el-color-primary, #409eff);
+  margin-bottom: 12px;
+  display: block;
+}
+.action-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--wf-el-text-primary, #303133);
+  margin-bottom: 6px;
+}
+.action-desc {
+  font-size: 12px;
+  color: var(--wf-el-text-secondary, #909399);
+}
+
+/* ---------- 设置弹窗 ---------- */
+.editor-settings-dialog {
+  border-radius: 8px;
+}
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: var(--wf-el-bg, #ffffff);
+  border-radius: 8px;
+  border: 1px solid var(--wf-el-border-light, #ebeef5);
+  transition: all 0.3s;
+}
+.setting-row:hover {
+  border-color: var(--wf-el-primary-light-5, #a0cfff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 100px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--wf-el-text-primary, #303133);
+}
+.setting-label i {
+  color: var(--el-color-primary, #409eff);
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+.size-controls {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+.dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

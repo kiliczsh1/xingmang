@@ -1,0 +1,155 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+  background: #060b14;
+  background-attachment: fixed;
+}
+
+/*
+ * ============ 弹窗尺寸体系 ============
+ * 弹窗宽度不写固定值，按「内容形态」分档：
+ *   compact(320-560) / form(560-800) / content(720-1120) / workspace(960-1440)
+ * 用 clamp 让同一档在窄屏收窄、宽屏放宽，避免宽屏下弹窗只有一小条、
+ * 内容被迫竖排成「竖矩形」。
+ *
+ * ⚠ 必须定义在全局（这里），不能放在某个路由组件的 <style> 里：
+ *   项目的弹窗普遍用 append-to-body 挂到 body，且变量在组件卸载时会随样式一起消失。
+ *   实测把这段放在 Config.vue 时，离开 /config 后 :root 上就读不到值了
+ *   （getPropertyValue 返回空串），跨页面的弹窗拿不到宽度。
+ */
+:root {
+  --app-dialog-gutter: 12px;
+  --app-dialog-available-width: calc(100vw - 2 * var(--app-dialog-gutter));
+  --app-dialog-available-height: calc(100dvh - 2 * var(--app-dialog-gutter));
+  --app-dialog-width-compact: min(var(--app-dialog-available-width), clamp(320px, 40vw, 560px));
+  --app-dialog-width-form: min(var(--app-dialog-available-width), clamp(560px, 60vw, 800px));
+  --app-dialog-width-content: min(var(--app-dialog-available-width), clamp(720px, 76vw, 1120px));
+  --app-dialog-width-workspace: min(var(--app-dialog-available-width), clamp(960px, 86vw, 1440px));
+  --app-dialog-width-studio: min(var(--app-dialog-available-width), 94vw, 1760px);
+  --app-dialog-height-content: min(800px, var(--app-dialog-available-height));
+  --app-dialog-height-workspace: min(960px, var(--app-dialog-available-height));
+  --app-dialog-body-height: max(120px, calc(var(--app-dialog-available-height) - 180px));
+}
+
+/* 宽屏加大留白（蓝本同款）；窄屏保持 12px，免得弹窗贴边 */
+@media (min-width: 768px) {
+  :root {
+    --app-dialog-gutter: clamp(16px, 2.4dvh, 32px);
+  }
+}
+
+:root:not([data-theme='dark']) body {
+  background: #f0fdf9;
+}
+
+/* 护眼模式：亮色下给界面加暖色滤镜，降低蓝光 */
+:root[data-eyecare='1']:not([data-theme='dark']) body {
+  background: #f5ecd9;
+}
+
+:root[data-eyecare='1']:not([data-theme='dark']) .app-shell,
+:root[data-eyecare='1']:not([data-theme='dark']) .content-frame {
+  filter: sepia(.22) saturate(.9) hue-rotate(-12deg) brightness(.98);
+}
+
+/* 美化滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* 全局动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Element Plus 样式覆盖 */
+.el-button {
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.el-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.el-input__wrapper {
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.el-input__wrapper:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.el-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s;
+}
+
+.el-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.el-dialog {
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.el-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.el-select-dropdown {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
