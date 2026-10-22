@@ -20,7 +20,6 @@ web/dist/
 cmd/xingmang/web/dist/
 node_modules/
 *.exe
-*.syso
 *.otf
 
 # 备份 / 临时 / 归档

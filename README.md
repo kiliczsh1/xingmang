@@ -78,7 +78,8 @@ start-dev.bat
 
 ## 已知限制
 
-- 仓库不含 `cmd/xingmang/rsrc_windows_*.syso`（程序图标资源），直接构建出的 exe 没有自定义图标，
-  不影响运行；`tools/release` 检测到缺失时会提示。
 - 仓库不含 `web/dist`，首次构建必须先 `npm install`。
 - 本分支与 `main` 没有共同祖先（独立根提交），无法直接发起 Pull Request。
+
+图标资源 `cmd/xingmang/rsrc_windows_amd64.syso` 与 `rsrc_windows_arm64.syso` 已随源码提供，
+构建出的 exe 带程序图标；它们是 COFF 资源对象，只是二进制形式，不参与编译逻辑。
