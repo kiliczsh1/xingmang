@@ -3,11 +3,7 @@
     <div class="detail-header">
       <div class="detail-title-row">
         <span class="detail-name" :title="entity.name">{{ entity.name }}</span>
-        <el-button link size="small" @click="emit('close')">
-          <el-icon><Close /></el-icon>
-        </el-button>
-      </div>
-      <div class="detail-meta">
+      </div>      <div class="detail-meta">
         <span class="type-chip" :style="{ background: typeColor(entity.type) }">
           {{ typeLabel(entity.type) }}
         </span>
@@ -17,65 +13,71 @@
     </div>
 
     <div class="detail-body">
-      <section v-if="entity.description" class="detail-section">
-        <div class="section-label">描述</div>
-        <MarkdownRenderer class="detail-desc" :content="entity.description" />
-      </section>
+      <template v-if="showInfo">
+        <section v-if="entity.description" class="detail-section">
+          <div class="section-label">描述</div>
+          <MarkdownRenderer class="detail-desc" :content="entity.description" />
+        </section>
 
-      <section v-if="metadataEntries.length > 0" class="detail-section">
-        <div class="section-label">元数据</div>
-        <div class="meta-table">
-          <div v-for="[key, value] in metadataEntries" :key="key" class="meta-row">
-            <span class="meta-key">{{ key }}</span>
-            <span class="meta-value">{{ value }}</span>
+        <section v-if="metadataEntries.length > 0" class="detail-section">
+          <div class="section-label">元数据</div>
+          <div class="meta-table">
+            <div v-for="[key, value] in metadataEntries" :key="key" class="meta-row">
+              <span class="meta-key">{{ key }}</span>
+              <span class="meta-value">{{ value }}</span>
+            </div>
           </div>
+        </section>
+
+        <section class="detail-section">
+          <div class="section-label section-label-row">
+            <span>出现章节</span>
+            <el-button v-if="!editingChapters" link size="small" @click="startEditChapters">编辑</el-button>
+            <span v-else class="section-actions">
+              <el-button link size="small" @click="editingChapters = false">取消</el-button>
+              <el-button link size="small" type="primary" :loading="savingChapters" @click="saveChapters">保存</el-button>
+            </span>
+          </div>
+
+          <template v-if="!editingChapters">
+            <div v-if="entityChapterLinks.length === 0" class="detail-empty">
+              暂无章节关联。可用「AI 分析」抽取，或点「编辑」手工关联。
+            </div>
+            <div v-else class="chapter-tags">
+              <button
+                v-for="link in entityChapterLinks"
+                :key="link.id"
+                class="chapter-tag"
+                :class="{ active: store.selectedChapterId === link.id }"
+                :title="`只看这一章：${link.label}`"
+                @click="store.selectChapter(store.selectedChapterId === link.id ? null : link.id)"
+              >
+                {{ link.label }}
+              </button>
+            </div>
+          </template>
+
+          <el-select-v2
+            v-else
+            v-model="draftChapterIds"
+            size="small"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            :options="chapterOptions"
+            placeholder="搜索并选择章节"
+            style="width: 100%"
+          />
+        </section>
+      </template>
+
+      <section v-if="showRelations" class="detail-section">
+        <div v-if="section === 'all'" class="section-label">关联实体</div>
+        <div v-else class="section-label section-label-row">
+          <span>关联实体</span>
+          <span class="detail-stat">{{ neighbors.length }} 条</span>
         </div>
-      </section>
-
-      <section class="detail-section">
-        <div class="section-label section-label-row">
-          <span>出现章节</span>
-          <el-button v-if="!editingChapters" link size="small" @click="startEditChapters">编辑</el-button>
-          <span v-else class="section-actions">
-            <el-button link size="small" @click="editingChapters = false">取消</el-button>
-            <el-button link size="small" type="primary" :loading="savingChapters" @click="saveChapters">保存</el-button>
-          </span>
-        </div>
-
-        <template v-if="!editingChapters">
-          <div v-if="entityChapterLinks.length === 0" class="detail-empty">
-            暂无章节关联。可用「AI 分析」抽取，或点「编辑」手工关联。
-          </div>
-          <div v-else class="chapter-tags">
-            <button
-              v-for="link in entityChapterLinks"
-              :key="link.id"
-              class="chapter-tag"
-              :class="{ active: store.selectedChapterId === link.id }"
-              :title="`只看这一章：${link.label}`"
-              @click="store.selectChapter(store.selectedChapterId === link.id ? null : link.id)"
-            >
-              {{ link.label }}
-            </button>
-          </div>
-        </template>
-
-        <el-select-v2
-          v-else
-          v-model="draftChapterIds"
-          size="small"
-          multiple
-          filterable
-          collapse-tags
-          collapse-tags-tooltip
-          :options="chapterOptions"
-          placeholder="搜索并选择章节"
-          style="width: 100%"
-        />
-      </section>
-
-      <section class="detail-section">
-        <div class="section-label">关联实体</div>
         <div v-if="neighbors.length === 0" class="detail-empty">暂无关联关系</div>
         <div v-else class="neighbor-list">
           <button
@@ -101,7 +103,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Close } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import type { GraphEntity, GraphRelation } from '@/types'
@@ -118,10 +119,17 @@ const props = defineProps<{
   entity: GraphEntity | null
   degree: number
   neighbors: GraphNeighbor[]
+  /**
+   * 面板拆成两个 tab 后由侧栏控制只渲染一半：
+   * info = 描述/元数据/出现章节，relations = 关联实体，all = 老行为（整块）
+   */
+  section?: 'all' | 'info' | 'relations'
 }>()
 
+const showInfo = computed(() => props.section !== 'relations')
+const showRelations = computed(() => props.section !== 'info')
+
 const emit = defineEmits<{
-  (e: 'close'): void
   (e: 'select', id: number): void
 }>()
 
@@ -422,5 +430,23 @@ function relationTitle(relation: GraphRelation): string {
 
 :root[data-theme='dark'] .neighbor-row:hover:not(:disabled) {
   background: rgba(59, 130, 246, 0.1);
+}
+
+/* EP 的 --el-* 文本/边框变量在暗色下仍是亮色主题的值，这里逐个落字面量 */
+:root[data-theme='dark'] .graph-detail,
+:root[data-theme='dark'] .graph-detail .el-button.is-link {
+  color: #c9d3de;
+}
+:root[data-theme='dark'] .chapter-tag {
+  border-color: rgba(42, 50, 66, 0.9);
+  color: #c9d3de;
+}
+:root[data-theme='dark'] .chapter-tag:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #e6edf3;
+}
+:root[data-theme='dark'] .detail-label,
+:root[data-theme='dark'] .neighbor-meta {
+  color: #8b98a8;
 }
 </style>

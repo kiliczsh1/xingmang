@@ -226,7 +226,7 @@ export const changelogReleases: ChangelogRelease[] = [
       },
       {
         tag: '工具链',
-        text: '移除 86 个已失效的临时调试脚本；fanqie_* 与 _check_theme.js 从项目根移入 plugins/ 对应子目录；清理星月（旧项目）残留痕迹。'
+        text: '移除 86 个已失效的临时调试脚本；fanqie_* 与 _check_theme.js 从项目根移入 plugins/ 对应子目录；清理旧项目残留文件。'
       }
     ]
   },

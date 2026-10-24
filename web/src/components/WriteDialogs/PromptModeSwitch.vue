@@ -1,6 +1,6 @@
 <template>
   <!--
-    「快捷选项 / 自定义 / 更多」三段式切换，对齐星月写作的 requirement 模式条：
+    「快捷选项 / 自定义 / 更多」三段式切换（需求模式条）：
     点「更多」不切换当前模式，只触发 more 事件（打开更多提示词弹窗），
     所以选中态始终停在「快捷选项」，不会出现「切过去了但下面没内容」。
   -->
@@ -22,7 +22,7 @@ defineOptions({ name: 'PromptModeSwitch' })
 const props = withDefaults(
   defineProps<{
     modelValue: 'preset' | 'custom'
-    /** 「更多」按钮文案，默认按星月用「更多」 */
+    /** 「更多」按钮文案 */
     moreLabel?: string
     /** 隐藏「自定义」（少数只允许选预设的场景） */
     hideCustom?: boolean

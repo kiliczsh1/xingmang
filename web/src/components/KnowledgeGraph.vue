@@ -22,7 +22,15 @@
       :link-mode="linkMode"
       @toggle-link-mode="linkMode = !linkMode"
       @open-force="forceDrawerVisible = true"
-    />
+    >
+      <!-- 透传页面级控件（书籍/版本）与尾操作（导入导出），并进工具栏同一行 -->
+      <template v-if="$slots['toolbar-extra']" #extra>
+        <slot name="toolbar-extra" />
+      </template>
+      <template v-if="$slots['toolbar-tail']" #tail>
+        <slot name="toolbar-tail" />
+      </template>
+    </GraphToolbar>
 
     <div v-if="store.legacyData" class="graph-notice">
       <el-icon><InfoFilled /></el-icon>
@@ -86,9 +94,9 @@
         -->
         <aside v-if="detailVisible" class="graph-detail-aside">
           <!--
-            侧栏顶部的 tab：详情 / 词条合并。
+            侧栏顶部的 tab：详情 / 关联实体 / 词条合并。
             合并是"全局整理"的动作，不需要先选中某个实体，
-            所以它单独占一个 tab，而不是塞在详情区块里。
+            所以它单独占一个 tab；关联实体条数多，也从详情里拆出来单独一页。
           -->
           <div class="aside-tabs">
             <button
@@ -100,20 +108,18 @@
             </button>
             <button
               class="aside-tab"
+              :class="{ on: asideTab === 'relations' }"
+              @click="asideTab = 'relations'"
+            >
+              关联实体<span v-if="detailNeighbors.length" class="aside-tab-n">{{ detailNeighbors.length }}</span>
+            </button>
+            <button
+              class="aside-tab"
               :class="{ on: asideTab === 'merge' }"
               @click="asideTab = 'merge'"
             >
               词条合并
             </button>
-            <el-button
-              class="aside-close"
-              link
-              size="small"
-              title="关闭"
-              @click="closeDetail"
-            >
-              <el-icon><Close /></el-icon>
-            </el-button>
           </div>
 
           <GraphDetailPanel
@@ -121,6 +127,15 @@
             :entity="detailEntity"
             :degree="detailDegree"
             :neighbors="detailNeighbors"
+            section="info"
+            @select="store.selectEntity"
+          />
+          <GraphDetailPanel
+            v-else-if="asideTab === 'relations'"
+            :entity="detailEntity"
+            :degree="detailDegree"
+            :neighbors="detailNeighbors"
+            section="relations"
             @select="store.selectEntity"
           />
           <GraphMergePanel
@@ -223,8 +238,8 @@ const forceDrawerVisible = ref(false)
 // 现在统一成一套：点节点 = 选中（画布清场聚焦）+ 右侧栏出详情。
 // 这样做的好处是不用再纠结浮层遮住节点、鼠标够不着卡片这些事。
 
-/** 侧栏当前 tab：详情 / 词条合并 */
-const asideTab = ref<'detail' | 'merge'>('detail')
+/** 侧栏当前 tab：详情 / 关联实体 / 词条合并 */
+const asideTab = ref<'detail' | 'relations' | 'merge'>('detail')
 
 /** 详情栏是否可见 —— 直接跟随选中状态 */
 const detailVisible = computed(() => store.selectedEntityId !== null)
@@ -239,11 +254,6 @@ const detailEntity = computed(() => store.selectedEntity)
 function handleRevealFromMerge(id: number) {
   asideTab.value = 'detail'
   store.selectEntity(id)
-}
-
-/** 关掉详情栏 = 取消选中（画布也会顺势解除聚焦） */
-function closeDetail() {
-  store.selectEntity(null)
 }
 
 /** 详情栏展示的度数（按选中实体算） */
@@ -489,9 +499,22 @@ watch(
   color: var(--el-color-primary);
   font-weight: 500;
 }
-
-.aside-close {
-  margin-left: auto;
+.aside-tab-n {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--el-fill-color);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+}
+.aside-tab.on .aside-tab-n {
+  background: rgba(59, 130, 246, 0.2);
+  color: inherit;
+}
+:root[data-theme='dark'] .aside-tab-n {
+  background: #1c2333;
+  color: #8b98a8;
 }
 
 :root[data-theme='dark'] .aside-tabs {
@@ -526,8 +549,11 @@ watch(
 }
 
 :root[data-theme='dark'] .graph-detail-aside {
-  background: var(--el-bg-color-overlay, #161b25);
-  border-left-color: rgba(42, 50, 66, 0.6);
+  /* ⚠ 不能用 var(--el-bg-color-overlay)：项目只引了 EP 亮色变量，这个变量在暗色下仍是白色 */
+  background: #161b22;
+  border-left-color: rgba(42, 50, 66, 0.9);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
+  color: #e6edf3;
 }
 
 /* 尊重减少动效偏好 */

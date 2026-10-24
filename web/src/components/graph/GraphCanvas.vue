@@ -207,7 +207,9 @@ function nodeBorderColor(_nodeColor: string): string {
 function drawPillLabel(
   ctx: CanvasRenderingContext2D,
   data: { x: number; y: number; size: number; label?: string | null },
-  settings: { labelSize: number; labelFont: string; labelWeight: string }
+  settings: { labelSize: number; labelFont: string; labelWeight: string },
+  /** 悬停/选中节点给完整名字（只有它一个标签，不怕叠） */
+  truncate = true
 ): void {
   const raw = data.label
   if (!raw) return
@@ -226,7 +228,7 @@ function drawPillLabel(
    * 完整名字在右侧详情栏里看。
    */
   const MAX_CHARS = 8
-  const label = raw.length > MAX_CHARS ? `${raw.slice(0, MAX_CHARS)}…` : raw
+  const label = truncate && raw.length > MAX_CHARS ? `${raw.slice(0, MAX_CHARS)}…` : raw
 
   const textWidth = ctx.measureText(label).width
 
@@ -263,6 +265,20 @@ function labelColor(): string {
 
 function edgeLabelColor(): string {
   return themeDark ? '#8b98a9' : '#6b7280'
+}
+
+/**
+ * 选中/悬停节点的标签由 sigma 画在 hovers 层，用的**不是**上面的 defaultDrawNodeLabel，
+ * 而是 defaultDrawNodeHover。sigma 3.0.3 的默认实现 `drawDiscNodeHover` 把底板写死成
+ * `fillStyle = '#FFF'`（settings.labelBackgroundColor 根本没被读取），
+ * 所以暗色下选中节点会露出一块白板 —— 这里直接换成同一套胶囊。
+ */
+function drawHoverPillLabel(
+  ctx: CanvasRenderingContext2D,
+  data: { x: number; y: number; size: number; label?: string | null },
+  settings: { labelSize: number; labelFont: string; labelWeight: string }
+): void {
+  drawPillLabel(ctx, data, settings, false)
 }
 
 function nodeReducer(node: string, data: NodeDisplayData): NodeAttrs {
@@ -952,8 +968,10 @@ function initSigma() {
     defaultEdgeType: EDGE_TYPE_CURVE,
     // 节点：带描边的圆；边：直线 / 曲线各两套（无箭头 + 带箭头）
     nodeProgramClasses: { border: NodeBorderProgramPx },
-    // 标签加半透明白底，密集区也能读
+    // 标签加半透明底，密集区也能读
     defaultDrawNodeLabel: drawPillLabel as never,
+    // 选中/悬停节点走同一套胶囊（默认实现是写死的白底，暗色下会露白板）
+    defaultDrawNodeHover: drawHoverPillLabel as never,
     edgeProgramClasses: {
       [EDGE_TYPE_LINE]: EdgeLineProgram,
       [EDGE_TYPE_ARROW]: EdgeArrowProgram,

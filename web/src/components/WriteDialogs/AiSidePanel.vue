@@ -106,8 +106,8 @@
               <span class="xm-ai-side__intro-link" @click="introVisible = !introVisible">{{ introVisible ? '收起介绍' : '查看介绍' }}</span>
             </p>
             <p v-if="introVisible && currentPreset" class="xm-ai-side__preset-detail">{{ currentPreset.content }}</p>
-            <p v-if="pickedPrompt?.category" class="xm-ai-side__preset-pack">
-              卡包：{{ pickedPrompt.category }}
+            <p v-if="currentPreset?.category" class="xm-ai-side__preset-pack">
+              卡包：{{ currentPreset.category }}
             </p>
           </template>
 
@@ -212,11 +212,14 @@
     <!-- 更多提示词（本地卡包） -->
     <PromptMoreDialog
       v-model:visible="moreVisible"
-      :prompts="prompts || []"
+      :prompts="morePrompts"
       :title="tool?.requirementLabel || '更多提示词'"
       :scope="tool?.id || 'side'"
-      :selected-id="pickedPrompt?.id ?? null"
-      @select="onMorePick"
+      :selected-id="null"
+      add-mode
+      :added-ids="pickedPrompts.map(p => p.id)"
+      @add="onMoreAdd"
+      @remove="onMoreRemove"
       @deleted="emit('refresh-prompts')"
     />
   </div>
@@ -228,6 +231,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Close } from '@element-plus/icons-vue'
 import type { ApiConfig, Chapter, Character, Prompt } from '@/types'
 import type { AiToolMeta } from '@/constants/aiTools'
+import { promptsForTool } from '@/constants/aiTools'
 import PromptModeSwitch from './PromptModeSwitch.vue'
 import PromptMoreDialog from './PromptMoreDialog.vue'
 import { bumpUsage, readLastPick, saveLastPick } from '@/utils/prompt-pick-store'
@@ -261,7 +265,7 @@ const advanced = ref(false)
 const modelId = ref<number>()
 const requirementMode = ref<'preset' | 'custom'>('preset')
 /** 从「更多提示词」里选中的本地卡包提示词（选中后作为快捷选项的第一条） */
-const pickedPrompt = ref<Prompt | null>(null)
+const pickedPrompts = ref<Prompt[]>([])
 const moreVisible = ref(false)
 /** 快捷选项下拉当前选中项的 key：'lib:<id>' 或 'preset:<index>' */
 const selectedKey = ref<string>('preset:0')
@@ -292,7 +296,7 @@ const sourceLabel = computed(() => tool.value?.sourceLabel || '')
 const sourceLength = computed(() => [...sourceText.value].length)
 const resultLength = computed(() => [...result.value].length)
 
-/** 快捷选项候选：从「更多」选中的提示词排在第一条，其后是工具内置预设 */
+/** 快捷选项候选：从「更多」增加进来的本地提示词排在前面，其后是工具内置预设 */
 const presetOptions = computed(() => {
   const list = (tool.value?.presets || []).map((p, i) => ({
     key: `preset:${i}`,
@@ -301,18 +305,18 @@ const presetOptions = computed(() => {
     intro: p.intro || '',
     category: ''
   }))
-  const picked = pickedPrompt.value
-  if (picked) {
-    list.unshift({
-      key: `lib:${picked.id}`,
-      name: picked.name,
-      content: picked.content,
-      intro: picked.description || '',
-      category: picked.category || ''
-    })
-  }
-  return list
+  const libs = pickedPrompts.value.map(p => ({
+    key: `lib:${p.id}`,
+    name: p.name,
+    content: p.content,
+    intro: p.description || '',
+    category: p.category || ''
+  }))
+  return [...libs, ...list]
 })
+
+/** 「更多提示词」只列该工具核心词对应的卡包（「扩写润色」↔「润色」） */
+const morePrompts = computed(() => promptsForTool(props.prompts || [], tool.value))
 
 const currentPreset = computed(
   () => presetOptions.value.find(o => o.key === selectedKey.value) || presetOptions.value[0]
@@ -330,14 +334,24 @@ const effectiveRequirement = () => {
   return currentPreset.value?.content?.trim() || tool.value?.defaultRequirement || ''
 }
 
-/* 从「更多提示词」选中：切成快捷选项并把它排到第一位 */
-const onMorePick = (p: Prompt) => {
-  pickedPrompt.value = p
+/* 「更多提示词」里点「增加」：加进快捷选项（可连续加多条，弹窗不关）并选中它 */
+const onMoreAdd = (p: Prompt) => {
+  if (!pickedPrompts.value.some(x => x.id === p.id)) {
+    pickedPrompts.value = [p, ...pickedPrompts.value]
+  }
   requirementMode.value = 'preset'
   selectedKey.value = `lib:${p.id}`
   introVisible.value = false
   saveLastPick(tool.value?.id || 'side', p.id)
-  console.info('[prompt-pick] 选择本地提示词', p.id, p.name)
+  bumpUsage(p.id)
+}
+
+/* 「更多提示词」里点「已添加」撤回：从快捷选项里移除 */
+const onMoreRemove = (id: number) => {
+  pickedPrompts.value = pickedPrompts.value.filter(p => p.id !== id)
+  if (selectedKey.value === `lib:${id}`) {
+    selectedKey.value = presetOptions.value[0]?.key || 'preset:0'
+  }
 }
 
 const buildUserMessage = (overrideRequirement?: string): string => {
@@ -389,10 +403,11 @@ const open = (options: {
   visible.value = true
   state.value = 'config'
   requirementMode.value = 'preset'
-  // 恢复上次为这个工具选过的本地提示词（对齐星月 last_shortcut_ids 的行为）
+  // 恢复上次为这个工具选过的本地提示词（按工具维度记住上次选择）
   const lastId = readLastPick(options.tool?.id || 'side')
-  pickedPrompt.value = lastId === null ? null : (props.prompts || []).find(p => p.id === lastId) || null
-  selectedKey.value = pickedPrompt.value ? `lib:${pickedPrompt.value.id}` : 'preset:0'
+  const last = lastId === null ? undefined : (props.prompts || []).find(p => p.id === lastId)
+  pickedPrompts.value = last ? [last] : []
+  selectedKey.value = last ? `lib:${last.id}` : 'preset:0'
   moreVisible.value = false
   customRequirement.value = ''
   introVisible.value = false
@@ -516,8 +531,8 @@ const run = async (userMessage: string) => {
 const start = () => {
   if (!tool.value || streaming.value) return
   // 选中的本地提示词计入使用次数（「推荐」页签据此排序）
-  const picked = pickedPrompt.value
-  if (picked && requirementMode.value === 'preset' && selectedKey.value === `lib:${picked.id}`) {
+  const picked = pickedPrompts.value.find(p => `lib:${p.id}` === selectedKey.value)
+  if (picked && requirementMode.value === 'preset') {
     bumpUsage(picked.id)
   }
   if (multiRequests.value.length) {

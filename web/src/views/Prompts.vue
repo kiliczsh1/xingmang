@@ -4,10 +4,34 @@
     <div class="top-bar">
       <div class="top-title">
         <h2>提示词管理</h2>
-        <span class="top-sub">主区只看内容，所有操作交给快捷中心</span>
+        <span class="top-sub">导入导出与卡包合并在快捷中心</span>
       </div>
       <div class="top-search">
         <el-input v-model="searchKeyword" placeholder="搜索提示词名称或内容…" clearable :prefix-icon="Search" />
+      </div>
+      <!-- 高频新建入口：提示词 / 卡包（普通 · 拆书） -->
+      <div class="top-actions">
+        <el-button type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          创建提示词
+        </el-button>
+        <el-dropdown trigger="click" @command="handleCreatePackCommand">
+          <el-button>
+            <el-icon><FolderAdd /></el-icon>
+            创建卡包
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="normal">
+                <el-icon><FolderOpened /></el-icon>普通卡包
+              </el-dropdown-item>
+              <el-dropdown-item command="book">
+                <el-icon><Reading /></el-icon>拆书卡包
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
@@ -64,12 +88,13 @@
             :class="{ 'drag-over': isDragging && draggedPrompt?.category !== category.name }"
             @dragover.prevent="onDragOver"
             @drop.prevent.stop="onDrop(category.name, $event)"
+            @click="goToPackDetail(category.name)"
           >
-            <div class="card-main" @click="goToPackDetail(category.name)">
+            <div class="pt-card-main">
               <div class="card-ic ic-blue"><el-icon><FolderOpened /></el-icon></div>
-              <div class="card-info">
+              <div class="pt-card-info">
                 <div class="card-name">{{ category.name }}</div>
-                <div class="card-desc">{{ category.prompts.length }} 张卡片</div>
+                <div class="pt-card-desc">{{ category.prompts.length }} 张卡片</div>
               </div>
             </div>
             <div class="card-foot">
@@ -104,12 +129,13 @@
             :class="{ 'drag-over': isDragging && draggedPrompt?.category !== category.name }"
             @dragover.prevent="onDragOver"
             @drop.prevent.stop="onBookAnalysisDrop(category.name, $event)"
+            @click="goToPackDetail(category.name)"
           >
-            <div class="card-main" @click="goToPackDetail(category.name)">
+            <div class="pt-card-main">
               <div class="card-ic ic-pink"><el-icon><Reading /></el-icon></div>
-              <div class="card-info">
+              <div class="pt-card-info">
                 <div class="card-name">{{ category.name.replace(BOOK_ANALYSIS_PREFIX, '') }}</div>
-                <div class="card-desc">拆书卡包 · {{ category.prompts.length }} 张卡片</div>
+                <div class="pt-card-desc">拆书卡包 · {{ category.prompts.length }} 张卡片</div>
               </div>
             </div>
             <div class="card-foot">
@@ -144,15 +170,15 @@
             @dragend="onDragEnd"
             @click="handleEdit(prompt)"
           >
-            <div class="card-main">
+            <div class="pt-card-main">
               <div class="card-ic ic-green"><el-icon><Document /></el-icon></div>
-              <div class="card-info">
+              <div class="pt-card-info">
                 <div class="card-name">
                   <el-icon class="card-grip"><Rank /></el-icon>
                   <span class="card-name-text">{{ prompt.name }}</span>
                   <el-icon v-if="prompt.card_type === 'encrypted'" class="std-lock"><Lock /></el-icon>
                 </div>
-                <div class="card-desc std-preview">
+                <div class="pt-card-desc std-preview">
                   <template v-if="prompt.card_type === 'encrypted'">
                     <el-icon><Lock /></el-icon> 内容已加密
                   </template>
@@ -197,12 +223,13 @@
             :class="{ 'drag-over': isDragging && draggedPrompt?.category !== category.name }"
             @dragover.prevent="onDragOver"
             @drop.prevent.stop="onDrop(category.name, $event)"
+            @click="goToPackDetail(category.name)"
           >
-            <div class="card-main" @click="goToPackDetail(category.name)">
+            <div class="pt-card-main">
               <div class="card-ic ic-blue"><el-icon><FolderOpened /></el-icon></div>
-              <div class="card-info">
+              <div class="pt-card-info">
                 <div class="card-name">{{ category.name }}</div>
-                <div class="card-desc">{{ category.prompts.length }} 张卡片</div>
+                <div class="pt-card-desc">{{ category.prompts.length }} 张卡片</div>
               </div>
             </div>
             <div class="card-foot">
@@ -245,12 +272,13 @@
             :class="{ 'drag-over': isDragging && draggedPrompt?.category !== category.name }"
             @dragover.prevent="onDragOver"
             @drop.prevent.stop="onBookAnalysisDrop(category.name, $event)"
+            @click="goToPackDetail(category.name)"
           >
-            <div class="card-main" @click="goToPackDetail(category.name)">
+            <div class="pt-card-main">
               <div class="card-ic ic-pink"><el-icon><Reading /></el-icon></div>
-              <div class="card-info">
+              <div class="pt-card-info">
                 <div class="card-name">{{ category.name.replace(BOOK_ANALYSIS_PREFIX, '') }}</div>
-                <div class="card-desc">拆书卡包 · {{ category.prompts.length }} 张卡片</div>
+                <div class="pt-card-desc">拆书卡包 · {{ category.prompts.length }} 张卡片</div>
               </div>
             </div>
             <div class="card-foot">
@@ -316,15 +344,15 @@
             @dragend="onDragEnd"
             @click="handleEdit(prompt)"
           >
-            <div class="card-main">
+            <div class="pt-card-main">
               <div class="card-ic ic-green"><el-icon><Document /></el-icon></div>
-              <div class="card-info">
+              <div class="pt-card-info">
                 <div class="card-name">
                   <el-icon class="card-grip"><Rank /></el-icon>
                   <span class="card-name-text">{{ prompt.name }}</span>
                   <el-icon v-if="prompt.card_type === 'encrypted'" class="std-lock"><Lock /></el-icon>
                 </div>
-                <div class="card-desc std-preview">
+                <div class="pt-card-desc std-preview">
                   <template v-if="prompt.card_type === 'encrypted'">
                     <el-icon><Lock /></el-icon> 内容已加密
                   </template>
@@ -370,32 +398,17 @@
       <el-icon :size="24"><Plus /></el-icon>
     </button>
 
-    <!-- 底部快捷中心：新建 / 导入 / 导出 统一入口（含拆书） -->
+    <!-- 底部快捷中心：导入 / 导出 / 卡包合并（新建入口已移到顶栏） -->
     <transition name="sheetup">
       <div v-if="sheetVisible" class="sheet-mask" @click.self="sheetVisible = false">
         <div class="sheet">
           <div class="sheet-grip"></div>
           <div class="sheet-head">
             <b>快捷中心</b>
-            <span>新建 · 导入 · 导出（含拆书，统一入口）</span>
+            <span>导入 · 导出 · 卡包合并</span>
           </div>
           <div class="sheet-section">
-            <div class="sheet-label">✦ 新建</div>
-            <div class="sheet-row" @click="sheetVisible = false; handleCreate()">
-              <div class="sheet-ic ic-green"><el-icon><Plus /></el-icon></div>
-              <div class="sheet-info"><b>创建提示词</b><span>普通 / 加密卡片</span></div>
-              <span class="sheet-go">›</span>
-            </div>
-            <div class="sheet-row" @click="sheetVisible = false; openCategoryDialog()">
-              <div class="sheet-ic ic-purple"><el-icon><FolderAdd /></el-icon></div>
-              <div class="sheet-info"><b>创建卡包</b><span>普通卡包</span></div>
-              <span class="sheet-go">›</span>
-            </div>
-            <div class="sheet-row" @click="sheetVisible = false; openBookAnalysisCategoryDialog()">
-              <div class="sheet-ic ic-pink"><el-icon><Reading /></el-icon></div>
-              <div class="sheet-info"><b>创建拆书卡包</b><span>自动加「拆书-」前缀</span></div>
-              <span class="sheet-go">›</span>
-            </div>
+            <div class="sheet-label">✦ 整理</div>
             <div class="sheet-row" @click="sheetVisible = false; openMergeDialog()">
               <div class="sheet-ic ic-blue"><el-icon><CopyDocument /></el-icon></div>
               <div class="sheet-info"><b>卡包合并</b><span>多卡包合并 / 主包吸收</span></div>
@@ -451,6 +464,11 @@
             <div class="sheet-row" @click="sheetVisible = false; openDedupDialog()">
               <div class="sheet-ic ic-red"><el-icon><Search /></el-icon></div>
               <div class="sheet-info"><b>提示词查重</b><span>清理同名重复卡片</span></div>
+              <span class="sheet-go">›</span>
+            </div>
+            <div class="sheet-row" @click="sheetVisible = false; openAllBatchDeleteDialog()">
+              <div class="sheet-ic ic-red"><el-icon><Delete /></el-icon></div>
+              <div class="sheet-info"><b>批量删除提示词</b><span>跨卡包勾选删除 · 删除前二次确认</span></div>
               <span class="sheet-go">›</span>
             </div>
           </div>
@@ -524,6 +542,7 @@
       ref="batchDeleteDialogsRef"
       :category-list="categoryList"
       :combined-uncategorized-prompts="combinedUncategorizedPrompts"
+      :all-prompts="prompts"
       @deleted="fetchPrompts"
     />
 
@@ -1229,7 +1248,7 @@ import PreviewDialog from '@/components/PreviewDialog.vue'
 import BatchDeleteDialogs from '@/components/BatchDeleteDialogs.vue'
 import DedupMergeDialogs from '@/components/DedupMergeDialogs.vue'
 import PromptIODialogs from '@/components/PromptIODialogs.vue'
-import { encodeExportData, collectInsightsByKey } from '@/utils/promptTransfer'
+import { encodeExportData, collectInsightsByKey, collectRatingNotesByKey } from '@/utils/promptTransfer'
 import { buildPromptKey, formatDate } from '@/utils/promptDedupMerge'
 import type { DedupMode } from '@/utils/promptDedupMerge'
 import { BOOK_ANALYSIS_PREFIX, DEFAULT_CATEGORIES } from '@/constants/promptCategories'
@@ -2097,6 +2116,12 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
+// 顶栏「创建卡包」下拉：两个选项对应原来的两个入口
+const handleCreatePackCommand = (command: string) => {
+  if (command === 'book') openBookAnalysisCategoryDialog()
+  else openCategoryDialog()
+}
+
 const handleEdit = (prompt: Prompt) => {
   if (prompt.card_type === 'encrypted' && prompt.password) {
     pendingEditPrompt.value = prompt
@@ -2478,6 +2503,11 @@ const openStandaloneBatchDeleteDialog = () => {
   batchDeleteDialogsRef.value?.openStandalone()
 }
 
+// 打开全库（跨卡包）批量删除对话框
+const openAllBatchDeleteDialog = () => {
+  batchDeleteDialogsRef.value?.openAll()
+}
+
 
 
 
@@ -2506,63 +2536,53 @@ const removeDedupCustomCategories = (names: string[]) => {
 
 
 // 执行整体导出
+// 单张卡片的导出载荷：简介 / 扩展信息 / 加密字段都带上，否则恢复后只剩名字和正文
+const toExportCard = (p: Prompt) => ({
+  name: p.name,
+  description: p.description || '',
+  content: p.content,
+  category: p.category,
+  order_num: p.order_num,
+  created_at: p.created_at,
+  fields: p.fields,
+  subcategories: p.subcategories,
+  card_type: p.card_type || 'normal',
+  password: p.password || null,
+  metadata: p.metadata || null,
+  creator_name: p.creator_name || null,
+  version: p.version || null,
+})
+
 const executeExportAll = async () => {
   const insights = await collectInsightsByKey(prompts.value)
+  // 定级 / 心得笔记不进库（在 localStorage），单列一块带出去
+  const extras = collectRatingNotesByKey(prompts.value)
 
   // 收集所有独立卡片（包含普通独立卡片和拆书独立卡片）
-  const standalone = combinedUncategorizedPrompts.value.map(p => ({
-    name: p.name,
-    content: p.content,
-    category: p.category,
-    order_num: p.order_num,
-    created_at: p.created_at,
-    fields: p.fields,
-    subcategories: p.subcategories,
-    card_type: p.card_type || 'normal',
-    password: p.password || null,
-  }))
+  const standalone = combinedUncategorizedPrompts.value.map(toExportCard)
 
   // 收集所有卡包（包含普通卡包和拆书卡包）
   const packs: Record<string, any[]> = {}
   categoryList.value.forEach(category => {
     if (category.name !== '未分类') {
-      packs[category.name] = category.prompts.map(p => ({
-        name: p.name,
-        content: p.content,
-        category: p.category,
-        order_num: p.order_num,
-        created_at: p.created_at,
-        fields: p.fields,
-        subcategories: p.subcategories,
-        card_type: p.card_type || 'normal',
-        password: p.password || null,
-      }))
+      packs[category.name] = category.prompts.map(toExportCard)
     }
   })
   
   // 收集拆书卡包
   bookAnalysisCategoryList.value.forEach(category => {
-    packs[category.name] = category.prompts.map(p => ({
-      name: p.name,
-      content: p.content,
-      category: p.category,
-      order_num: p.order_num,
-      created_at: p.created_at,
-      fields: p.fields,
-      subcategories: p.subcategories,
-      card_type: p.card_type || 'normal',
-      password: p.password || null,
-    }))
+    packs[category.name] = category.prompts.map(toExportCard)
   })
   
   const exportData = {
     type: 'full-backup',
-    version: '1.0',
+    version: '1.1',
     exportTime: new Date().toISOString(),
     data: {
       standalone,
       packs,
-      insights
+      insights,
+      extras
     }
   }
   
@@ -3694,7 +3714,7 @@ const executeExportAll = async () => {
   color: #1f2937;
 }
 .top-sub { display: block; font-size: 11.5px; color: #9aa5b4; margin-top: 2px; }
-.top-search { flex: 1; max-width: 380px; }
+.top-search { flex: 1; max-width: 560px; }
 .top-search :deep(.el-input__wrapper) {
   border-radius: 12px;
   background: #fff;
@@ -3705,6 +3725,21 @@ const executeExportAll = async () => {
   box-shadow: 0 0 0 1.5px #86efac inset, 0 0 0 4px rgba(34, 197, 94, 0.1);
 }
 .top-search :deep(.el-input__inner) { font-size: 13px; }
+
+/* 顶栏右侧新建入口 */
+.top-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.top-actions :deep(.el-button) {
+  border-radius: 10px;
+  font-weight: 600;
+}
+.top-actions :deep(.el-button .el-icon) { margin-right: 4px; }
+.top-actions :deep(.el-button .el-icon.el-icon--right) { margin-right: 0; margin-left: 4px; }
 
 /* ---- 统计磁贴 ---- */
 .stat-row {
@@ -3828,7 +3863,7 @@ const executeExportAll = async () => {
 .card-std.dragging { opacity: 0.45; transform: scale(0.96); }
 .card-std.encrypted { border-color: rgba(230, 162, 60, 0.45); }
 
-.card-main { display: flex; align-items: center; gap: 11px; }
+.pt-card-main { display: flex; align-items: center; gap: 11px; }
 .card-ic {
   width: 38px;
   height: 38px;
@@ -3840,7 +3875,7 @@ const executeExportAll = async () => {
   flex-shrink: 0;
   font-size: 18px;
 }
-.card-info { flex: 1; min-width: 0; }
+.pt-card-info { flex: 1; min-width: 0; }
 .card-name {
   display: flex;
   align-items: center;
@@ -3859,7 +3894,7 @@ const executeExportAll = async () => {
 }
 .card-grip { color: #fa8c16; font-size: 13px; flex-shrink: 0; cursor: grab; }
 .std-lock { color: #e6a23c; font-size: 13px; flex-shrink: 0; }
-.card-desc {
+.pt-card-desc {
   font-size: 12px;
   color: #94a3b8;
   margin-top: 4px;
@@ -4052,7 +4087,7 @@ const executeExportAll = async () => {
 :root[data-theme='dark'] .card { background: rgba(22, 27, 34, 0.9); border-color: rgba(42, 50, 66, 0.4); }
 :root[data-theme='dark'] .card:hover { border-color: rgba(148, 163, 184, 0.4); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3); }
 :root[data-theme='dark'] .card-name, :root[data-theme='dark'] .card-name-text { color: #e6edf3; }
-:root[data-theme='dark'] .card-desc { color: #5f6b7a; }
+:root[data-theme='dark'] .pt-card-desc { color: #5f6b7a; }
 :root[data-theme='dark'] .card-foot { border-top-color: rgba(42, 50, 66, 0.3); }
 :root[data-theme='dark'] .card-book, :root[data-theme='dark'] .card-std { border-color: rgba(249, 115, 22, 0.25); }
 :root[data-theme='dark'] .card-more { color: #5f6b7a; }

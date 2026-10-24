@@ -262,17 +262,16 @@ func preflight(root, distRoot string, skip bool) {
 				fmt.Println("        请先退出那个程序：界面右上角头像 →「退出程序」；或任务管理器结束进程。")
 				os.Exit(1)
 			}
-			// 目录里有跑出来的数据就先停下 —— 下一步就是 RemoveAll，会一起删掉。
+			// 目录里有跑出来的数据：产物目录被整个重建，这些数据属于临时产物，
+			// 按约定直接清掉继续打包（删除由 buildTarget 的 RemoveAll 完成），
+			// 这里只把被清掉的东西列出来，方便事后追。
 			if found := runtimeDataIn(filepath.Join(distRoot, goos+"-"+goarch)); len(found) > 0 {
-				fmt.Println("[FAIL]  产物目录里已有运行时数据，继续打包会把它删掉：")
+				warn("产物目录里有本地跑程序留下的运行时数据，将随目录一起清掉：")
 				fmt.Printf("        %s\n", filepath.Join(distRoot, goos+"-"+goarch))
 				for _, f := range found {
 					fmt.Printf("          · %s\n", f)
 				}
-				fmt.Println("        这个目录是被整个删除重建的，且程序的数据落点就是 exe 所在目录 ——")
-				fmt.Println("        多半是有人在本地产物目录里双击跑过 xingmang.exe。")
-				fmt.Println("        请先把上面这些拷走（尤其是 books\\），或将它们删掉后再打包。")
-				os.Exit(1)
+				fmt.Println("        （需要保留就先拷走；本次打包不中止。）")
 			}
 		}
 	}
@@ -297,7 +296,11 @@ func preflight(root, distRoot string, skip bool) {
 //
 // 背景：产物目录会被整个 RemoveAll 再重建，而这个程序的数据落点就是 exe 所在目录。
 // 也就是说，**任何一次在本地产物目录里双击跑过的 xingmang.exe，都会把作品和索引
-// 写进 dist\<os>-<arch>\**。此时再打一次包 = 把这些数据连同目录一起删掉。
+// 写进 dist\<os>-<arch>\**。这些数据属于本地调试留下的临时产物，打包时直接清掉
+// （RemoveAll 会一起删），这里只负责把它们列出来，不再中止打包。
+//
+// 归档侧仍单独排除 books\ / data\ / workflow_outputs\ / chapter-cache\ / logs\：
+// 万一将来有人绕过这道提示，也不至于把稿件打进发布包。
 //
 // 更糟的是 zipDir 只排除 .db / .log，books\ 下的 .md 会被原样打进发布包 ——
 // 等于把作者的全部稿件发给所有人。
@@ -305,7 +308,7 @@ func preflight(root, distRoot string, skip bool) {
 // 所以这里两件事都做：有数据就中止（让人先把东西拷走），没数据也把 books\ 排除出归档。
 func runtimeDataIn(outDir string) []string {
 	var found []string
-	for _, name := range []string{"xingmang.db", "books", "workflow_outputs", "data"} {
+	for _, name := range []string{"xingmang.db", "books", "workflow_outputs", "data", "chapter-cache"} {
 		p := filepath.Join(outDir, name)
 		fi, err := os.Stat(p)
 		if err != nil {
@@ -536,7 +539,8 @@ Git Commit: %s
 
 【功能模块】
   我的小说 · 提示词库 · 提示预览 · 变量抽卡 · AI 扫榜 · 星芒 Agent
-  wiki 图谱 · 经验分享 · 工作流 · 插件系统 · API 配置 · 个人中心
+  wiki 图谱 · 工作流 · 插件系统 · API 配置 · 个人中心
+  子页面：创作（正文写作）· 拆书库 · 角色库 · 教程中心 · 功能速查表
 
 【AI 扫榜 (榜单数据源)】
   四个数据源已内置在程序中（Go 原生实现，无需 Python/Node 环境），
@@ -566,6 +570,7 @@ Git Commit: %s
     data\editor-images    正文插图（正文里的图片指向这里，删掉后插图会失效）
     data\image-cache      外链图片缓存，可删，会重新抓取
     data\generated-images AI 生成图暂存区；封面会归位到 books\<书名>\gallery\
+    chapter-cache\        章节抓取缓存（24 小时过期），可删，会重新抓取
     workflow_outputs\     工作流产物
 
   ⚠ 备份口径：xingmang.db 与 books\ 要一起拷。
@@ -620,7 +625,7 @@ Git Commit: %s
 //   - books\ 与 workflow_outputs\ 是用户数据（正文、记忆、工作流产物）。
 //     正常打包时产物目录是新建的，不会有这些；但如果有人在产物目录里跑过程序，
 //     它们就会在里面 —— 打进去等于把作者稿件发出去。
-//   - data\ 是插图 / 缓存暂存区，同理。
+//   - data\ 是插图 / 缓存暂存区，chapter-cache\ 是章节抓取缓存，同理。
 func zipDir(dir, zipPath string) error {
 	out, err := os.Create(zipPath)
 	if err != nil {
@@ -635,6 +640,7 @@ func zipDir(dir, zipPath string) error {
 		"books":            true,
 		"workflow_outputs": true,
 		"data":             true,
+		"chapter-cache":    true,
 		"logs":             true,
 	}
 

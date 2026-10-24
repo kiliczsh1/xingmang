@@ -141,17 +141,118 @@
     </el-button>
   </template>
 </el-dialog>
+
+<!-- 全库批量删除对话框（跨卡包，从快捷中心 → 管理 进入） -->
+<el-dialog
+  v-model="allBatchDialogVisible"
+  title="批量删除提示词"
+  width="880px"
+  :close-on-click-modal="false"
+  class="batch-delete-dialog"
+  append-to-body
+>
+  <div class="batch-delete-content">
+    <div class="batch-delete-hint">
+      <el-alert
+        title="跨卡包删除提示词"
+        type="error"
+        :closable="false"
+        show-icon
+      >
+        可跨卡包、独立卡片、拆书卡包勾选，删除前会再次确认。此操作不可恢复，卡包本身不会被删除。
+      </el-alert>
+    </div>
+    <div class="all-batch-filter">
+      <el-input
+        v-model="allBatchKeyword"
+        placeholder="按名称或内容筛选…"
+        clearable
+        :prefix-icon="Search"
+        class="all-batch-search"
+      />
+      <el-select v-model="allBatchPack" placeholder="全部来源" clearable class="all-batch-pack">
+        <el-option label="全部来源" value="" />
+        <el-option
+          v-for="pack in allBatchPacks"
+          :key="pack.name"
+          :label="`${pack.name}（${pack.count}）`"
+          :value="pack.name"
+        />
+      </el-select>
+    </div>
+    <div class="batch-delete-select-all">
+      <el-checkbox
+        :model-value="allBatchAllSelected"
+        :indeterminate="allBatchPartSelected"
+        @change="handleSelectAllAllBatch"
+      >
+        全选当前筛选 ({{ allBatchVisibleSelectedCount }}/{{ allBatchFilteredPrompts.length }})
+      </el-checkbox>
+      <span v-if="selectedAllBatchCards.length > 0" class="all-batch-total">
+        已选 {{ selectedAllBatchCards.length }} 张
+        <button class="all-batch-clear" @click="clearAllBatchSelection">清空</button>
+      </span>
+    </div>
+    <div v-if="allBatchFilteredPrompts.length > 0" class="batch-delete-cards-grid">
+      <div
+        v-for="prompt in allBatchFilteredPrompts"
+        :key="prompt.id"
+        class="batch-delete-card-item"
+        :class="{ selected: selectedAllBatchCards.includes(prompt.id) }"
+        @click="toggleAllBatchCard(prompt.id)"
+      >
+        <el-checkbox
+          :model-value="selectedAllBatchCards.includes(prompt.id)"
+          @click.stop
+          @change="toggleAllBatchCard(prompt.id)"
+        />
+        <div class="batch-delete-card-content">
+          <div class="batch-delete-card-name">
+            {{ prompt.name }}
+            <el-icon v-if="prompt.card_type === 'encrypted'" class="all-batch-lock"><Lock /></el-icon>
+          </div>
+          <div class="all-batch-pack-tag">{{ prompt.category || '默认' }}</div>
+          <div class="batch-delete-card-preview">
+            <template v-if="prompt.card_type === 'encrypted'">
+              <el-icon><Lock /></el-icon> 已加密
+            </template>
+            <template v-else>
+              {{ (prompt.content || '').slice(0, 30) }}{{ (prompt.content || '').length > 30 ? '...' : '' }}
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else class="batch-delete-empty">
+      <el-empty :description="allPrompts.length === 0 ? '暂无提示词' : '没有匹配的提示词'" />
+    </div>
+  </div>
+  <template #footer>
+    <el-button @click="allBatchDialogVisible = false">取消</el-button>
+    <el-button
+      type="danger"
+      :disabled="selectedAllBatchCards.length === 0"
+      :loading="allBatchDeleting"
+      @click="executeAllBatchDelete"
+    >
+      删除 ({{ selectedAllBatchCards.length }})
+    </el-button>
+  </template>
+</el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { promptAPI } from '@/api'
 import type { Prompt } from '@/types'
 
 const props = defineProps<{
   categoryList: { name: string; prompts: Prompt[] }[]
   combinedUncategorizedPrompts: Prompt[]
+  /** 全部提示词（不分组），供跨卡包批量删除使用 */
+  allPrompts: Prompt[]
 }>()
 
 const emit = defineEmits<{ (e: 'deleted'): void }>()
@@ -282,7 +383,133 @@ const openStandalone = () => {
   standaloneBatchDeleteDialogVisible.value = true
 }
 
-defineExpose({ open, openStandalone })
+// ===== 全库批量删除（跨卡包） =====
+const allBatchDialogVisible = ref(false)
+const allBatchKeyword = ref('')
+const allBatchPack = ref('')
+const selectedAllBatchCards = ref<number[]>([])
+const allBatchDeleting = ref(false)
+
+// 占位卡片不是真实数据，一律不展示、不可删
+const allBatchSource = computed(() => props.allPrompts.filter(p => p.name !== '__category_placeholder__'))
+
+// 来源分组（按数量降序），用于下拉筛选
+const allBatchPacks = computed(() => {
+  const map = new Map<string, number>()
+  allBatchSource.value.forEach(p => {
+    const c = p.category || '默认'
+    map.set(c, (map.get(c) || 0) + 1)
+  })
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+})
+
+const allBatchFilteredPrompts = computed(() => {
+  const kw = allBatchKeyword.value.trim().toLowerCase()
+  const pack = allBatchPack.value
+  return allBatchSource.value.filter(p => {
+    const c = p.category || '默认'
+    if (pack && c !== pack) return false
+    if (!kw) return true
+    return (p.name || '').toLowerCase().includes(kw) || (p.content || '').toLowerCase().includes(kw)
+  })
+})
+
+const allBatchVisibleSelectedCount = computed(
+  () => allBatchFilteredPrompts.value.filter(p => selectedAllBatchCards.value.includes(p.id)).length
+)
+const allBatchAllSelected = computed(
+  () => allBatchFilteredPrompts.value.length > 0 &&
+    allBatchVisibleSelectedCount.value === allBatchFilteredPrompts.value.length
+)
+const allBatchPartSelected = computed(
+  () => allBatchVisibleSelectedCount.value > 0 && !allBatchAllSelected.value
+)
+
+const toggleAllBatchCard = (id: number) => {
+  const index = selectedAllBatchCards.value.indexOf(id)
+  if (index > -1) {
+    selectedAllBatchCards.value.splice(index, 1)
+  } else {
+    selectedAllBatchCards.value.push(id)
+  }
+}
+
+// 全选只作用于当前筛选结果，不会把筛选外的卡片带进来
+const handleSelectAllAllBatch = (val: boolean | string | number) => {
+  const ids = allBatchFilteredPrompts.value.map(p => p.id)
+  if (val) {
+    const set = new Set(selectedAllBatchCards.value)
+    ids.forEach(id => set.add(id))
+    selectedAllBatchCards.value = [...set]
+  } else {
+    const drop = new Set(ids)
+    selectedAllBatchCards.value = selectedAllBatchCards.value.filter(id => !drop.has(id))
+  }
+}
+
+const clearAllBatchSelection = () => {
+  selectedAllBatchCards.value = []
+}
+
+const executeAllBatchDelete = async () => {
+  const ids = [...selectedAllBatchCards.value]
+  if (ids.length === 0) return
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${ids.length} 张提示词吗？删除后不可恢复。`,
+      '二次确认',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch {
+    return
+  }
+
+  allBatchDeleting.value = true
+  let ok = 0
+  let failed = 0
+  try {
+    // 分批并发，避免一次性打满连接
+    const CHUNK = 8
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK)
+      const results = await Promise.all(
+        slice.map(id => promptAPI.delete(id).catch(() => null))
+      )
+      results.forEach(r => {
+        if (r && r.success) ok++
+        else failed++
+      })
+    }
+  } finally {
+    allBatchDeleting.value = false
+  }
+
+  const done = new Set(ids)
+  selectedAllBatchCards.value = selectedAllBatchCards.value.filter(id => !done.has(id))
+
+  if (ok > 0) ElMessage.success(`成功删除 ${ok} 张提示词${failed ? `，${failed} 张失败` : ''}`)
+  else ElMessage.error(`删除失败${failed ? `（${failed} 张）` : ''}`)
+
+  allBatchDialogVisible.value = false
+  emit('deleted')
+}
+
+// 打开全库批量删除对话框
+const openAll = () => {
+  selectedAllBatchCards.value = []
+  allBatchKeyword.value = ''
+  allBatchPack.value = ''
+  allBatchDialogVisible.value = true
+}
+
+defineExpose({ open, openStandalone, openAll })
 </script>
 
 <style scoped>
@@ -297,9 +524,99 @@ defineExpose({ open, openStandalone })
 }
 
 .batch-delete-select-all {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 16px;
   padding: 8px 0;
   border-bottom: 1px solid #e8e8e8;
+}
+
+/* ---- 全库批量删除：筛选栏 / 来源标签 ---- */
+.all-batch-filter {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.all-batch-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.all-batch-pack {
+  width: 220px;
+  flex: 0 0 auto;
+}
+
+.all-batch-total {
+  font-size: 12px;
+  color: #8c8c8c;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.all-batch-clear {
+  border: none;
+  background: transparent;
+  color: #409eff;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.all-batch-clear:hover {
+  text-decoration: underline;
+}
+
+.all-batch-pack-tag {
+  display: inline-block;
+  max-width: 100%;
+  margin-bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.all-batch-lock {
+  margin-left: 4px;
+  font-size: 12px;
+  color: #8c8c8c;
+  vertical-align: -1px;
+}
+
+/* ---- 深色主题 ---- */
+:root[data-theme='dark'] .batch-delete-select-all {
+  border-color: #2e3650;
+}
+:root[data-theme='dark'] .batch-delete-card-item {
+  background: #1e2434;
+  border-color: #2e3650;
+}
+:root[data-theme='dark'] .batch-delete-card-item.selected {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #ef4444;
+}
+:root[data-theme='dark'] .batch-delete-card-name {
+  color: #e5e7eb;
+}
+:root[data-theme='dark'] .batch-delete-card-preview {
+  color: #9ca3af;
+}
+:root[data-theme='dark'] .all-batch-total {
+  color: #9ca3af;
+}
+:root[data-theme='dark'] .all-batch-pack-tag {
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.18);
 }
 
 .batch-delete-cards-grid {

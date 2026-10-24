@@ -136,16 +136,16 @@
     </template>
   </el-dialog>
 
-  <!-- 抽卡区提示词选择弹窗 -->
-  <PromptSelectDialog
+  <!-- 抽卡区提示词选择弹窗：改用「更多提示词」样式，只取「写作风格」卡包 -->
+  <PromptMoreDialog
     v-model:visible="creative2PromptDialogVisible"
-    v-model:model-value="creative2SelectedPrompts"
-    :prompts="prompts"
+    :prompts="stylePackPrompts"
     title="写作风格"
-    mode="multi"
-    category-filter="写作风格"
-    :show-categories="false"
-    :show-footer="true"
+    scope="creative2-style"
+    hide-title
+    :selected-id="creative2SelectedPrompts[0] ?? null"
+    @select="onStylePromptPick"
+    @deleted="onStylePromptDeleted"
   />
 
   <!-- 抽卡区第二个提示词选择弹窗 -->
@@ -327,6 +327,7 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import PromptSelectDialog from '@/components/WriteDialogs/PromptSelectDialog.vue'
+import PromptMoreDialog from '@/components/WriteDialogs/PromptMoreDialog.vue'
 import ModelSelectDialog from '@/components/WriteDialogs/ModelSelectDialog.vue'
 import CreativeFullscreenDialog from '@/components/WriteDialogs/CreativeFullscreenDialog.vue'
 import { conversationAPI } from '@/api'
@@ -644,6 +645,17 @@ const creative2PromptInfo = computed(() => {
   }
   return null
 })
+
+// ===== 写作风格：只认「写作风格」卡包内的提示词 =====
+const stylePackPrompts = computed(() => props.prompts.filter(p => p.category === '写作风格'))
+
+function onStylePromptPick(prompt: Prompt) {
+  creative2SelectedPrompts.value = [prompt.id]
+}
+
+function onStylePromptDeleted(id: number) {
+  creative2SelectedPrompts.value = creative2SelectedPrompts.value.filter(x => x !== id)
+}
 
 const creative2SecondPromptInfo = computed(() => {
   if (creative2SecondPromptId.value) {

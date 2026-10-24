@@ -456,6 +456,40 @@ watch(
 
 :root[data-theme='dark'] .candidate,
 :root[data-theme='dark'] .group {
-  background: var(--el-fill-color-blank);
+  /* 同样不能用 --el-fill-color-blank：EP 亮色变量在暗色下仍是白 */
+  background: #1c2333;
+  border-color: rgba(42, 50, 66, 0.9);
+  color: #e6edf3;
+}
+:root[data-theme='dark'] .candidate .reason,
+:root[data-theme='dark'] .reason {
+  background: #161b22;
+  color: #8b98a8;
+}
+:root[data-theme='dark'] .candidate-name,
+:root[data-theme='dark'] .group-name {
+  color: #e6edf3;
+}
+
+/* EP 文本变量在暗色下仍是亮色值，这里落字面量 */
+:root[data-theme='dark'] .merge-section-title,
+:root[data-theme='dark'] .candidate .name,
+:root[data-theme='dark'] .name {
+  color: #e6edf3;
+}
+:root[data-theme='dark'] .entity-chip {
+  border-color: rgba(42, 50, 66, 0.9);
+  color: #c9d3de;
+}
+:root[data-theme='dark'] .entity-chip:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.1);
+  color: #e6edf3;
+}
+:root[data-theme='dark'] .el-button.is-text {
+  color: #8b98a8;
+}
+:root[data-theme='dark'] .el-button.is-text:hover {
+  color: #79b8ff;
 }
 </style>

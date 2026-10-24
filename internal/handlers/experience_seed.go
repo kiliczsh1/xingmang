@@ -82,6 +82,41 @@ var seedPosts = []seedPost{
 <p>教程吧 = <strong>说明书</strong>（相对客观、按模块）；经验分享吧 = <strong>交流区</strong>（个人踩坑、心得、方法论）。两边数据完全隔离，分区也各自独立。</p>
 `),
 	},
+	{
+		board:   BoardTutorial,
+		title:   "如何拆书：五步走完，按钮在哪、为什么点不动",
+		summary: "导入或创建作品 → 点卡片进正文 → 右上角第四个按钮进拆书库 → 左侧配好章节、提示词、模型和拆分方式 → 点右下角「开始拆书」。",
+		author:  "星芒用户",
+		pinned:  1,
+		daysAgo: 0,
+		content: strings.TrimSpace(`
+<h2>一共五步</h2>
+<p>导入或创建作品 → 点卡片进入正文界面 → 点右上角第四个按钮进拆书库 → 左侧配好章节、提示词、模型和拆分方式 → 点右下角「开始拆书」。</p>
+<h2>第一步：让库里先有一本书</h2>
+<p>在「书本管理」页顶部选<strong>导入作品</strong>（支持 TXT / JSON，可一次多选）或<strong>创建作品</strong>。</p>
+<p>说明：作品卡片右下角的进度条是<strong>创作进度</strong>，不是导入进度。每本书都有一个目标字数（默认 10 万），进度 = 已写字数 ÷ 目标字数，最高 100%。导入一本 30 万字的书，进度会直接顶满；导入几千字的短篇，进度可能只有个位数。两种都跟导入是否完成无关——文件落盘那一刻导入就结束了。</p>
+<h2>第二步：进入正文界面</h2>
+<p>点作品卡片本身，不要点卡片底部那排小图标按钮。</p>
+<h2>第三步：打开拆书库</h2>
+<p>正文界面右上角有一排图标按钮，从左到右依次是 AI 对话、AI 写作、角色库、<strong>拆书库</strong>，再往后是知识图谱。<strong>第四个</strong>就是拆书库。</p>
+<p>说明：鼠标悬停在按钮上会显示名称，拿不准时停一下即可，不必逐个点开试。</p>
+<h2>第四步：左侧配好四项</h2>
+<p>拆书库左侧的配置区从上到下四块，按顺序配完：<strong>1 选择章节</strong> → <strong>2 选择提示词</strong> → <strong>3 选择 AI 模型</strong> → <strong>4 选择拆分方式</strong>，最后一块里的「补充信息」可以不填。</p>
+<p>说明：拆分方式有两种。<strong>分章拆</strong>是逐章分开分析，每章结论互不干扰；<strong>合并拆</strong>是把选中的章节并成一份整体内容来看，适合分析整体结构和跨章伏笔。</p>
+<p>说明：这四项缺任何一项，右下角的「开始拆书」都是灰的、点不动。卡在这里通常不是软件出问题，而是提示词或模型还没选。</p>
+<h2>第五步：点开始拆书</h2>
+<p>点右下角「开始拆书」，右侧会一段段输出结果；中途想停就点「停止拆书」，已输出的部分会保留。</p>
+<p>说明：结果不会自动保存。拆完需要点「保存这次拆书」，这次结果才会记进这本书的历史；不点就关掉页面，结果不留。</p>
+<h2>容易卡住的五个地方</h2>
+<ol>
+  <li>进度条是创作进度，不是导入进度。</li>
+  <li>「开始拆书」灰着，先检查章节、提示词、模型是不是缺了一项。</li>
+  <li>分章拆和合并拆的区别不是拆得细不细，而是一次看一章，还是一次全看完。</li>
+  <li>合并拆不要一次勾太多章，容易超出上下文，结果会断在半路。</li>
+  <li>拆完不点「保存这次拆书」，关掉页面就没了。</li>
+</ol>
+`),
+	},
 }
 
 // SeedSystemPosts 首次启动时把引导帖种成真帖子（幂等：靠 app_meta 标记，只做一次）。
@@ -106,11 +141,22 @@ func SeedSystemPosts(db *sql.DB) (int, error) {
 	}
 	defer tx.Rollback()
 
+	// 种子的 id 从 1 开始按顺序编号（1、2、3），不跟随开发机上游数据库的 id 水位——
+	// 打包版新装后看到的就是干净的 1/2/3。库里已有帖子时（老用户升级/标记丢失）
+	// 接在 max(id) 之后，避免主键冲突。
+	var maxID int
+	if err := tx.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM experience_shares`).Scan(&maxID); err != nil {
+		return 0, err
+	}
+	nextID := maxID + 1
+
 	inserted := 0
 	for _, p := range seedPosts {
-		// 该吧已经有帖子就不种（老用户升级上来时别硬塞内容）
+		// 该吧已有同标题的帖子就不种（老用户升级上来时别硬塞内容）。
+		// ⚠ 不能用「该吧已有置顶帖就跳过」：同一个吧有多条种子时，
+		// 种完第一条就会把后面几条全部挡掉。
 		var existing int
-		if err := tx.QueryRow(`SELECT COUNT(*) FROM experience_shares WHERE COALESCE(board,'experience') = ? AND COALESCE(is_pinned,0) = 1`, p.board).Scan(&existing); err != nil {
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM experience_shares WHERE COALESCE(board,'experience') = ? AND title = ?`, p.board, p.title).Scan(&existing); err != nil {
 			return 0, err
 		}
 		if existing > 0 {
@@ -119,12 +165,13 @@ func SeedSystemPosts(db *sql.DB) (int, error) {
 
 		createdAt := time.Now().UTC().AddDate(0, 0, -p.daysAgo).Format("2006-01-02 15:04:05")
 		if _, err := tx.Exec(`INSERT INTO experience_shares
-			(title, summary, content, content_render_mode, create_type, author_name, status,
+			(id, title, summary, content, content_render_mode, create_type, author_name, status,
 			 board, is_featured, is_pinned, like_count, created_at, updated_at)
-			VALUES (?, ?, ?, 'html', 'manual', ?, 'published', ?, 0, ?, 0, ?, CURRENT_TIMESTAMP)`,
-			p.title, p.summary, p.content, p.author, p.board, p.pinned, createdAt); err != nil {
+			VALUES (?, ?, ?, ?, 'html', 'manual', ?, 'published', ?, 0, ?, 0, ?, CURRENT_TIMESTAMP)`,
+			nextID, p.title, p.summary, p.content, p.author, p.board, p.pinned, createdAt); err != nil {
 			return inserted, err
 		}
+		nextID++
 		inserted++
 	}
 

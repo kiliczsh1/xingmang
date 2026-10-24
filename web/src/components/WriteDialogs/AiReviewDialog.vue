@@ -150,11 +150,14 @@
   <!-- 更多提示词：从本地卡包挑一条固定进左栏 -->
   <PromptMoreDialog
     v-model:visible="promptSelectVisible"
-    :prompts="allPrompts"
+    :prompts="toolPrompts"
     :title="tool?.requirementLabel || '更多提示词'"
     :scope="tool?.id || 'review'"
     :selected-id="selectedPromptId"
-    @select="pinFromMore"
+    add-mode
+    :added-ids="pinnedPrompts.map(p => p.id)"
+    @add="pinFromMore"
+    @remove="removePinned"
     @deleted="onPromptDeleted"
   />
 </template>
@@ -166,6 +169,7 @@ import { MagicStick, Close, Loading } from '@element-plus/icons-vue'
 import { configAPI, promptAPI } from '@/api'
 import type { ApiModel, Prompt, Chapter, Character } from '@/types'
 import type { AiToolMeta } from '@/constants/aiTools'
+import { promptsForTool, toolCoreWords } from '@/constants/aiTools'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import PromptMoreDialog from '@/components/WriteDialogs/PromptMoreDialog.vue'
 import { bumpUsage, readPinned, writePinned } from '@/utils/prompt-pick-store'
@@ -192,19 +196,7 @@ const emit = defineEmits<{
 }>()
 const visible = computed({ get: () => props.visible, set: v => emit('update:visible', v) })
 
-/* 工具 → 对应卡包（卡包 = prompt.category 分组，卡包名即分类名） */
-const TOOL_PACK_MAP: Record<string, string> = {
-  'ai-review': 'AI审稿',
-  'ai-detrace': 'AI去痕',
-  'ai-worldview': '世界观生成',
-  'ai-brainstorm': '脑洞仿写',
-  'ai-bookname': '标题仿写',
-  'ai-synopsis': '简介仿写',
-  'ai-outline-detail': '大纲细纲',
-  'ai-goldfinger': '金手指',
-  'ai-title': 'AI标题',
-}
-
+/* 工具 → 对应卡包：不再写死卡包名，改用工具核心词与卡包名双向匹配（「世界观生成」↔「世界观」） */
 const dialogStep = ref<'config' | 'result'>('config')
 const models = ref<ApiModel[]>([])
 const selectedModel = ref<number | null>(null)
@@ -222,10 +214,11 @@ const output = ref('')
 const generating = ref(false)
 const abortController = ref<AbortController | null>(null)
 
-const packName = computed(() => TOOL_PACK_MAP[props.tool?.id || ''] || props.tool?.label || '通用')
+/** 该工具对应的提示词卡包内容（按核心词匹配；一个都没命中时回退全量） */
+const toolPrompts = computed(() => promptsForTool(allPrompts.value, props.tool))
 
-/* 选卡弹窗只显示当前卡包内的提示词 */
-const promptPool = computed(() => allPrompts.value.filter(p => (p.category || '') === packName.value))
+/* 选卡弹窗只显示当前工具对应卡包内的提示词 */
+const promptPool = computed(() => toolPrompts.value)
 
 /* 卡包不存在则登记创建（与 Prompts.vue「创建卡包」同一机制：写入 prompt_categories，幂等） */
 function ensurePackRegistered(name: string) {
@@ -353,7 +346,7 @@ watch(
       if (generating.value) stopGenerate()
       return
     }
-    ensurePackRegistered(packName.value)
+    ensurePackRegistered(toolCoreWords(props.tool)[0] || props.tool?.label || '通用')
     dialogStep.value = 'config'
     output.value = ''
     additionalInfo.value = ''
@@ -488,6 +481,31 @@ function backToConfig() {
   --cyber-faint: #94a3b8;
   --cyber-acc-soft: rgba(85, 117, 155, 0.12);
   --cyber-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+}
+
+/* 定位兜底：面板高度按视口算（100vh - 52px），靠 EP 的「overlay fixed + align-center flex」居中时，
+   只要外层容器带了 transform / contain / backdrop-filter（写作页编辑器就有 backdrop-filter），
+   fixed 的包含块就会被改成那个容器，面板随之掉到文档下方，只能滚动找回来。
+   这里显式钉住 overlay 满屏 + margin:auto 居中：空间够就居中，不够时 auto 归零，从顶部开始正常滚动。 */
+.generator-dialog-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  padding: 26px 0 !important;
+  z-index: 2000;
+}
+
+.generator-dialog-modal .el-overlay-dialog {
+  position: static !important;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: auto;
+}
+
+.generator-dialog-modal .el-dialog {
+  margin: auto !important;
 }
 
 .generator-dialog-modal .el-dialog {

@@ -43,10 +43,11 @@ rem  version number: bumping it is the release step, not the script's job.
 rem
 rem  WARNING - dist\<os>-<arch>\ is wiped and rebuilt on every run, and
 rem  the program stores its data next to the exe. So if anyone ever
-rem  double-clicked the exe inside dist\, their works are in there and
-rem  will be deleted. tools/release refuses to run in that case and lists
-rem  what it found; copy it out first. (The archive itself always strips
-rem  books\ data\ workflow_outputs\ logs\, so nothing personal ships.)
+rem  double-clicked the exe inside dist\, that run's data (books\,
+rem  xingmang.db, chapter-cache\ ...) is treated as scratch and deleted
+rem  without asking; tools\release lists what it removed. Copy it out of
+rem  dist\ before packaging if you want to keep it. (The archive always
+rem  strips books\ data\ workflow_outputs\ chapter-cache\ logs\.)
 rem =====================================================================
 
 rem Pause when launched by double-click (but not when called from an

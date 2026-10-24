@@ -1,11 +1,16 @@
 <template>
   <div class="graph-toolbar">
-    <div class="toolbar-row">
+    <div class="toolbar-row" :class="{ 'has-tail': !!$slots.tail }">
       <div class="toolbar-left">
         <span class="graph-title">知识图谱</span>
         <span class="graph-stats" v-if="entityCount > 0">
           {{ entityCount }} 实体 · {{ relationCount }} 关系
         </span>
+      </div>
+
+      <!-- 页面级控件插槽：书籍 / 版本等，用来把页头并进这一栏，别再单独占一行 -->
+      <div v-if="$slots.extra" class="toolbar-extra">
+        <slot name="extra" />
       </div>
 
       <div class="toolbar-right">
@@ -97,6 +102,11 @@
           <el-icon><Share /></el-icon>
           连线中
         </span>
+      </div>
+
+      <!-- 最右侧插槽：导入/导出等页面级尾操作 -->
+      <div v-if="$slots.tail" class="toolbar-tail">
+        <slot name="tail" />
       </div>
     </div>
   </div>
@@ -208,6 +218,26 @@ function onEditCommand(command: string) {
   gap: 12px;
   flex-shrink: 0;
   min-width: 0;
+}
+
+.toolbar-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* 有最右侧尾操作时，中间那组操作在剩余空间里居中 */
+.toolbar-row.has-tail .toolbar-right {
+  margin-right: auto;
+}
+
+.toolbar-tail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .toolbar-right {

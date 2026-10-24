@@ -16,6 +16,10 @@
           prefix-icon="Search"
           class="pack-search-input"
         />
+        <el-button class="pack-import-btn" @click="packImportRef?.open()">
+          <el-icon><Upload /></el-icon>
+          导入
+        </el-button>
         <el-button type="primary" @click="openCreateInCurrentPack">
           <el-icon><Plus /></el-icon>
           新增提示词
@@ -167,6 +171,14 @@
         </div>
       </div>
     </div>
+
+    <!-- 导入到当前卡包（解析 / 防重与快捷中心一致，目标分类钉死为本卡包） -->
+    <PackImportDialog
+      ref="packImportRef"
+      :pack-name="packName"
+      :prompts="prompts"
+      @imported="handleImported"
+    />
 
     <!-- 编辑提示词弹窗 -->
     <el-dialog
@@ -1016,13 +1028,14 @@ import { usePromptFields } from '@/composables/usePromptFields'
 import type { FieldConfig } from '@/composables/usePromptFields'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Plus, Search, Star, Lock, Unlock, Edit, Download, Notebook, MoreFilled, CopyDocument, ArrowUp, ArrowDown, Delete, Document, DocumentAdd, View, Setting, QuestionFilled, MagicStick, FullScreen, WarningFilled, InfoFilled, Share, Tickets } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus, Search, Star, Lock, Unlock, Edit, Download, Notebook, MoreFilled, CopyDocument, ArrowUp, ArrowDown, Delete, Document, DocumentAdd, View, Setting, QuestionFilled, MagicStick, FullScreen, WarningFilled, InfoFilled, Share, Tickets, Upload } from '@element-plus/icons-vue'
 import { ENCRYPT_MARKER, hashPassword, verifyPassword, encryptContent, decryptContent } from '@/utils/promptCrypto'
 
 const DEFAULT_CATEGORIES = ['默认', '写作要求', '写作风格', '续写', '脑洞', '书名', '简介', '大纲', '细纲', '黄金开篇', '金手指', '名字', '人设', '世界观', '卡包']
 import { promptAPI } from '@/api'
 import type { Prompt } from '@/types'
 import SplitRichTextEditor from '@/components/SplitRichTextEditor.vue'
+import PackImportDialog from '@/components/PackImportDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1317,6 +1330,16 @@ const openCreateInCurrentPack = () => {
   currentSessionPassword.value = ''
   fieldExpanded.value = 0
   editDialogVisible.value = true
+}
+
+// ============ 导入到当前卡包 ============
+const packImportRef = ref<InstanceType<typeof PackImportDialog> | null>(null)
+
+// 导入组件会把定级 / 心得笔记直接写进 localStorage；本视图内存里还留着一份旧快照，
+// 必须重新读一遍，否则下一次 watch 落盘会把刚恢复进来的数据覆盖掉。
+const handleImported = async () => {
+  await fetchPrompts()
+  loadGradeStore()
 }
 
 // ============ 卡片操作：编辑 / 导出 / 心得 / 锁定 / 删除（右下角「⋮」菜单）============
@@ -2150,6 +2173,19 @@ onMounted(() => {
 
 .pack-search-input {
   width: 280px;
+}
+
+/* 导入按钮：默认按钮在暗色下只有一层几乎看不见的描边（dark-theme.css 用 !important 兜底），
+   这里给个淡蓝底 + 描边，和右侧主按钮区分开又不抢视觉 */
+:root[data-theme='dark'] .pack-detail-search .el-button.pack-import-btn {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #93c5fd !important;
+}
+:root[data-theme='dark'] .pack-detail-search .el-button.pack-import-btn:hover {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.55) !important;
+  color: #bfdbfe !important;
 }
 
 /* 排序 Tab */

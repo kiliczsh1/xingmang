@@ -272,6 +272,67 @@ export const AI_TOOLS: AiToolMeta[] = [
 
 export const getAiTool = (id: string): AiToolMeta | undefined => AI_TOOLS.find(t => t.id === id)
 
+/**
+ * 工具 → 提示词卡包核心词。
+ * 工具栏按钮名和卡包名通常不是同一个词（「世界观生成」vs「世界观」、「文风转换」vs「写作风格」），
+ * 这里为每个工具登记核心词，再用「双向包含」去匹配提示词库里的卡包名，
+ * 这样用户把卡包改名成「世界观设定」也能命中，不需要两边写死同一个字符串。
+ */
+export const TOOL_PROMPT_KEYWORDS: Record<string, string[]> = {
+  'ai-polish': ['润色', '扩写'],
+  'ai-continue': ['续写'],
+  'ai-outline': ['章纲', '细纲'],
+  'ai-review': ['审稿'],
+  'ai-detrace': ['去痕', '去AI味'],
+  'ai-style': ['文风', '风格'],
+  'ai-dialogue': ['对话'],
+  'ai-worldview': ['世界观'],
+  'ai-brainstorm': ['脑洞'],
+  'ai-bookname': ['书名'],
+  'ai-synopsis': ['简介'],
+  'ai-outline-detail': ['大纲', '细纲'],
+  'ai-goldfinger': ['金手指'],
+  'ai-title': ['标题']
+}
+
+/** 去掉动作类泛词，剩下的才是核心词（没登记关键词时的兜底） */
+const GENERIC_WORDS = ['AI', '生成', '续写', '正文', '转换', '仿写', '一键', '智能']
+
+const normWord = (s: string) => (s || '').replace(/[\s\u3000]/g, '').toLowerCase()
+
+/** 取某个工具的核心词：优先用登记表，否则从 label 里剥掉泛词 */
+export function toolCoreWords(tool: AiToolMeta | null | undefined): string[] {
+  if (!tool) return []
+  const registered = TOOL_PROMPT_KEYWORDS[tool.id]
+  if (registered?.length) return registered
+  const out = new Set<string>()
+  for (const seg of normWord(tool.label).split(/[/／、,，|·]/)) {
+    let w = seg
+    for (const g of GENERIC_WORDS) w = w.split(normWord(g)).join('')
+    if (w) out.add(w)
+  }
+  return [...out]
+}
+
+/** 卡包名和核心词互相包含就算同一个卡包 */
+export function matchPromptCategory(category: string, words: string[]): boolean {
+  const c = normWord(category)
+  if (!c) return false
+  return words.some(w => {
+    const k = normWord(w)
+    if (!k) return false
+    return c.includes(k) || k.includes(c)
+  })
+}
+
+/** 按工具筛出对应卡包的提示词；一个卡包都没命中时回退全量（避免弹窗直接空掉） */
+export function promptsForTool<T extends { category?: string }>(prompts: T[], tool: AiToolMeta | null | undefined): T[] {
+  const words = toolCoreWords(tool)
+  if (!words.length) return prompts
+  const hit = prompts.filter(p => matchPromptCategory(p.category || '', words))
+  return hit.length ? hit : prompts
+}
+
 // 选区悬浮工具条按钮（加粗 高亮 清除 | AI扩写润色 生成插画）
 export const SELECTION_TOOL_ACTIONS = [
   { id: 'ai-polish', label: 'AI扩写润色' },

@@ -1,5 +1,5 @@
 <template>
-  <!-- 「更多提示词」：结构/观感对齐星月写作的快捷指令选择器（标题沿用当前需求的 label） -->
+  <!-- 「更多提示词」：单列大卡片式快捷指令选择器（标题沿用当前需求的 label） -->
   <el-dialog
     :model-value="visible"
     width="820px"
@@ -12,29 +12,26 @@
     modal-class="prompt-more-modal"
     @update:model-value="onVisibleChange"
   >
-    <template #header>
-      <div class="pm-head">
-        <span class="pm-title">{{ title }}</span>
+    <div class="pm-body">
+      <!-- 顶行：标题（可选）+ 页签 + 关闭，共用一行，不额外占高度 -->
+      <div class="pm-top">
+        <span v-if="!hideTitle" class="pm-title">{{ title }}</span>
+        <div class="pm-tabs" role="tablist">
+          <button
+            v-for="t in tabs"
+            :key="t.key"
+            type="button"
+            role="tab"
+            class="pm-tab"
+            :class="{ active: tab === t.key }"
+            :aria-selected="tab === t.key"
+            @click="switchTab(t.key)"
+          >
+            {{ t.label }}
+          </button>
+        </div>
         <button type="button" class="pm-close" aria-label="关闭" @click="close">
           <el-icon><Close /></el-icon>
-        </button>
-      </div>
-    </template>
-
-    <div class="pm-body">
-      <!-- 页签：已收藏 / 已创建 / 推荐 -->
-      <div class="pm-tabs" role="tablist">
-        <button
-          v-for="t in tabs"
-          :key="t.key"
-          type="button"
-          role="tab"
-          class="pm-tab"
-          :class="{ active: tab === t.key }"
-          :aria-selected="tab === t.key"
-          @click="switchTab(t.key)"
-        >
-          {{ t.label }}
         </button>
       </div>
 
@@ -92,7 +89,7 @@
       </div>
 
       <!-- 卡片列表 -->
-      <div :key="listKey" class="pm-list">
+      <div ref="listRef" :key="listKey" class="pm-list" @scroll.passive="onListScroll">
         <div v-if="list.length === 0" class="pm-empty">
           <p class="pm-empty-title">{{ emptyTitle }}</p>
           <p class="pm-empty-hint">{{ emptyHint }}</p>
@@ -117,7 +114,17 @@
               >
                 <el-icon><StarFilled v-if="isFav(p.id)" /><Star v-else /></el-icon>
               </button>
-              <button type="button" class="pm-use-btn" @click="pick(p)">
+              <button
+                v-if="addMode"
+                type="button"
+                class="pm-use-btn"
+                :class="{ added: isAdded(p.id) }"
+                :title="isAdded(p.id) ? '移出固定列表' : '加入固定列表'"
+                @click="addFromCard(p)"
+              >
+                <el-icon><Check v-if="isAdded(p.id)" /><Plus v-else /></el-icon>{{ isAdded(p.id) ? '已添加' : '增加' }}
+              </button>
+              <button v-else type="button" class="pm-use-btn" @click="pick(p)">
                 <el-icon><CaretRight /></el-icon>使用
               </button>
               <button type="button" class="pm-del-btn" @click="removePrompt(p)">
@@ -147,12 +154,11 @@
             </div>
           </div>
         </article>
-      </div>
 
-      <!-- 加载更多 -->
-      <div class="pm-footer">
-        <button v-if="hasMore" type="button" class="pm-more-btn" @click="page++">加载更多提示词</button>
-        <span v-else class="pm-more-done">已显示全部提示词</span>
+        <!-- 滑到底续加载：只在加载那一瞬间占位，加载完不留空 -->
+        <div v-if="loadingMore" class="pm-loading">
+          <span class="pm-spinner"></span>加载中…
+        </div>
       </div>
     </div>
 
@@ -182,9 +188,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, CaretRight, Close, Filter, Remove, Search, Star, StarFilled } from '@element-plus/icons-vue'
+import { ArrowDown, CaretRight, Check, Close, Filter, Plus, Remove, Search, Star, StarFilled } from '@element-plus/icons-vue'
 import type { Prompt } from '@/types'
 import { promptAPI } from '@/api'
 import { bumpUsage, readFavIds, readLastPick, readUsage, writeFavIds } from '@/utils/prompt-pick-store'
@@ -196,18 +202,29 @@ const props = withDefaults(
     visible: boolean
     /** 本地提示词库全量（promptAPI.getAll） */
     prompts: Prompt[]
-    /** 弹窗标题：对齐星月，用当前需求的 label（如「扩写要求」） */
+    /** 弹窗标题：用当前需求的 label（如「扩写要求」） */
     title?: string
+    /** 隐藏顶栏标题（从卡包/工具直接进入时标题是冗余的） */
+    hideTitle?: boolean
     /** 持久化作用域（工具 id / 卡包），用于记住上次选择 */
     scope?: string
     selectedId?: number | null
+    /**
+     * 增加模式：卡片上的「使用」变成「增加」，点了不关弹窗，
+     * 可以连续增加/删除 / 收藏多条，由用户自己点 × 关闭。
+     */
+    addMode?: boolean
+    /** 增加模式下的已添加 id（父组件受控，用于显示「已添加」） */
+    addedIds?: number[]
   }>(),
-  { title: '快捷选项', scope: 'default', selectedId: null }
+  { title: '快捷选项', scope: 'default', selectedId: null, hideTitle: false, addMode: false, addedIds: () => [] }
 )
 
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void
   (e: 'select', prompt: Prompt): void
+  (e: 'add', prompt: Prompt): void
+  (e: 'remove', id: number): void
   (e: 'deleted', id: number): void
 }>()
 
@@ -240,6 +257,17 @@ const detailPrompt = ref<Prompt | null>(null)
 const removedIds = ref<number[]>([])
 
 const isFav = (id: number) => favIds.value.includes(id)
+const isAdded = (id: number) => props.addedIds.includes(id)
+
+/** 增加模式：点「增加」抛给父组件加入固定列表，点「已添加」撤回；两者都不关弹窗 */
+function addFromCard(p: Prompt) {
+  if (isAdded(p.id)) {
+    emit('remove', p.id)
+    return
+  }
+  emit('add', p)
+}
+
 const visiblePrompts = computed(() => props.prompts.filter(p => !removedIds.value.includes(p.id)))
 
 function charCount(p: Prompt): number {
@@ -338,6 +366,36 @@ const pagedList = computed(() => list.value.slice(0, page.value * PAGE_SIZE))
 const hasMore = computed(() => pagedList.value.length < list.value.length)
 const listKey = computed(() => `${tab.value}|${sort.value}|${activePack.value}|${keyword.value}`)
 
+/* 滚动到底自动加载：滑到底 → 转一下就续上，不再要「加载更多」按钮 */
+const listRef = ref<HTMLElement | null>(null)
+const loadingMore = ref(false)
+let loadTimer: number | null = null
+
+function stopLoadTimer() {
+  if (loadTimer !== null) {
+    window.clearTimeout(loadTimer)
+    loadTimer = null
+  }
+}
+
+function onListScroll() {
+  const el = listRef.value
+  if (!el || loadingMore.value || !hasMore.value) return
+  // 距底 56px 内触发，留一点提前量
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - 56) return
+  loadingMore.value = true
+  stopLoadTimer()
+  loadTimer = window.setTimeout(() => {
+    loadTimer = null
+    page.value += 1
+    loadingMore.value = false
+    // 追加后内容可能仍不足一屏，再判一次
+    nextTick(onListScroll)
+  }, 320)
+}
+
+onBeforeUnmount(stopLoadTimer)
+
 const emptyTitle = computed(() => {
   if (tab.value === 'fav') return '还没有收藏的提示词'
   if (sort.value === 'month') return '本月还没有更新过的提示词'
@@ -372,7 +430,7 @@ function applySearch() {
 }
 
 watch(keywordDraft, v => {
-  // 输入即清空搜索高亮状态，回车/点按钮才真正过滤（与星月一致）
+  // 输入即清空搜索高亮状态，回车/点按钮才真正过滤
   if (!v.trim() && keyword.value) {
     keyword.value = ''
     page.value = 1
@@ -381,6 +439,8 @@ watch(keywordDraft, v => {
 
 watch([tab, sort, activePack], () => {
   page.value = 1
+  stopLoadTimer()
+  loadingMore.value = false
 })
 
 watch(packList, packs => {
@@ -455,6 +515,8 @@ watch(
     activePack.value = ALL_PACKS
     packsOpen.value = true
     page.value = 1
+    stopLoadTimer()
+    loadingMore.value = false
     tab.value = 'recommend'
     sort.value = 'hot'
     const lastId = readLastPick(props.scope)
@@ -465,7 +527,7 @@ watch(
 </script>
 
 <style scoped>
-/* ============ 弹窗内部（对齐星月：单列大卡片 + 薄荷绿主色） ============ */
+/* ============ 弹窗内部（单列大卡片 + 薄荷绿主色） ============ */
 .pm-body {
   display: flex;
   flex-direction: column;
@@ -474,18 +536,21 @@ watch(
   height: 100%;
 }
 
-.pm-head {
+.pm-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 18px;
+  flex: none;
 }
 .pm-title {
+  flex: none;
   font-size: 15px;
   font-weight: 500;
   color: var(--pm-ink);
   letter-spacing: 0.2px;
 }
 .pm-close {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -505,6 +570,8 @@ watch(
 
 /* ---------- 一级页签 ---------- */
 .pm-tabs {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 26px;
@@ -792,6 +859,13 @@ watch(
 .pm-use-btn:hover {
   filter: brightness(1.08);
 }
+.pm-use-btn.added {
+  background: var(--pm-surface-3);
+  color: var(--pm-dim);
+}
+.pm-use-btn.added:hover {
+  filter: brightness(0.97);
+}
 .pm-del-btn {
   border: 1px solid var(--pm-danger-line);
   background: transparent;
@@ -924,30 +998,32 @@ watch(
   line-height: 1.6;
 }
 
-/* ---------- 底部 ---------- */
-.pm-footer {
+/* ---------- 滚动到底的加载态（只在加载瞬间存在，加载完不留白） ---------- */
+.pm-loading {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: 2px;
-}
-.pm-more-btn {
-  padding: 5px 18px;
-  border: 1px solid var(--pm-line);
-  border-radius: 999px;
-  background: transparent;
+  gap: 6px;
+  padding: 6px 0;
+  background: var(--xm-surface, var(--pm-surface-1));
   color: var(--pm-dim);
   font-size: 12px;
-  cursor: pointer;
-  transition: all 0.16s ease;
 }
-.pm-more-btn:hover {
-  border-color: var(--pm-accent);
-  color: var(--pm-accent);
+.pm-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--pm-line-strong);
+  border-top-color: var(--pm-accent);
+  border-radius: 50%;
+  animation: pm-spin 0.7s linear infinite;
 }
-.pm-more-done {
-  color: var(--pm-dim);
-  font-size: 12px;
+@keyframes pm-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ---------- 详情 ---------- */
@@ -1012,7 +1088,7 @@ watch(
 <style>
 /*
  * 非 scoped：弹窗根节点与 el-dialog 内部元素不带本组件的 scope 属性。
- * 配色按星月实际截图取值（暗色薄荷绿），亮色下换成可读的深绿。
+ * 配色取暗色薄荷绿，亮色下换成可读的深绿。
  */
 .prompt-more-dialog {
   --pm-surface-1: #ffffff;
@@ -1032,15 +1108,15 @@ watch(
   border-radius: 14px;
 }
 
+/* 标题已并入顶行（.pm-top 与页签同排），原生 header 整块不再占高度 */
 .prompt-more-dialog .el-dialog__header {
-  padding: 16px 20px 8px;
-  border-bottom: none;
+  display: none;
 }
 
 .prompt-more-dialog .el-dialog__body {
   display: flex;
   flex-direction: column;
-  padding: 0 20px 14px;
+  padding: 18px 20px 16px;
   height: min(760px, 86dvh);
   overflow: hidden;
 }

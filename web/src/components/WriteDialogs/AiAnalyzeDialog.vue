@@ -568,6 +568,31 @@ function backToConfig() {
   --cyber-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
 }
 
+/* 定位兜底：面板尺寸全按视口算（100vw-128 / 100vh-52），一旦遮罩层的 fixed 被
+   祖先的 transform / filter / backdrop-filter / contain 接管，就会退化成文档流里的块，
+   表现为「掉在页面下方、要滚轮才能找回来」。
+   这里把遮罩钉成满屏，并用 margin:auto 居中——空间够就居中，不够时 auto 归零，从顶部开始正常滚动。 */
+.generator-dialog-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  padding: 26px 0 !important;
+  z-index: 2000;
+}
+
+.generator-dialog-modal .el-overlay-dialog {
+  position: static !important;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: auto;
+}
+
+.generator-dialog-modal .el-dialog {
+  margin: auto !important;
+}
+
 .generator-dialog-modal .el-dialog {
   width: calc(100vw - 128px);
   max-width: 1152px;

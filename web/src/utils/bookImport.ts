@@ -63,6 +63,32 @@ export const cleanImportTitle = (title: string, fallbackIndex: number) => {
   return normalizedTitle || `第${fallbackIndex + 1}章`
 }
 
+// 「```」「~~~」这类 Markdown 代码围栏出现在导入的小说正文里基本都是复制残留，
+// 留着会被渲染成代码块。只删「独占一行的围栏」（允许 ```python 这种语言标记），
+// ⚠ 绝不能做全文替换：正文里的「“嗷~~~”」是拟声词，替掉就是削内容。
+export const stripCodeFence = (text: string) =>
+  text
+    .replace(/^[ \t]*(?:```|~~~)[ \t]*[A-Za-z0-9+#._-]*[ \t]*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+// ⚠⚠ Markdown 里「4 个半角空格 / tab 开头」= 缩进式代码块。小说 txt 常用 4 空格做段首缩进，
+// 直接导入会让整段在 Vditor / MarkdownRenderer 里变灰底代码块。统一换成全角空格缩进。
+export const normalizeImportIndent = (text: string) =>
+  text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^[\t ]{4,}/, '\u3000\u3000')
+        .replace(/^[\t ]{1,3}(?=\S)/, '')
+    )
+    .join('\n')
+
+const cleanChapters = (chapters: ParsedImportChapter[]) =>
+  chapters
+    .map((chapter) => ({ ...chapter, content: stripCodeFence(normalizeImportIndent(chapter.content)) }))
+    .filter((chapter) => chapter.content.length > 0)
+
 export const chunkPlainText = (text: string, baseTitle: string) => {
   const paragraphs = text
     .split(/\n{2,}/)
@@ -101,7 +127,7 @@ export const splitTxtIntoChapters = (text: string, baseTitle: string) => {
   }
   const matches = Array.from(normalizedText.matchAll(CHAPTER_HEADING_REGEX))
   if (matches.length === 0) {
-    return chunkPlainText(normalizedText, baseTitle)
+    return cleanChapters(chunkPlainText(normalizedText, baseTitle))
   }
   const chapters: ParsedImportChapter[] = []
   matches.forEach((match, index) => {
@@ -114,7 +140,7 @@ export const splitTxtIntoChapters = (text: string, baseTitle: string) => {
     }
   })
   if (chapters.length > 0) {
-    return chapters
+    return cleanChapters(chapters)
   }
-  return chunkPlainText(normalizedText, baseTitle)
+  return cleanChapters(chunkPlainText(normalizedText, baseTitle))
 }

@@ -36,7 +36,7 @@
             <span class="xm-cd-intro-link" @click="introVisible = !introVisible">{{ introVisible ? '收起介绍' : '查看介绍' }}</span>
           </p>
           <p v-if="introVisible && currentPreset" class="xm-cd-preset-detail">{{ currentPreset.content }}</p>
-          <p v-if="pickedPrompt?.category" class="xm-cd-preset-pack">卡包：{{ pickedPrompt.category }}</p>
+          <p v-if="currentPreset?.category" class="xm-cd-preset-pack">卡包：{{ currentPreset.category }}</p>
         </template>
 
         <el-input
@@ -143,11 +143,14 @@
     <!-- 更多提示词（本地卡包） -->
     <PromptMoreDialog
       v-model:visible="moreVisible"
-      :prompts="prompts"
+      :prompts="morePrompts"
       :title="tool?.requirementLabel || '更多提示词'"
       :scope="tool?.id || 'continue'"
-      :selected-id="pickedPrompt?.id ?? null"
-      @select="onMorePick"
+      :selected-id="null"
+      add-mode
+      :added-ids="pickedPrompts.map(p => p.id)"
+      @add="onMoreAdd"
+      @remove="onMoreRemove"
       @deleted="emit('refresh-prompts')"
     />
   </el-dialog>
@@ -157,6 +160,7 @@
 import { computed, ref, watch } from 'vue'
 import type { ApiConfig, Chapter, Character, Memo, Prompt } from '@/types'
 import type { AiToolMeta } from '@/constants/aiTools'
+import { promptsForTool } from '@/constants/aiTools'
 import PromptModeSwitch from './PromptModeSwitch.vue'
 import PromptMoreDialog from './PromptMoreDialog.vue'
 import { bumpUsage, readLastPick, saveLastPick } from '@/utils/prompt-pick-store'
@@ -190,8 +194,11 @@ const emit = defineEmits<{
 
 const requirementMode = ref<'preset' | 'custom'>('preset')
 /** 从「更多提示词」选中的本地卡包提示词 */
-const pickedPrompt = ref<Prompt | null>(null)
+const pickedPrompts = ref<Prompt[]>([])
 const moreVisible = ref(false)
+
+/** 「更多提示词」只列该工具核心词对应的卡包（「续写正文」↔「续写」） */
+const morePrompts = computed(() => promptsForTool(props.prompts || [], props.tool))
 const selectedKey = ref<string>('preset:0')
 const customRequirement = ref('')
 const introVisible = ref(false)
@@ -202,7 +209,7 @@ const chapterMode = ref<'none' | 'recent3' | 'recent5' | 'custom'>('none')
 const customChapterIds = ref<number[]>([])
 const memoIds = ref<number[]>([])
 
-// 快捷选项 = 从「更多」选中的提示词（排第一）+ 工具内置预设
+// 快捷选项 = 从「更多」增加进来的本地提示词（排前面，可多条）+ 工具内置预设
 const presetOptions = computed(() => {
   const list = (props.tool?.presets || []).map((p, i) => ({
     key: `preset:${i}`,
@@ -211,30 +218,37 @@ const presetOptions = computed(() => {
     intro: p.intro || '',
     category: ''
   }))
-  const picked = pickedPrompt.value
-  if (picked) {
-    list.unshift({
-      key: `lib:${picked.id}`,
-      name: picked.name,
-      content: picked.content,
-      intro: picked.description || '',
-      category: picked.category || ''
-    })
-  }
-  return list
+  const libs = pickedPrompts.value.map(p => ({
+    key: `lib:${p.id}`,
+    name: p.name,
+    content: p.content,
+    intro: p.description || '',
+    category: p.category || ''
+  }))
+  return [...libs, ...list]
 })
 
 const currentPreset = computed(
   () => presetOptions.value.find(o => o.key === selectedKey.value) || presetOptions.value[0]
 )
 
-const onMorePick = (p: Prompt) => {
-  pickedPrompt.value = p
+const onMoreAdd = (p: Prompt) => {
+  if (!pickedPrompts.value.some(x => x.id === p.id)) {
+    pickedPrompts.value = [p, ...pickedPrompts.value]
+  }
   requirementMode.value = 'preset'
   selectedKey.value = `lib:${p.id}`
   introVisible.value = false
   saveLastPick(props.tool?.id || 'continue', p.id)
-  console.info('[prompt-pick] 选择本地提示词', p.id, p.name)
+  bumpUsage(p.id)
+}
+
+/* 「更多提示词」里点「已添加」撤回：从快捷选项里移除 */
+const onMoreRemove = (id: number) => {
+  pickedPrompts.value = pickedPrompts.value.filter(p => p.id !== id)
+  if (selectedKey.value === `lib:${id}`) {
+    selectedKey.value = presetOptions.value[0]?.key || 'preset:0'
+  }
 }
 
 const contextChapterIds = computed(() => {
@@ -262,8 +276,9 @@ watch(() => props.visible, (val) => {
   requirementMode.value = 'preset'
   // 恢复上次为这个工具选过的本地提示词
   const lastId = readLastPick(props.tool?.id || 'continue')
-  pickedPrompt.value = lastId === null ? null : props.prompts.find(p => p.id === lastId) || null
-  selectedKey.value = pickedPrompt.value ? `lib:${pickedPrompt.value.id}` : 'preset:0'
+  const last = lastId === null ? undefined : props.prompts.find(p => p.id === lastId)
+  pickedPrompts.value = last ? [last] : []
+  selectedKey.value = last ? `lib:${last.id}` : 'preset:0'
   moreVisible.value = false
   customRequirement.value = ''
   introVisible.value = false
@@ -285,8 +300,8 @@ const effectiveRequirement = () => {
 }
 
 const start = () => {
-  const picked = pickedPrompt.value
-  if (picked && requirementMode.value === 'preset' && selectedKey.value === `lib:${picked.id}`) {
+  const picked = pickedPrompts.value.find(p => `lib:${p.id}` === selectedKey.value)
+  if (picked && requirementMode.value === 'preset') {
     bumpUsage(picked.id)
   }
   emit('start', {

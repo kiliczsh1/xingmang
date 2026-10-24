@@ -109,6 +109,102 @@ export const restoreInsightsFor = async (name: string, category: string, newProm
   }
 }
 
+// ============ 定级 / 心得笔记的导出 / 导入搬运 ============
+// 这两份数据不进库，存在浏览器 localStorage（PackDetail 的「天地玄黄定级」与「藤蔓笔记」共用同一个 key，
+// 以卡片 id 为键）。导出时必须改成「名字 + 分类」的键，因为导入后新卡片的 id 全变了。
+export const RATING_NOTES_STORAGE_KEY = 'pack_detail_rating_notes'
+
+type RatingNotesStore = {
+  ratings: Record<string, { effect: number; quality: number; universal: number; bonus: number }>
+  notes: Record<string, Array<{ id: string; content: string; created_at: string; updated_at: string }>>
+}
+
+const readRatingNotesStore = (): RatingNotesStore => {
+  try {
+    const raw = localStorage.getItem(RATING_NOTES_STORAGE_KEY)
+    if (!raw) return { ratings: {}, notes: {} }
+    const parsed = JSON.parse(raw)
+    return {
+      ratings: parsed && typeof parsed.ratings === 'object' && parsed.ratings ? parsed.ratings : {},
+      notes: parsed && typeof parsed.notes === 'object' && parsed.notes ? parsed.notes : {}
+    }
+  } catch {
+    return { ratings: {}, notes: {} }
+  }
+}
+
+/** 导出前收集定级 + 心得笔记，按卡片键（名字 + 分类）分组 */
+export const collectRatingNotesByKey = (prompts: Prompt[]) => {
+  const store = readRatingNotesStore()
+  const ratings: Record<string, any> = {}
+  const notes: Record<string, any[]> = {}
+  prompts.forEach(p => {
+    const key = buildPromptKey(p.name, p.category)
+    if (!key) return
+    const rating = store.ratings[String(p.id)]
+    if (rating) ratings[key] = rating
+    const list = store.notes[String(p.id)]
+    if (Array.isArray(list) && list.length > 0) notes[key] = list
+  })
+  return { ratings, notes }
+}
+
+// 导入侧：先登记文件里的数据，卡片建好后再按新 id 回写
+export const importedRatings = ref<Record<string, any>>({})
+export const importedNotes = ref<Record<string, any[]>>({})
+let pendingRatingNotes: Record<string, { rating?: any; notes?: any[] }> = {}
+
+export const resetImportedRatingNotes = () => {
+  importedRatings.value = {}
+  importedNotes.value = {}
+  pendingRatingNotes = {}
+}
+
+/** 读导入文件里的 extras（整体备份放 data.extras，单卡/卡包导出放顶层） */
+export const registerImportedRatingNotes = (data: any) => {
+  const sources = [data?.extras, data?.data?.extras]
+  sources.forEach(source => {
+    if (!source || typeof source !== 'object') return
+    if (source.ratings && typeof source.ratings === 'object') {
+      importedRatings.value = { ...importedRatings.value, ...source.ratings }
+    }
+    if (source.notes && typeof source.notes === 'object') {
+      importedNotes.value = { ...importedNotes.value, ...source.notes }
+    }
+  })
+}
+
+/** 卡片创建成功后调用：把定级/笔记挂到新 id 上，等 flush 一次性写回 localStorage */
+export const restoreRatingNotesFor = (name: string, category: string, newPromptId?: number) => {
+  if (!newPromptId) return
+  const key = buildPromptKey(name, category)
+  if (!key) return
+  const rating = importedRatings.value[key]
+  const notes = importedNotes.value[key]
+  if (!rating && !(Array.isArray(notes) && notes.length > 0)) return
+  pendingRatingNotes[String(newPromptId)] = { rating, notes }
+  delete importedRatings.value[key]
+  delete importedNotes.value[key]
+}
+
+/** 一次性合并写回 localStorage（整体恢复会建很多卡片，逐张写太慢） */
+export const flushRestoredRatingNotes = () => {
+  const ids = Object.keys(pendingRatingNotes)
+  if (ids.length === 0) return
+  const store = readRatingNotesStore()
+  ids.forEach(id => {
+    const entry = pendingRatingNotes[id]
+    if (entry.rating) store.ratings[id] = entry.rating
+    if (Array.isArray(entry.notes) && entry.notes.length > 0) store.notes[id] = entry.notes
+  })
+  try {
+    localStorage.setItem(RATING_NOTES_STORAGE_KEY, JSON.stringify(store))
+  } catch {
+    // 存储满等异常忽略
+  }
+  pendingRatingNotes = {}
+}
+
 /** 导出前收集全部心得，按卡片键分组 */
 export const collectInsightsByKey = async (prompts: Prompt[]) => {
   const grouped: Record<string, any[]> = {}

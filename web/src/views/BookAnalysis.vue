@@ -9,147 +9,150 @@
         已选 <b>{{ selectedChapters.length }}</b> 章 · <span>{{ statusPromptText }}</span>
       </div>
       <button class="hist-btn" @click="showHistoryDialog = true">🕘 历史 <b>{{ historyRecords.length }}</b></button>
-      <button class="gear-btn" @click="toggleDrawer">⚙ 配置</button>
+      <button class="gear-btn" @click="toggleDrawer">{{ gearBtnText }}</button>
     </div>
 
-    <!-- 主画布：结果为主角 -->
-    <div class="canvas">
-      <div v-if="previewContent" class="preview-tools">
-        <button
-          v-if="pendingRecord"
-          class="tool-btn save"
-          :disabled="savingRecord"
-          @click="savePendingRecord"
-        >
-          {{ savingRecord ? '保存中…' : '💾 保存这次拆书' }}
-        </button>
-        <span v-if="pendingRecord" class="tool-hint">未保存</span>
-        <button class="tool-btn" @click="copyPreview">⧉ 复制</button>
-        <button class="tool-btn" @click="clearPreview">🗑 清空</button>
-      </div>
-      <div class="paper">
-        <div v-if="!previewContent" class="empty-state">
-          <div class="ic">📄</div>
-          <h2>在这里开始一场拆书</h2>
-          <p>点击右下角「开始拆书」，或先点右上角「配置」选择章节与提示词。</p>
-        </div>
-        <el-scrollbar v-else ref="scrollbarRef" class="paper-scroll">
-          <div class="paper-inner">
-            <MarkdownRenderer :content="previewContent" class="content-text" />
-          </div>
-        </el-scrollbar>
-      </div>
-
-      <button
-        class="fab"
-        :class="{ stop: analyzing }"
-        :disabled="!canStart && !analyzing"
-        @click="startOrStop"
-      >
-        {{ analyzing ? '◼ 停止拆书' : '▶ 开始拆书' }}
-      </button>
-    </div>
-
-    <!-- 遮罩 + 左侧配置抽屉 -->
-    <div class="mask" :class="{ show: maskVisible }" @click="closeDrawer"></div>
-    <aside class="drawer" :class="{ show: drawerVisible }">
-      <div class="drawer-head"><h3>拆书配置</h3><button class="x" @click="closeDrawer">✕</button></div>
-      <div class="drawer-body">
-        <!-- 1 选择章节 -->
-        <div class="acc acc-chapters" :class="{ open: accOpen[1] }">
-          <div class="acc-head" @click="accOpen[1] = !accOpen[1]">
-            <span class="num">1</span> 选择章节
-            <span class="badge">{{ selectedChapters.length }} 章</span>
-            <span class="chev">▸</span>
-          </div>
-          <div class="acc-body">
-            <div class="sel-row">
-              <el-checkbox
-                v-model="selectAll"
-                :indeterminate="isIndeterminate"
-                @change="handleSelectAllChange"
-              >
-                全选
-              </el-checkbox>
+    <!-- 主区：宽屏左侧配置常驻（可收起），窄屏改为浮层 -->
+    <div class="ba-main" :class="{ 'side-collapsed': !sideOpen }">
+      <aside class="drawer" :class="{ show: sideOpen }">
+        <div class="drawer-body">
+          <!-- 1 选择章节 -->
+          <div class="acc acc-chapters" :class="{ open: accOpen[1] }">
+            <div class="acc-head" @click="accOpen[1] = !accOpen[1]">
+              <span class="num">1</span> 选择章节
+              <span class="badge">{{ selectedChapters.length }} 章</span>
+              <span class="chev">▸</span>
             </div>
-            <div class="chapter-list">
-              <div
-                v-for="chapter in chapters"
-                :key="chapter.id"
-                class="chapter-item"
-                :class="{ on: selectedChapters.includes(chapter.id) }"
-                @click="toggleChapter(chapter.id)"
-              >
-                <span class="ck">{{ selectedChapters.includes(chapter.id) ? '✓' : '' }}</span>
-                <span class="ct">{{ chapter.title }}</span>
-                <span class="w">{{ getWordCount(chapter.content).toLocaleString() }}字</span>
+            <div class="acc-body">
+              <div class="sel-row">
+                <el-checkbox
+                  v-model="selectAll"
+                  :indeterminate="isIndeterminate"
+                  @change="handleSelectAllChange"
+                >
+                  全选
+                </el-checkbox>
               </div>
-              <div v-if="chapters.length === 0" class="empty-chapters">
-                <p>暂无章节</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 2 选择提示词（触发弹窗） -->
-        <div class="acc" :class="{ open: accOpen[2] }">
-          <div class="acc-head" @click="accOpen[2] = !accOpen[2]">
-            <span class="num">2</span> 选择提示词
-            <span class="badge">{{ selectedPromptInfo ? selectedPromptInfo.name : '未选' }}</span>
-            <span class="chev">▸</span>
-          </div>
-          <div class="acc-body">
-            <div class="trigger" @click="openPromptPicker">
-              <template v-if="selectedPromptInfo">
-                <div class="t-main">
-                  <div class="t-name">{{ selectedPromptInfo.name }}<span class="p-cat">{{ categoryLabel(selectedPromptInfo.category) }}</span></div>
-                  <div class="t-desc">{{ selectedPromptInfo.description || '点击重新选择拆书库提示词' }}</div>
+              <div class="chapter-list">
+                <div
+                  v-for="chapter in chapters"
+                  :key="chapter.id"
+                  class="chapter-item"
+                  :class="{ on: selectedChapters.includes(chapter.id) }"
+                  @click="toggleChapter(chapter.id)"
+                >
+                  <span class="ck">{{ selectedChapters.includes(chapter.id) ? '✓' : '' }}</span>
+                  <span class="ct">{{ chapter.title }}</span>
+                  <span class="w">{{ getWordCount(chapter.content).toLocaleString() }}字</span>
                 </div>
-                <span class="t-open">更换 →</span>
-              </template>
-              <template v-else>
+                <div v-if="chapters.length === 0" class="empty-chapters">
+                  <p>暂无章节</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2 选择提示词（触发弹窗） -->
+          <div class="acc" :class="{ open: accOpen[2] }">
+            <div class="acc-head" @click="accOpen[2] = !accOpen[2]">
+              <span class="num">2</span> 选择提示词
+              <span class="badge">{{ selectedPromptInfo ? selectedPromptInfo.name : '未选' }}</span>
+              <span class="chev">▸</span>
+            </div>
+            <div class="acc-body">
+              <div class="trigger" @click="openPromptPicker">
+                <template v-if="selectedPromptInfo">
+                  <div class="t-main">
+                    <div class="t-name">{{ selectedPromptInfo.name }}<span class="p-cat">{{ categoryLabel(selectedPromptInfo.category) }}</span></div>
+                    <div class="t-desc">{{ selectedPromptInfo.description || '点击重新选择拆书库提示词' }}</div>
+                  </div>
+                  <span class="t-open">更换 →</span>
+                </template>
+                <template v-else>
+                  <div class="t-main">
+                    <div class="t-name">选择提示词</div>
+                    <div class="t-desc">从提示词库中选择一种拆书方式</div>
+                  </div>
+                  <span class="t-open">选择 →</span>
+                </template>
+              </div>
+              <button v-if="selectedPromptInfo" class="mini-link" @click="showPromptIntro">查看完整介绍 →</button>
+            </div>
+          </div>
+
+          <!-- 3 模型 · 方式 · 补充信息 -->
+          <div class="acc" :class="{ open: accOpen[3] }">
+            <div class="acc-head" @click="accOpen[3] = !accOpen[3]">
+              <span class="num">3</span> 模型 / 方式 / 补充
+              <span class="chev">▸</span>
+            </div>
+            <div class="acc-body">
+              <label class="lbl">AI 模型</label>
+              <div class="trigger" @click="openModelDialog">
                 <div class="t-main">
-                  <div class="t-name">选择提示词</div>
-                  <div class="t-desc">从提示词库中选择一种拆书方式</div>
+                  <div class="t-name">{{ selectedModelLabel }}</div>
+                  <div class="t-desc">{{ selectedModelProvider }}</div>
                 </div>
                 <span class="t-open">选择 →</span>
-              </template>
+              </div>
+              <label class="lbl">拆分方式</label>
+              <div class="seg">
+                <button :class="{ on: splitMode === 'chapter' }" @click="splitMode = 'chapter'">分章拆</button>
+                <button :class="{ on: splitMode === 'merge' }" @click="splitMode = 'merge'">合并拆</button>
+              </div>
+              <label class="lbl">补充信息（可选）</label>
+              <el-input
+                v-model="additionalInfo"
+                type="textarea"
+                :rows="2"
+                placeholder="例如：重点分析第三章的论证逻辑…"
+              />
             </div>
-            <button v-if="selectedPromptInfo" class="mini-link" @click="showPromptIntro">查看完整介绍 →</button>
           </div>
+        </div>
+      </aside>
+
+      <!-- 主画布：结果为主角 -->
+      <div class="canvas">
+        <div v-if="previewContent" class="preview-tools">
+          <button
+            v-if="pendingRecord"
+            class="tool-btn save"
+            :disabled="savingRecord"
+            @click="savePendingRecord"
+          >
+            {{ savingRecord ? '保存中…' : '💾 保存这次拆书' }}
+          </button>
+          <span v-if="pendingRecord" class="tool-hint">未保存</span>
+          <button class="tool-btn" @click="copyPreview">⧉ 复制</button>
+          <button class="tool-btn" @click="clearPreview">🗑 清空</button>
+        </div>
+        <div class="paper">
+          <div v-if="!previewContent" class="empty-state">
+            <div class="ic">📄</div>
+            <h2>在这里开始一场拆书</h2>
+            <p>{{ emptyHint }}</p>
+          </div>
+          <el-scrollbar v-else ref="scrollbarRef" class="paper-scroll">
+            <div class="paper-inner">
+              <MarkdownRenderer :content="previewContent" class="content-text" />
+            </div>
+          </el-scrollbar>
         </div>
 
-        <!-- 3 模型 · 方式 · 补充信息 -->
-        <div class="acc" :class="{ open: accOpen[3] }">
-          <div class="acc-head" @click="accOpen[3] = !accOpen[3]">
-            <span class="num">3</span> 模型 / 方式 / 补充
-            <span class="chev">▸</span>
-          </div>
-          <div class="acc-body">
-            <label class="lbl">AI 模型</label>
-            <div class="trigger" @click="openModelDialog">
-              <div class="t-main">
-                <div class="t-name">{{ selectedModelLabel }}</div>
-                <div class="t-desc">{{ selectedModelProvider }}</div>
-              </div>
-              <span class="t-open">选择 →</span>
-            </div>
-            <label class="lbl">拆分方式</label>
-            <div class="seg">
-              <button :class="{ on: splitMode === 'chapter' }" @click="splitMode = 'chapter'">分章拆</button>
-              <button :class="{ on: splitMode === 'merge' }" @click="splitMode = 'merge'">合并拆</button>
-            </div>
-            <label class="lbl">补充信息（可选）</label>
-            <el-input
-              v-model="additionalInfo"
-              type="textarea"
-              :rows="2"
-              placeholder="例如：重点分析第三章的论证逻辑…"
-            />
-          </div>
-        </div>
+        <button
+          class="fab"
+          :class="{ stop: analyzing }"
+          :disabled="!canStart && !analyzing"
+          @click="startOrStop"
+        >
+          {{ analyzing ? '◼ 停止拆书' : '▶ 开始拆书' }}
+        </button>
       </div>
-    </aside>
+    </div>
+
+    <!-- 窄屏遮罩（宽屏不显示） -->
+    <div class="mask" :class="{ show: sideOpen }" @click="closeDrawer"></div>
 
     <!-- 提示词介绍弹窗 -->
     <el-dialog
@@ -406,22 +409,39 @@ const previewContent = ref('')
 const analysisAbortController = ref<AbortController | null>(null)
 const analysisStopped = ref(false)
 
-/* ---- 抽屉（Demo 03） ---- */
-const drawerVisible = ref(true) // 默认打开配置抽屉
-const maskVisible = ref(false) // 初始无遮罩，不遮挡画布与 FAB
+/* ---- 配置区：宽屏是常驻左栏（可收起），窄屏是浮层抽屉 ----
+ * 以前只有浮层一种形态，且默认展开、又盖住顶栏左上角的「返回」，
+ * 导致离开页面要先点 ✕ 关抽屉。现在宽屏直接占一列，窄屏才走浮层 + 遮罩。 */
+const narrowQuery = window.matchMedia('(max-width: 1100px)')
+const isNarrow = ref(narrowQuery.matches)
+const sideOpen = ref(!narrowQuery.matches) // 宽屏默认展开左栏，窄屏默认收起
 const accOpen = reactive({ 1: true, 2: true, 3: true })
 const scrollbarRef = ref()
 const openDrawer = () => {
-  drawerVisible.value = true
-  maskVisible.value = true
+  sideOpen.value = true
 }
 const closeDrawer = () => {
-  drawerVisible.value = false
-  maskVisible.value = false
+  sideOpen.value = false
 }
 const toggleDrawer = () => {
-  drawerVisible.value ? closeDrawer() : openDrawer()
+  sideOpen.value = !sideOpen.value
 }
+const gearBtnText = computed(() => {
+  if (isNarrow.value) return '⚙ 配置'
+  return sideOpen.value ? '⇤ 收起配置' : '⚙ 展开配置'
+})
+const emptyHint = computed(() => {
+  if (isNarrow.value) return '点击右下角「开始拆书」，或先点右上角「配置」选择章节与提示词。'
+  if (!sideOpen.value) return '点右上角「展开配置」选择章节与提示词，然后点右下角「开始拆书」。'
+  return '在左侧选择章节与提示词，然后点右下角「开始拆书」。'
+})
+const handleNarrowChange = (e: MediaQueryListEvent) => {
+  isNarrow.value = e.matches
+  // 宽 → 窄：收起浮层，否则又会盖住顶栏；窄 → 宽：左栏直接摊开
+  sideOpen.value = !e.matches
+}
+narrowQuery.addEventListener('change', handleNarrowChange)
+onUnmounted(() => narrowQuery.removeEventListener('change', handleNarrowChange))
 
 const canStart = computed(() => {
   return selectedChapters.value.length > 0 && !!selectedPromptId.value && !!selectedModelId.value
@@ -936,7 +956,8 @@ const startAnalysis = async () => {
     return
   }
 
-  closeDrawer()
+  // 窄屏才关浮层；宽屏左栏常驻，拆书时保留配置更便于边看边调
+  if (isNarrow.value) closeDrawer()
   analyzing.value = true
   analysisStopped.value = false
   analysisAbortController.value = new AbortController()
@@ -1275,6 +1296,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 /* ============ 主画布 ============ */
 .canvas {
   flex: 1;
+  min-width: 0;
   position: relative;
   min-height: 0;
 }
@@ -1442,8 +1464,31 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   box-shadow: none;
 }
 
-/* ============ 抽屉遮罩 + 左抽屉 ============ */
+/* ============ 主区布局 + 配置区 ============
+ * 宽屏：左配置是常驻一列（可收起），不再压住顶栏；窄屏：退回浮层 + 遮罩。 */
+.ba-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  /* 行高必须钉死在容器高度上，否则章节一多左栏会把整页撑高、内部滚动失效 */
+  grid-template-rows: minmax(0, 1fr);
+  transition: grid-template-columns 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ba-main.side-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.ba-main.side-collapsed .drawer {
+  opacity: 0;
+  visibility: hidden;
+  border-right-color: transparent;
+}
+
+/* 宽屏下不需要遮罩：配置是常驻列，不是浮层 */
 .mask {
+  display: none;
   position: fixed;
   inset: 0;
   background: rgba(5, 5, 12, 0.55);
@@ -1459,50 +1504,55 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 }
 
 .drawer {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: min(420px, 92vw);
+  position: relative;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
   background: #191932;
   border-right: 1px solid var(--border);
-  transform: translateX(-102%);
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 41;
+  transform: none;
+  transition: opacity 0.18s ease;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-.drawer.show {
-  transform: none;
+@media (max-width: 1100px) {
+  .ba-main,
+  .ba-main.side-collapsed {
+    display: flex;
+    grid-template-columns: none;
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(420px, 92vw);
+    transform: translateX(-102%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 41;
+    overflow: visible;
+  }
+
+  .drawer.show {
+    transform: none;
+  }
+
+  .ba-main.side-collapsed .drawer {
+    opacity: 1;
+    visibility: visible;
+    border-right-color: var(--border);
+  }
+
+  .mask {
+    display: block;
+  }
 }
 
-.drawer-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.drawer-head h3 {
-  font-size: 16px;
-  flex: 1;
-  color: var(--text);
-}
-
-.drawer-head .x {
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.drawer-head .x:hover {
-  color: var(--text);
-}
-
+/* 配置区没有标题栏：标题与 ✕ 已去掉，收起动作只留顶栏的「收起配置」 */
 .drawer-body {
   flex: 1;
   overflow-y: auto;
@@ -1536,6 +1586,9 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   border-radius: 13px;
   overflow: hidden;
   background: var(--panel);
+  /* 各分区按自身内容高度排列，超出部分交给 .drawer-body 滚动；
+     不再互相挤压（章节多的时候列表曾被压到只剩两行） */
+  flex-shrink: 0;
 }
 
 .acc-head {
@@ -1605,10 +1658,10 @@ const viewHistoryDetail = (record: HistoryRecord) => {
   padding: 6px 0;
 }
 
-/* 章节（自适应抽屉剩余高度） */
+/* 章节（自适应抽屉剩余高度，但保底能看清若干行） */
 .acc-chapters.open {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
 }
@@ -1624,6 +1677,7 @@ const viewHistoryDetail = (record: HistoryRecord) => {
 .chapter-list {
   flex: 1;
   min-height: 0;
+  max-height: 240px;
   display: flex;
   flex-direction: column;
   gap: 4px;

@@ -420,6 +420,11 @@ import {
   restoreInsightsFor,
   collectInsightsByKey,
   buildExistingKeySet,
+  collectRatingNotesByKey,
+  registerImportedRatingNotes,
+  restoreRatingNotesFor,
+  flushRestoredRatingNotes,
+  resetImportedRatingNotes,
 } from '@/utils/promptTransfer'
 import { BOOK_ANALYSIS_PREFIX } from '@/constants/promptCategories'
 
@@ -479,6 +484,8 @@ const importAllUploadRef = ref<any>()
 // 打开整体导入对话框
 const openImportAllDialog = () => {
   importedInsights.value = {}
+  resetImportedRatingNotes()
+  resetImportedRatingNotes()
   importAllPreview.value = null
   importAllDialogVisible.value = true
 }
@@ -490,6 +497,7 @@ const handleImportAllFileChange = async (file: any) => {
     const decodedText = decodeExportData(text)
     const backupData = JSON.parse(decodedText)
     registerImportedInsights(backupData)
+    registerImportedRatingNotes(backupData)
 
     let standalone: any[] = []
     let packs: Record<string, any[]> = {}
@@ -586,6 +594,7 @@ const executeImportAll = async () => {
         importedKeys.add(key)
         const res = await promptAPI.create({
           name: prompt.name,
+          description: prompt.description || '',
           content: prompt.content,
           category,
           order_num: prompt.order_num || 0,
@@ -594,8 +603,14 @@ const executeImportAll = async () => {
           subcategories: prompt.subcategories || [],
           card_type: prompt.card_type || 'normal',
           password: prompt.password || null,
+          metadata: prompt.metadata || null,
+          creator_name: prompt.creator_name || null,
+          version: prompt.version || null,
         })
-        if (res.success) await restoreInsightsFor(prompt.name, category, res.data?.id)
+        if (res.success) {
+          await restoreInsightsFor(prompt.name, category, res.data?.id)
+          restoreRatingNotesFor(prompt.name, category, res.data?.id)
+        }
       }
     }
 
@@ -616,6 +631,7 @@ const executeImportAll = async () => {
             importedKeys.add(key)
             const res = await promptAPI.create({
               name: prompt.name,
+              description: prompt.description || '',
               content: prompt.content,
               category: fullPackName,
               order_num: prompt.order_num || 0,
@@ -624,8 +640,14 @@ const executeImportAll = async () => {
               subcategories: prompt.subcategories || [],
               card_type: prompt.card_type || 'normal',
               password: prompt.password || null,
+              metadata: prompt.metadata || null,
+              creator_name: prompt.creator_name || null,
+              version: prompt.version || null,
             })
-            if (res.success) await restoreInsightsFor(prompt.name, fullPackName, res.data?.id)
+            if (res.success) {
+              await restoreInsightsFor(prompt.name, fullPackName, res.data?.id)
+              restoreRatingNotesFor(prompt.name, fullPackName, res.data?.id)
+            }
           }
         }
       }
@@ -637,6 +659,9 @@ const executeImportAll = async () => {
         isBookAnalysis && !p.startsWith(BOOK_ANALYSIS_PREFIX) ? BOOK_ANALYSIS_PREFIX + p : p
       ))
     }
+
+    // 定级 / 心得笔记一次写回 localStorage（整体恢复会建很多卡片，逐张写太慢）
+    flushRestoredRatingNotes()
 
     ElMessage.success(skipCount > 0 ? `整体恢复成功（跳过重复 ${skipCount} 张）` : '整体恢复成功')
     importAllDialogVisible.value = false
@@ -678,20 +703,27 @@ const toggleStandaloneCard = (id: number) => {
 const executeExportStandalone = async () => {
   const cardsToExport = props.combinedUncategorizedPrompts.filter(p => selectedStandaloneCards.value.includes(p.id))
   const insights = await collectInsightsByKey(props.prompts)
+  const extras = collectRatingNotesByKey(cardsToExport)
   const exportData = {
     type: 'standalone-cards',
-    version: '1.0',
+    version: '1.1',
     exportTime: new Date().toISOString(),
     insights,
+    extras,
     prompts: cardsToExport.map(p => ({
       name: p.name,
+      description: p.description || '',
       content: p.content,
       category: p.category,
       order_num: p.order_num,
       created_at: p.created_at,
       fields: p.fields,
+      subcategories: p.subcategories,
       card_type: p.card_type || 'normal',
       password: p.password || null,
+      metadata: p.metadata || null,
+      creator_name: p.creator_name || null,
+      version: p.version || null,
     }))
   }
   
@@ -726,10 +758,12 @@ const executeExportPack = async () => {
       type: 'book-analysis-packs',
       exportedAt: new Date().toISOString(),
       insights,
+      extras: collectRatingNotesByKey(bookCategory.prompts),
       packs: [{
         packName: bookCategory.name.replace(BOOK_ANALYSIS_PREFIX, ''),
         prompts: bookCategory.prompts.map(p => ({
           name: p.name,
+          description: p.description || '',
           content: p.content,
           category: bookCategory.name,
           order_num: p.order_num || 0,
@@ -737,6 +771,9 @@ const executeExportPack = async () => {
           fields: p.fields || [],
           card_type: p.card_type || 'normal',
           password: p.password || null,
+          metadata: p.metadata || null,
+          creator_name: p.creator_name || null,
+          version: p.version || null,
         }))
       }]
     }
@@ -757,19 +794,25 @@ const executeExportPack = async () => {
 
   const exportData = {
     type: 'card-pack',
-    version: '1.0',
+    version: '1.1',
     exportTime: new Date().toISOString(),
     insights,
+    extras: collectRatingNotesByKey(category.prompts),
     packName: category.name,
     prompts: category.prompts.map(p => ({
       name: p.name,
+      description: p.description || '',
       content: p.content,
       category: p.category,
       order_num: p.order_num,
       created_at: p.created_at,
       fields: p.fields,
+      subcategories: p.subcategories,
       card_type: p.card_type || 'normal',
       password: p.password || null,
+      metadata: p.metadata || null,
+      creator_name: p.creator_name || null,
+      version: p.version || null,
     }))
   }
 
@@ -788,6 +831,7 @@ const executeExportPack = async () => {
 // 打开导入独立卡片弹窗
 const openImportStandaloneDialog = () => {
   importedInsights.value = {}
+  resetImportedRatingNotes()
   importStandalonePreview.value = []
   selectedImportCards.value = []
   selectAllImportStandalone.value = false
@@ -803,6 +847,7 @@ const handleStandaloneFileChange = (file: any) => {
       const decodedContent = decodeExportData(content)
       const data = JSON.parse(decodedContent)
       registerImportedInsights(data)
+      registerImportedRatingNotes(data)
       
       if (data.type === 'standalone-cards' && Array.isArray(data.prompts)) {
         importStandalonePreview.value = data.prompts
@@ -892,17 +937,23 @@ const executeImportStandalone = async () => {
       importedKeys.add(key)
       const res = await promptAPI.create({
         name: card.name,
+        description: card.description || '',
         content: card.content,
         category,
         order_num: card.order_num || 0,
         created_at: card.created_at,
         fields: card.fields,
+        subcategories: card.subcategories,
         card_type: card.card_type || 'normal',
         password: card.password || null,
+        metadata: card.metadata || undefined,
+        creator_name: card.creator_name || undefined,
+        version: card.version || undefined,
       })
       if (res.success) {
         successCount++
         await restoreInsightsFor(card.name, category, res.data?.id)
+        restoreRatingNotesFor(card.name, category, res.data?.id)
       } else {
         failCount++
       }
@@ -912,6 +963,8 @@ const executeImportStandalone = async () => {
   }
   
   await props.refresh()
+
+  flushRestoredRatingNotes()
   
   if (failCount === 0) {
     ElMessage.success(
@@ -929,6 +982,7 @@ const executeImportStandalone = async () => {
 // 打开导入卡包弹窗
 const openImportPackDialog = () => {
   importedInsights.value = {}
+  resetImportedRatingNotes()
   importPackPreview.value = null
   importPackDialogVisible.value = true
 }
@@ -942,6 +996,7 @@ const handlePackFileChange = (file: any) => {
       const decodedContent = decodeExportData(content)
       const data = JSON.parse(decodedContent)
       registerImportedInsights(data)
+      registerImportedRatingNotes(data)
 
       // 普通卡包（编码格式）
       if (data.type === 'card-pack' && Array.isArray(data.prompts)) {
@@ -1014,17 +1069,23 @@ const executeImportPack = async () => {
       importedKeys.add(key)
       const res = await promptAPI.create({
         name: card.name,
+        description: card.description || '',
         content: card.content,
         category: fullPackName,
         order_num: card.order_num || 0,
         created_at: card.created_at,
         fields: card.fields,
+        subcategories: card.subcategories,
         card_type: card.card_type || 'normal',
         password: card.password || null,
+        metadata: card.metadata || undefined,
+        creator_name: card.creator_name || undefined,
+        version: card.version || undefined,
       })
       if (res.success) {
         successCount++
         await restoreInsightsFor(card.name, fullPackName, res.data?.id)
+        restoreRatingNotesFor(card.name, fullPackName, res.data?.id)
       } else {
         failCount++
       }
@@ -1034,6 +1095,8 @@ const executeImportPack = async () => {
   }
 
   await props.refresh()
+
+  flushRestoredRatingNotes()
 
   if (failCount === 0) {
     ElMessage.success(
@@ -1051,6 +1114,7 @@ const executeImportPack = async () => {
 // 打开导入并转换txt/md弹窗
 const openImportConvertDialog = () => {
   importedInsights.value = {}
+  resetImportedRatingNotes()
   importConvertPreview.value = []
   selectedImportConvertCards.value = []
   selectAllImportConvert.value = false
